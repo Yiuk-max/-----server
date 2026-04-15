@@ -1,5 +1,6 @@
 #include <iostream>
-#include <cstring>
+#include <string>
+#include <vector>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -12,8 +13,7 @@ int main(){
         return -1;
     }
     //bind the socket to an address and port
-    struct sockaddr_in6 server_addr;
-    memset(&server_addr,0,sizeof(server_addr));// Initialize the server address structure
+    struct sockaddr_in6 server_addr{};
     server_addr.sin6_family = AF_INET6;
     server_addr.sin6_addr = in6addr_any;    //listen on all interfaces
     server_addr.sin6_port = htons(8080);
@@ -42,24 +42,24 @@ int main(){
         std::cout << "Accepted a connection" << std::endl;
 
         // Handle the connection
-        char buffer[1024];
+        std::vector<char> buffer(1024);
         while (true)
         {
-            ssize_t read_bytes = recv(client_fd,buffer,sizeof(buffer)-1,0);
-            if(read_bytes == -1){
+            ssize_t read_bytes = recv(client_fd, buffer.data(), buffer.size(), 0);
+            if (read_bytes == -1) {
                 std::cerr << "Failed to read from socket" << std::endl;
                 break;
-            }else if(read_bytes == 0){
+            } else if (read_bytes == 0) {
                 std::cout << "Client disconnected" << std::endl;
                 break;
             }
-            if(strncmp(buffer, "exit", 4) == 0){
+            std::string message(buffer.data(), static_cast<std::size_t>(read_bytes));
+            if (message.rfind("exit", 0) == 0) {
                 std::cout << "Client requested to close the connection" << std::endl;
                 write(client_fd, "SERVER POWEROFF\n", 17);
                 break;
             }
-            write(client_fd,buffer,read_bytes);
-            memset(buffer,0,sizeof(buffer));
+            write(client_fd, message.data(), message.size());
         }
         close(client_fd);
     }
