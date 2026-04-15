@@ -30,34 +30,41 @@ int main(){
     }
     std::cout << "Server is listening on port 8080..." << std::endl;
     //accept a connection
-    struct sockaddr_in6 client_addr;
-    socklen_t client_addr_len = sizeof(client_addr);
-    int client_fd = accept(server_fd,(struct sockaddr *)&client_addr,&client_addr_len);
-    if(client_fd == -1){
-        std::cerr << "Failed to accept connection" << std::endl;
-        close(server_fd);
-        return 1;
-    }
-    std::cout << "Accepted a connection" << std::endl;
-
-    // Handle the connection
-    char buffer[1024];
-    while (true)
-    {
-        ssize_t read_bytes = recv(client_fd,buffer,sizeof(buffer)-1,0);
-        if(read_bytes == -1){
-            std::cerr << "Failed to read from socket" << std::endl;
-            break;
-        }else if(read_bytes == 0){
-            std::cout << "Client disconnected" << std::endl;
-            break;
+    for(;;){
+        struct sockaddr_in6 client_addr;
+        socklen_t client_addr_len = sizeof(client_addr);
+        int client_fd = accept(server_fd,(struct sockaddr *)&client_addr,&client_addr_len);
+        if(client_fd == -1){
+            std::cerr << "Failed to accept connection" << std::endl;
+            close(server_fd);
+            return 1;
         }
-        write(client_fd,buffer,read_bytes);
-        memset(buffer,0,sizeof(buffer));
+        std::cout << "Accepted a connection" << std::endl;
+
+        // Handle the connection
+        char buffer[1024];
+        while (true)
+        {
+            ssize_t read_bytes = recv(client_fd,buffer,sizeof(buffer)-1,0);
+            if(read_bytes == -1){
+                std::cerr << "Failed to read from socket" << std::endl;
+                break;
+            }else if(read_bytes == 0){
+                std::cout << "Client disconnected" << std::endl;
+                break;
+            }
+            if(strncmp(buffer, "exit", 4) == 0){
+                std::cout << "Client requested to close the connection" << std::endl;
+                write(client_fd, "SERVER POWEROFF\n", 17);
+                break;
+            }
+            write(client_fd,buffer,read_bytes);
+            memset(buffer,0,sizeof(buffer));
+        }
+        close(client_fd);
     }
-    
     // Close the socket
-    close(client_fd);
+
     close(server_fd);
 
 }
