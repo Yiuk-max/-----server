@@ -72,10 +72,24 @@ include CMakeFiles/server.dir/flags.make
 CMakeFiles/server.dir/codegen:
 .PHONY : CMakeFiles/server.dir/codegen
 
+CMakeFiles/server.dir/handle_msg.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/handle_msg.cpp.o: /home/ubuntu/Desktop/server/handle_msg.cpp
+CMakeFiles/server.dir/handle_msg.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/server.dir/handle_msg.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/handle_msg.cpp.o -MF CMakeFiles/server.dir/handle_msg.cpp.o.d -o CMakeFiles/server.dir/handle_msg.cpp.o -c /home/ubuntu/Desktop/server/handle_msg.cpp
+
+CMakeFiles/server.dir/handle_msg.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/handle_msg.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/handle_msg.cpp > CMakeFiles/server.dir/handle_msg.cpp.i
+
+CMakeFiles/server.dir/handle_msg.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/handle_msg.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/handle_msg.cpp -o CMakeFiles/server.dir/handle_msg.cpp.s
+
 CMakeFiles/server.dir/main.cpp.o: CMakeFiles/server.dir/flags.make
 CMakeFiles/server.dir/main.cpp.o: /home/ubuntu/Desktop/server/main.cpp
 CMakeFiles/server.dir/main.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/server.dir/main.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/server.dir/main.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/main.cpp.o -MF CMakeFiles/server.dir/main.cpp.o.d -o CMakeFiles/server.dir/main.cpp.o -c /home/ubuntu/Desktop/server/main.cpp
 
 CMakeFiles/server.dir/main.cpp.i: cmake_force
@@ -86,18 +100,36 @@ CMakeFiles/server.dir/main.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/main.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/main.cpp -o CMakeFiles/server.dir/main.cpp.s
 
+CMakeFiles/server.dir/user.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/user.cpp.o: /home/ubuntu/Desktop/server/user.cpp
+CMakeFiles/server.dir/user.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/server.dir/user.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/user.cpp.o -MF CMakeFiles/server.dir/user.cpp.o.d -o CMakeFiles/server.dir/user.cpp.o -c /home/ubuntu/Desktop/server/user.cpp
+
+CMakeFiles/server.dir/user.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/user.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/user.cpp > CMakeFiles/server.dir/user.cpp.i
+
+CMakeFiles/server.dir/user.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/user.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/user.cpp -o CMakeFiles/server.dir/user.cpp.s
+
 # Object files for target server
 server_OBJECTS = \
-"CMakeFiles/server.dir/main.cpp.o"
+"CMakeFiles/server.dir/handle_msg.cpp.o" \
+"CMakeFiles/server.dir/main.cpp.o" \
+"CMakeFiles/server.dir/user.cpp.o"
 
 # External object files for target server
 server_EXTERNAL_OBJECTS =
 
+server: CMakeFiles/server.dir/handle_msg.cpp.o
 server: CMakeFiles/server.dir/main.cpp.o
+server: CMakeFiles/server.dir/user.cpp.o
 server: CMakeFiles/server.dir/build.make
 server: CMakeFiles/server.dir/compiler_depend.ts
 server: CMakeFiles/server.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable server"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX executable server"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/server.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

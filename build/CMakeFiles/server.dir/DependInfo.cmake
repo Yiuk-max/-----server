@@ -8,7 +8,9 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "/home/ubuntu/Desktop/server/handle_msg.cpp" "CMakeFiles/server.dir/handle_msg.cpp.o" "gcc" "CMakeFiles/server.dir/handle_msg.cpp.o.d"
   "/home/ubuntu/Desktop/server/main.cpp" "CMakeFiles/server.dir/main.cpp.o" "gcc" "CMakeFiles/server.dir/main.cpp.o.d"
+  "/home/ubuntu/Desktop/server/user.cpp" "CMakeFiles/server.dir/user.cpp.o" "gcc" "CMakeFiles/server.dir/user.cpp.o.d"
   "" "server" "gcc" "CMakeFiles/server.dir/link.d"
   )
 

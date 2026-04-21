@@ -1,6 +1,8 @@
-CMakeFiles/server.dir/main.cpp.o: /home/ubuntu/Desktop/server/main.cpp \
- /usr/include/stdc-predef.h /home/ubuntu/Desktop/server/total.h \
- /usr/include/c++/13/iostream /usr/include/c++/13/bits/requires_hosted.h \
+CMakeFiles/server.dir/handle_msg.cpp.o: \
+ /home/ubuntu/Desktop/server/handle_msg.cpp /usr/include/stdc-predef.h \
+ /home/ubuntu/Desktop/server/handle_msg.h \
+ /home/ubuntu/Desktop/server/total.h /usr/include/c++/13/iostream \
+ /usr/include/c++/13/bits/requires_hosted.h \
  /usr/include/x86_64-linux-gnu/c++/13/bits/c++config.h \
  /usr/include/x86_64-linux-gnu/c++/13/bits/os_defines.h \
  /usr/include/features.h /usr/include/features-time64.h \
@@ -214,5 +216,4 @@ CMakeFiles/server.dir/main.cpp.o: /home/ubuntu/Desktop/server/main.cpp \
  /usr/include/c++/13/bits/atomic_lockfree_defines.h \
  /usr/include/c++/13/backward/auto_ptr.h \
  /usr/include/c++/13/pstl/glue_memory_defs.h \
- /home/ubuntu/Desktop/server/user.h \
- /home/ubuntu/Desktop/server/handle_msg.h
+ /home/ubuntu/Desktop/server/user.h

@@ -2,7 +2,9 @@ server: \
   /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/Scrt1.o \
   /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/crti.o \
   /usr/lib/gcc/x86_64-linux-gnu/13/crtbeginS.o \
+  CMakeFiles/server.dir/handle_msg.cpp.o \
   CMakeFiles/server.dir/main.cpp.o \
+  CMakeFiles/server.dir/user.cpp.o \
   /usr/lib/gcc/x86_64-linux-gnu/13/libstdc++.so \
   /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libm.so \
   /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libm.so \
@@ -38,7 +40,11 @@ server: \
 
 /usr/lib/gcc/x86_64-linux-gnu/13/crtbeginS.o:
 
+CMakeFiles/server.dir/handle_msg.cpp.o:
+
 CMakeFiles/server.dir/main.cpp.o:
+
+CMakeFiles/server.dir/user.cpp.o:
 
 /usr/lib/gcc/x86_64-linux-gnu/13/libstdc++.so:
 
