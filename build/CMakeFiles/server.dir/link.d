@@ -2,9 +2,10 @@ server: \
   /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/Scrt1.o \
   /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/crti.o \
   /usr/lib/gcc/x86_64-linux-gnu/13/crtbeginS.o \
-  CMakeFiles/server.dir/handle_msg.cpp.o \
   CMakeFiles/server.dir/main.cpp.o \
-  CMakeFiles/server.dir/user.cpp.o \
+  CMakeFiles/server.dir/server.cpp.o \
+  CMakeFiles/server.dir/session.cpp.o \
+  /usr/lib/x86_64-linux-gnu/libboost_system.so.1.83.0 \
   /usr/lib/gcc/x86_64-linux-gnu/13/libstdc++.so \
   /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libm.so \
   /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libm.so \
@@ -40,11 +41,13 @@ server: \
 
 /usr/lib/gcc/x86_64-linux-gnu/13/crtbeginS.o:
 
-CMakeFiles/server.dir/handle_msg.cpp.o:
-
 CMakeFiles/server.dir/main.cpp.o:
 
-CMakeFiles/server.dir/user.cpp.o:
+CMakeFiles/server.dir/server.cpp.o:
+
+CMakeFiles/server.dir/session.cpp.o:
+
+/usr/lib/x86_64-linux-gnu/libboost_system.so.1.83.0:
 
 /usr/lib/gcc/x86_64-linux-gnu/13/libstdc++.so:
 
