@@ -129,6 +129,54 @@ server/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/build
 .PHONY : server/fast
 
+group.o: group.cpp.o
+.PHONY : group.o
+
+# target to build an object file
+group.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/group.cpp.o
+.PHONY : group.cpp.o
+
+group.i: group.cpp.i
+.PHONY : group.i
+
+# target to preprocess a source file
+group.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/group.cpp.i
+.PHONY : group.cpp.i
+
+group.s: group.cpp.s
+.PHONY : group.s
+
+# target to generate assembly for a file
+group.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/group.cpp.s
+.PHONY : group.cpp.s
+
+handle_msg.o: handle_msg.cpp.o
+.PHONY : handle_msg.o
+
+# target to build an object file
+handle_msg.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/handle_msg.cpp.o
+.PHONY : handle_msg.cpp.o
+
+handle_msg.i: handle_msg.cpp.i
+.PHONY : handle_msg.i
+
+# target to preprocess a source file
+handle_msg.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/handle_msg.cpp.i
+.PHONY : handle_msg.cpp.i
+
+handle_msg.s: handle_msg.cpp.s
+.PHONY : handle_msg.s
+
+# target to generate assembly for a file
+handle_msg.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/handle_msg.cpp.s
+.PHONY : handle_msg.cpp.s
+
 main.o: main.cpp.o
 .PHONY : main.o
 
@@ -153,53 +201,29 @@ main.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/main.cpp.s
 .PHONY : main.cpp.s
 
-server.o: server.cpp.o
-.PHONY : server.o
+user.o: user.cpp.o
+.PHONY : user.o
 
 # target to build an object file
-server.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/server.cpp.o
-.PHONY : server.cpp.o
+user.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/user.cpp.o
+.PHONY : user.cpp.o
 
-server.i: server.cpp.i
-.PHONY : server.i
-
-# target to preprocess a source file
-server.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/server.cpp.i
-.PHONY : server.cpp.i
-
-server.s: server.cpp.s
-.PHONY : server.s
-
-# target to generate assembly for a file
-server.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/server.cpp.s
-.PHONY : server.cpp.s
-
-session.o: session.cpp.o
-.PHONY : session.o
-
-# target to build an object file
-session.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/session.cpp.o
-.PHONY : session.cpp.o
-
-session.i: session.cpp.i
-.PHONY : session.i
+user.i: user.cpp.i
+.PHONY : user.i
 
 # target to preprocess a source file
-session.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/session.cpp.i
-.PHONY : session.cpp.i
+user.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/user.cpp.i
+.PHONY : user.cpp.i
 
-session.s: session.cpp.s
-.PHONY : session.s
+user.s: user.cpp.s
+.PHONY : user.s
 
 # target to generate assembly for a file
-session.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/session.cpp.s
-.PHONY : session.cpp.s
+user.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/user.cpp.s
+.PHONY : user.cpp.s
 
 # Help Target
 help:
@@ -210,15 +234,18 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... server"
+	@echo "... group.o"
+	@echo "... group.i"
+	@echo "... group.s"
+	@echo "... handle_msg.o"
+	@echo "... handle_msg.i"
+	@echo "... handle_msg.s"
 	@echo "... main.o"
 	@echo "... main.i"
 	@echo "... main.s"
-	@echo "... server.o"
-	@echo "... server.i"
-	@echo "... server.s"
-	@echo "... session.o"
-	@echo "... session.i"
-	@echo "... session.s"
+	@echo "... user.o"
+	@echo "... user.i"
+	@echo "... user.s"
 .PHONY : help
 
 
