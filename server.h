@@ -27,6 +27,8 @@ public:
     void unregister_user(const std::string& name, const std::shared_ptr<Session>& session);
     std::string build_chat_list();
     bool create_group(const std::string& group_name, const std::string& creator_name);
+    bool add_user_to_group(const std::string& group_name, const std::string& username);
+    bool remove_user_from_group(const std::string& group_name, const std::string& username);
     bool user_exists(const std::string& username);
     bool group_exists(const std::string& group_name);
     bool send_private(const std::string& from, const std::string& to, const std::string& msg);

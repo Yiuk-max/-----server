@@ -144,6 +144,24 @@ void Session::handle_group_chat(const std::string& line) {
         state_ = State::Command;
         return;
     }
+    if (line.rfind("/add_client:", 0) == 0) {
+        // 恢复旧功能：群聊态支持动态拉人。
+        deliver(server_.build_chat_list());
+        const std::string target = trim_line(line.substr(std::string("/add_client:").size()));
+        if (!server_.add_user_to_group(group_target_, target)) {
+            deliver("user not found!\n");
+        }
+        return;
+    }
+    if (line.rfind("/delete_client:", 0) == 0) {
+        // 恢复旧功能：群聊态支持动态踢人。
+        deliver(server_.build_chat_list());
+        const std::string target = trim_line(line.substr(std::string("/delete_client:").size()));
+        if (!server_.remove_user_from_group(group_target_, target)) {
+            deliver("user not found!\n");
+        }
+        return;
+    }
     if (!server_.send_group(group_target_, username_, line)) {
         deliver("group not found\n");
         state_ = State::Command;

@@ -30,6 +30,10 @@ void Server::unregister_user(const std::string& name, const std::shared_ptr<Sess
     if (it != users_.end() && it->second.lock() == session) {
         users_.erase(it);
     }
+    // 用户离线时，从所有群成员列表里移除，避免保留脏成员。
+    for (auto& group_item : groups_) {
+        group_item.second.erase(name);
+    }
     sessions_.erase(session);
 }
 
@@ -55,6 +59,29 @@ bool Server::create_group(const std::string& group_name, const std::string& crea
     }
     groups_[group_name].insert(creator_name);
     return true;
+}
+
+bool Server::add_user_to_group(const std::string& group_name, const std::string& username) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto git = groups_.find(group_name);
+    if (git == groups_.end()) {
+        return false;
+    }
+    if (users_.count(username) == 0) {
+        return false;
+    }
+    git->second.insert(username);
+    return true;
+}
+
+bool Server::remove_user_from_group(const std::string& group_name, const std::string& username) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto git = groups_.find(group_name);
+    if (git == groups_.end()) {
+        return false;
+    }
+    auto erased = git->second.erase(username);
+    return erased > 0;
 }
 
 bool Server::user_exists(const std::string& username) {
