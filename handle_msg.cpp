@@ -1,6 +1,14 @@
 #include "handle_msg.h"
 #include "group.h"
 
+namespace {
+std::string trim_crlf(std::string s) {
+    s.erase(std::remove(s.begin(), s.end(), '\n'), s.end());
+    s.erase(std::remove(s.begin(), s.end(), '\r'), s.end());
+    return s;
+}
+}
+
 extern bool running;
 void handle_msg::close_server(){
     std::cout << "Client requested to close the connection" << std::endl;
@@ -16,6 +24,19 @@ void handle_msg::close_server(){
     }
     exit(0);
 }
+void handle_msg::exit_self(){
+    std::lock_guard<std::mutex> lock(client_mutex);
+    auto user_it = users.find(client_fd);
+    if (user_it != users.end()) {
+        username_to_fd.erase(user_it->second.getName());
+    }
+    auto it = std::find(activate_clients.begin(), activate_clients.end(), client_fd);
+    if (it != activate_clients.end()) {
+        activate_clients.erase(it);
+    }
+    users.erase(client_fd);
+    close(client_fd);
+}
 void handle_msg::show_chatlist(){
     std::lock_guard<std::mutex>lock (client_mutex);
     std::string name_list="group\n";
@@ -29,67 +50,85 @@ void handle_msg::show_chatlist(){
     }
     write(client_fd,name_list.c_str(),name_list.size());
 }
-void handle_msg::handle(){
-    std::vector<char> buffer(1024);
+//控制=====================
+void handle_msg::handle(std::string message){
     std::string zhiling1="/spk_to:";
-    while(true){
-        
-        ssize_t read_bytes = recv(client_fd, buffer.data(), buffer.size(), 0);// Read data from the client
-        if (read_bytes == -1) {
-            std::cerr << "Failed to read from socket" << std::endl;
-            break;
-        } else if (read_bytes == 0) {
-            std::cout << "Client disconnected" << std::endl;
-            break;
-        }
-        std::string message(buffer.data(), static_cast<std::size_t>(read_bytes));
+    message = trim_crlf(message);
+
         if(message.find(zhiling1,0)==0){
             std::string name = message.substr(zhiling1.length());
-            spk_to(name);
+            spk_to(name,message);
         }else if(message.find("/show",0)==0){
             show_chatlist();
         }
-        /*else if(message.rfind("spk_public:", 0) == 0){
-            spk_public(message);
-        }else if(message.rfind("spk_private:", 0) == 0){
-            spk_private(message);
-        }else if(message.rfind("show", 0) == 0){
-            show_chatlist();
-        }*/
         else if(message.find("/create_group",0)==0){
-            create_group();
-        }
-        else if(message.rfind("/exit", 0) == 0){
-            close_server();
+            create_group(message);
+        }else if(message.find("/group_add_client",0)==0){
+            group_add_client(message);
+        }else if(message.find("/group_delete_client",0)==0){
+            group_delete_client(message);
+        }else if(message.rfind("/exit", 0) == 0){
+            exit_self();
         }else{
 
         }
 
-    }
-    std::lock_guard<std::mutex> lock(client_mutex);
-    auto it = std::find(activate_clients.begin(), activate_clients.end(), client_fd);
-    if (it != activate_clients.end()) {
-        activate_clients.erase(it);
-    }
-    users.erase(client_fd);
-    close(client_fd);
 }
+void handle_msg::spk_to(std::string name,std::string message){
+    //第二个：后面的真正信息
+    std::size_t first_colon = message.find(':');
+    std::size_t second_colon = message.find(':', first_colon + 1);
+    if (first_colon == std::string::npos || second_colon == std::string::npos) {
+        std::string fail = "Invalid format. Use /spk_to:group_or_user:content\n";
+        write(client_fd, fail.c_str(), fail.size());
+        return;
+    }
+    name = message.substr(first_colon + 1, second_colon - first_colon - 1);
+    std::string actual_message = message.substr(second_colon + 1);
+    if (name.empty() || actual_message.empty()) {
+        std::string fail = "Invalid format. Use /spk_to:group_or_user:content\n";
+        write(client_fd, fail.c_str(), fail.size());
+        return;
+    }
+
+    auto it = group_list.find(name);
+    if (it != group_list.end()) {
+        spk_group(it->second,actual_message);
+        return;
+    }
+    for(auto &pair:username_to_fd){
+        if(pair.first == name){
+            int target_fd=username_to_fd[name];
+            spk_personally(target_fd,actual_message);
+            break;
+        }
+    }
+}
+//===============
 void handle_msg::login(){
    
-    write(client_fd, "Please enter your name : ", 35);
+    std::string name_prompt = "Please enter your name : ";
+    write(client_fd, name_prompt.c_str(), name_prompt.size());
    
     std::vector<char> buffer(1024);
     ssize_t read_bytes = recv(client_fd, buffer.data(), buffer.size(), 0);
     if (read_bytes == -1) {
         std::cerr << "Failed to read from socket" << std::endl;
+        auto it = std::find(activate_clients.begin(), activate_clients.end(), client_fd);
+        if (it != activate_clients.end()) {
+            activate_clients.erase(it);
+        }
+        users.erase(client_fd);
         return;
     } else if (read_bytes == 0) {
         std::cout << "Client disconnected" << std::endl;
         return;
     }
     std::string name(buffer.data(), static_cast<std::size_t>(read_bytes));
+    name = trim_crlf(name);
 
-    write(client_fd, "Please enter your password : ", 35);
+    std::string pw_prompt = "Please enter your password : ";
+    write(client_fd, pw_prompt.c_str(), pw_prompt.size());
 
     read_bytes = recv(client_fd, buffer.data(), buffer.size(), 0);
     if (read_bytes == -1) {
@@ -100,6 +139,7 @@ void handle_msg::login(){
         return;
     }
     std::string password(buffer.data(), static_cast<std::size_t>(read_bytes));
+    password = trim_crlf(password);
 
     user new_user(client_fd, name, password);
     
@@ -109,134 +149,55 @@ void handle_msg::login(){
         username_to_fd[name]=client_fd;
        
         activate_clients.push_back(client_fd);
-        write(client_fd, "Login successful\n", 17);
+        std::string success = "Login successful\n";
+        write(client_fd, success.c_str(), success.size());
         
     }else {
-        write(client_fd, "Login failed\n", 14);
+        std::string fail = "Login failed\n";
+        write(client_fd, fail.c_str(), fail.size());
         close(client_fd);
     }
-
 }
-void handle_msg::spk_public(std::string message){
-    std::vector<char> buffer(1024);
-        std::string msg="[public] "+users[client_fd].getName()+":"+message.substr(11);
+
+void handle_msg::spk_group(std::shared_ptr<group> chat_group,std::string message){
+
+    write(client_fd,"[group chat]:",13);
+
+
+
+    chat_group->group_spk(message);
         
-        std::lock_guard<std::mutex> lock(client_mutex);
-        for(int fd : activate_clients){
 
-            write(fd, msg.data(), msg.size());
-        }
-        write(client_fd, "send successfully", 17);
-    
-}
-void handle_msg::spk_private(std::string message){
-    std::vector<char> buffer(1024);
-    size_t first_colon =message.find(":");
-    size_t second_colon =message.find(":",first_colon+1);
-    std::string target_id=message.substr(first_colon+1,second_colon-first_colon-1);
-    std::string msg = message.substr(second_colon+1);
-    int target_client=-1;
-    std::unique_lock<std::mutex> lock (client_mutex);
-    auto it=username_to_fd.find(target_id);
-    
-    if(it!=username_to_fd.end()){
-        target_client=it->second;
-    }else{
-        write(client_fd,"user not found!",15);
-        return;
-    }
-    lock.unlock();
-    std::string send_msg="[private message ] from ["+users[client_fd].getName()+"] "+msg;
-    
-    write(target_client,send_msg.c_str(),send_msg.size());
-    write(client_fd,"msg sent",8);
-}
-void handle_msg::spk_group(std::shared_ptr<group> chat_group){
-    std::vector<char> buffer(1024);
-    write(client_fd,"[group chat]",12);
-    while(true){
-        ssize_t read_bytes = recv(client_fd, buffer.data(), buffer.size(), 0);// Read data from the client
-        if (read_bytes == -1) {
-            std::cerr << "Failed to read from socket" << std::endl;
-            break;
-        } else if (read_bytes == 0) {
-            std::cout << "Client disconnected" << std::endl;
-            break;
-        }
-        std::string message(buffer.data(), static_cast<std::size_t>(read_bytes));
-        if(message.rfind("/add_client:", 0) == 0){
-            show_chatlist();
-            std::string target_client_name=message.substr(12);
-            chat_group->add_client(target_client_name);
-        }else if(message.rfind("/delete_client:", 0) == 0){
-            show_chatlist();
-            std::string target_client_name=message.substr(15);
-            chat_group->delete_client(target_client_name);
-        }else if(message.rfind("/exit", 0) == 0){
-            return;
-        }else{
-            chat_group->group_spk(message);
-        }
-
-    }
 
 }
-void handle_msg::spk_to(std::string name){
-    
-    auto it = group_list.find(name);
-    if (it != group_list.end()) {
-        spk_group(it->second);
 
-    }
-    for(auto &pair:username_to_fd){
-        if(pair.first == name){
-            int target_fd=username_to_fd[name];
-            spk_personally(target_fd);
-            break;
-        }
-    }
+void handle_msg::spk_personally(int target_fd,std::string message){
 
-
-    
-}
-void handle_msg::spk_personally(int target_fd){
-    std::vector<char> buffer(1024);
-    while(true){
-        ssize_t read_bytes = recv(client_fd, buffer.data(), buffer.size(), 0);// Read data from the client
-        if (read_bytes == -1) {
-            std::cerr << "Failed to read from socket" << std::endl;
-            break;
-        } else if (read_bytes == 0) {
-            std::cout << "Client disconnected" << std::endl;
-            break;
-        }
-        std::string message(buffer.data(), static_cast<std::size_t>(read_bytes));
-        if(message.rfind("/exit", 0) == 0){
-            write(client_fd,"\n[exit from spk_personally]",22);
-            return;
-        }
+      
+        
         std::string msg="["+users[client_fd].getName()+"]:"+message;
         write(target_fd,msg.c_str(),msg.length());
 
-    }
+    
 }
-void handle_msg::create_group(){
-    std::vector<char> buffer(1024);
-    std::string tishi = "plz enter group's name:";
-    std::string tishi2 = "can be same with group/person"; 
-    write(client_fd,tishi.c_str(),tishi.length());
-    ssize_t read_bytes = recv(client_fd, buffer.data(), buffer.size(), 0);// Read data from the client
-    if (read_bytes == -1) {
-        std::cerr << "Failed to read from socket" << std::endl;
-        return;
-    } else if (read_bytes == 0) {
-        std::cout << "Client disconnected" << std::endl;
+void handle_msg::create_group(std::string message){
+    
+
+    std::string tishi2="Group name already exists, please choose another one.\n";
+    std::unique_lock<std::mutex>lock (client_mutex);
+    //第一个：/create_group:后面的真正群名称
+    if (message.find("/create_group:", 0) != 0) {
+        std::string fail = "Invalid format. Use /create_group:group_name\n";
+        write(client_fd, fail.c_str(), fail.size());
         return;
     }
-    std::string name(buffer.data(), static_cast<std::size_t>(read_bytes));
-    name.erase(remove(name.begin(), name.end(), '\n'), name.end());
-    name.erase(remove(name.begin(), name.end(), '\r'), name.end());
-    std::unique_lock<std::mutex>lock (client_mutex);
+    std::string name = message.substr(std::string("/create_group:").length());
+    name = trim_crlf(name);
+    if (name.empty()) {
+        std::string fail = "Group name cannot be empty.\n";
+        write(client_fd, fail.c_str(), fail.size());
+        return;
+    }
     for(auto &pair:group_list){
         if(pair.first == name){
             write(client_fd,tishi2.c_str(),tishi2.length());
@@ -256,4 +217,83 @@ void handle_msg::create_group(){
     std::string success = "create group [" + name + "] success!\n";
     write(client_fd, success.c_str(), success.size());
     return;
+}
+void handle_msg::group_add_client(std::string message){
+    //第一个：和第二个：之间的是真正的群名称
+    //第二个：后面的是真正的信息（要添加的用户名）
+    std::size_t first_colon = message.find(':');
+    std::size_t second_colon = message.find(':', first_colon + 1);
+    if (first_colon == std::string::npos || second_colon == std::string::npos) {
+        std::string fail = "Invalid format. Use /group_add_client:group_name:user_name\n";
+        write(client_fd, fail.c_str(), fail.size());
+        return;
+    }
+    std::string group_name = message.substr(first_colon + 1, second_colon - first_colon - 1);
+    std::string username = message.substr(second_colon + 1);
+    group_name = trim_crlf(group_name);
+    username = trim_crlf(username);
+    if (group_name.empty() || username.empty()) {
+        std::string fail = "Invalid format. Use /group_add_client:group_name:user_name\n";
+        write(client_fd, fail.c_str(), fail.size());
+        return;
+    }
+    auto it = group_list.find(group_name);
+    if (it != group_list.end()) {
+        //找到username对应的fd
+        auto user_it = username_to_fd.find(username);
+        if(user_it == username_to_fd.end()){
+            std::string fail = "User [" + username + "] does not exist.\n";
+            write(client_fd, fail.c_str(), fail.size());
+            return;
+        }
+        it->second->add_client(username);
+         std::string success = "User [" + username + "] added to group [" + group_name + "] successfully.\n";
+        write(client_fd, success.c_str(), success.size());
+    } else {
+        std::string fail = "Group [" + group_name + "] does not exist.\n";
+        write(client_fd, fail.c_str(), fail.size());
+    }
+}
+void handle_msg::group_delete_client(std::string message){
+    //第一个：和第二个：之间的是真正的群名称
+    //第二个：后面的是真正的信息（要删除的用户名）
+    std::size_t first_colon = message.find(':');
+    std::size_t second_colon = message.find(':', first_colon + 1);
+    if (first_colon == std::string::npos || second_colon == std::string::npos) {
+        std::string fail = "Invalid format. Use /group_delete_client:group_name:user_name\n";
+        write(client_fd, fail.c_str(), fail.size());
+        return;
+    }
+    std::string group_name = message.substr(first_colon + 1, second_colon - first_colon - 1);
+    std::string username = message.substr(second_colon + 1);
+    group_name = trim_crlf(group_name);
+    username = trim_crlf(username);
+    if (group_name.empty() || username.empty()) {
+        std::string fail = "Invalid format. Use /group_delete_client:group_name:user_name\n";
+        write(client_fd, fail.c_str(), fail.size());
+        return;
+    }
+    auto it = group_list.find(group_name);
+    if (it != group_list.end()) {
+        if(it->second->delete_client(username)){
+            std::string success = "User [" + username + "] removed from group [" + group_name + "] successfully.\n";
+            write(client_fd, success.c_str(), success.size());
+        }else{
+            std::string fail = "User [" + username + "] is not in group [" + group_name + "].\n";
+            write(client_fd, fail.c_str(), fail.size());
+        }
+        
+    } else {
+        std::string fail = "Group [" + group_name + "] does not exist.\n";
+        write(client_fd, fail.c_str(), fail.size());
+    }
+}
+handle_msg::~handle_msg(){
+    std::lock_guard<std::mutex> lock(client_mutex);
+    auto it = std::find(activate_clients.begin(), activate_clients.end(), client_fd);
+    if (it != activate_clients.end()) {
+        activate_clients.erase(it);
+    }
+    users.erase(client_fd);
+    close(client_fd);
 }

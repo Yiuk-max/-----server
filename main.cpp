@@ -2,14 +2,70 @@
 #include "total.h"
 #include "user.h"
 #include "group.h"
+#include "thread_pool.h"
+#include <cerrno>
 
-void client_thread(const std::shared_ptr<handle_msg>&manager){
-    manager->login();
-    manager->show_chatlist();
-    manager->handle();
+bool running = true;
+
+void accept_connections_thread(int server_fd){
+    while (running){
+    struct sockaddr_in6 client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);//accept a connection
+    int client_fd = accept(server_fd,(struct sockaddr *)&client_addr,&client_addr_len);
+    std::cout << "Accepted a connection" << std::endl;        
+        if(client_fd == -1){
+            std::cerr << "Failed to accept connection" << std::endl;
+            close(server_fd);
+            continue;
+        }else {
+            // Handle the connection in a separate thread
+
+            auto manager=std::make_shared<handle_msg>(client_fd);
+            handle_msg_list[std::to_string(client_fd)] = manager;
+            manager->show_chatlist();
+            std::thread th([manager]() { manager->login(); });// 先登录，登录成功后才处理消息
+
+            th.detach();
+        }
+    }
 }
+void recv_msg_thread(ThreadPool& pool){
+    std::vector<char>buffer(1024);
+     while (running){
+        std::vector<int> disconnected_clients;
+        {
+            std::lock_guard<std::mutex> lock(client_mutex);
+            for(int client_fd : activate_clients){
+                ssize_t read_bytes = recv(client_fd, buffer.data(), buffer.size(), MSG_DONTWAIT); // 非阻塞读取
+                if (read_bytes > 0) {
+                    std::string message(buffer.data(), static_cast<std::size_t>(read_bytes));
+                    pool.add_task([client_fd, message](){
+                        auto it = handle_msg_list.find(std::to_string(client_fd));
+                        if (it != handle_msg_list.end()) {
+                            it->second->handle(message);
+                        }
+                    });
+                }else if(read_bytes == 0){
+                    std::cout << "Client disconnected" << std::endl;
+                    disconnected_clients.push_back(client_fd);
+                } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                    std::cerr << "Failed to read from socket, client_fd=" << client_fd << std::endl;
+                    disconnected_clients.push_back(client_fd);
+                }
+            }
+        }
 
-bool running=true;
+        for (int client_fd : disconnected_clients) {
+            auto it = handle_msg_list.find(std::to_string(client_fd));
+            if(it != handle_msg_list.end()){
+                it->second->exit_self();
+                handle_msg_list.erase(it);
+            }
+        }
+        
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+}
 int main(){
     // Create a socket
     int server_fd = socket(AF_INET6,SOCK_STREAM,0);
@@ -40,29 +96,22 @@ int main(){
         return 1;
     }
     std::cout << "Server is listening on port 8080..." << std::endl;
-    //
-    //std::thread(close_server,std::ref(server_fd)).detach();
-    //accept a connection
+    
+    ThreadPool pool;
+    std::thread accept_thread(accept_connections_thread, server_fd);
+    std::thread recv_thread(recv_msg_thread, std::ref(pool));
+    
+    // 保持服务器运行
     while(running){
-        struct sockaddr_in6 client_addr;
-        socklen_t client_addr_len = sizeof(client_addr);//accept a connection
-        int client_fd = accept(server_fd,(struct sockaddr *)&client_addr,&client_addr_len);
-        std::cout << "Accepted a connection" << std::endl;        
-        if(client_fd == -1){
-            std::cerr << "Failed to accept connection" << std::endl;
-            close(server_fd);
-            return 1;
-        }else {
-            // Handle the connection in a separate thread
-
-            auto manager=std::make_shared<handle_msg>(client_fd);
-            std::thread t(client_thread,manager);
-            t.detach();
-        }
-
+        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-    // Close the socket
-
+    
+    pool.stop_pool();
+    
+    // 等待后台线程结束
+    if (accept_thread.joinable()) accept_thread.join();
+    if (recv_thread.joinable()) recv_thread.join();
     close(server_fd);
-
+    std::cout << "Server stopped." << std::endl;
+    return 0;
 }
