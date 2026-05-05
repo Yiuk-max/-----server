@@ -8,4 +8,7 @@ aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR} SRC_LIST)
 #         main.cpp
     
 # )
+find_package(nlohmann_json REQUIRED)
+
 add_executable(server ${SRC_LIST})
+target_link_libraries(server PRIVATE nlohmann_json::nlohmann_json)

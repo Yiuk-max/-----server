@@ -3,69 +3,14 @@
 #include "user.h"
 #include "group.h"
 #include "thread_pool.h"
+#include "reactor.h"
 #include <cerrno>
+
 
 bool running = true;
 
-void accept_connections_thread(int server_fd){
-    while (running){
-    struct sockaddr_in6 client_addr;
-    socklen_t client_addr_len = sizeof(client_addr);//accept a connection
-    int client_fd = accept(server_fd,(struct sockaddr *)&client_addr,&client_addr_len);
-    std::cout << "Accepted a connection" << std::endl;        
-        if(client_fd == -1){
-            std::cerr << "Failed to accept connection" << std::endl;
-            close(server_fd);
-            continue;
-        }else {
-            // Handle the connection in a separate thread
 
-            auto manager=std::make_shared<handle_msg>(client_fd);
-            handle_msg_list[std::to_string(client_fd)] = manager;
-            manager->show_chatlist();
-            std::thread th([manager]() { manager->login(); });// 先登录，登录成功后才处理消息
 
-            th.detach();
-        }
-    }
-}
-void recv_msg_thread(ThreadPool& pool){
-    std::vector<char>buffer(1024);
-     while (running){
-        std::vector<int> disconnected_clients;
-        {
-            std::lock_guard<std::mutex> lock(client_mutex);
-            for(int client_fd : activate_clients){
-                ssize_t read_bytes = recv(client_fd, buffer.data(), buffer.size(), MSG_DONTWAIT); // 非阻塞读取
-                if (read_bytes > 0) {
-                    std::string message(buffer.data(), static_cast<std::size_t>(read_bytes));
-                    pool.add_task([client_fd, message](){
-                        auto it = handle_msg_list.find(std::to_string(client_fd));
-                        if (it != handle_msg_list.end()) {
-                            it->second->handle(message);
-                        }
-                    });
-                }else if(read_bytes == 0){
-                    std::cout << "Client disconnected" << std::endl;
-                    disconnected_clients.push_back(client_fd);
-                } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                    std::cerr << "Failed to read from socket, client_fd=" << client_fd << std::endl;
-                    disconnected_clients.push_back(client_fd);
-                }
-            }
-        }
-
-        for (int client_fd : disconnected_clients) {
-            auto it = handle_msg_list.find(std::to_string(client_fd));
-            if(it != handle_msg_list.end()){
-                it->second->exit_self();
-                handle_msg_list.erase(it);
-            }
-        }
-        
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    }
-}
 int main(){
     // Create a socket
     int server_fd = socket(AF_INET6,SOCK_STREAM,0);
@@ -98,9 +43,10 @@ int main(){
     std::cout << "Server is listening on port 8080..." << std::endl;
     
     ThreadPool pool;
-    std::thread accept_thread(accept_connections_thread, server_fd);
-    std::thread recv_thread(recv_msg_thread, std::ref(pool));
+    // std::thread accept_thread(accept_connections_thread, server_fd);
+    // std::thread recv_thread(recv_msg_thread, std::ref(pool));
     
+    epoll_event_loop(server_fd, pool);
     // 保持服务器运行
     while(running){
         std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -108,10 +54,32 @@ int main(){
     
     pool.stop_pool();
     
-    // 等待后台线程结束
-    if (accept_thread.joinable()) accept_thread.join();
-    if (recv_thread.joinable()) recv_thread.join();
     close(server_fd);
     std::cout << "Server stopped." << std::endl;
     return 0;
 }
+
+//to do list:
+//修改登陆，通过handle函数处理登录，登录成功后才处理消息    done
+//修改main函数，调用epoll_event_loop(pool)替代recv_msg_thread done
+//handle模块解析json格式的消息，区分登录、私聊、群聊等不同类型的消息  done
+//取消各功能模块通过":"解析原始字符串的方式，直接使用handle模块解析后传递给各功能模块 done
+//添加删除群聊功能 done
+//群聊增加管理员权限，只有管理员才能添加删除群成员，修改群名称等 done
+//创建群聊时，自动将创建者加入群聊，并赋予管理员权限
+//增加错误处理机制，针对各种异常情况给出明确的错误提示，并确保服务器的稳定运行
+//epoll 模块放入单独文件，提供接口供main调用，提高代码的模块化和可维护性，使主函数更简洁，专注于服务器的整体流程控制
+
+//长期目标：
+//解决tcp粘包问题，确保消息的完整性和正确解析
+//增加心跳机制，检测客户端的在线状态，及时清理断开连接的客户端资源
+//增加日志模块，记录服务器的运行状态、错误信息等，便于调试和维护
+
+/*
+    json格式
+
+    type
+    sender_name
+    target_name
+    content
+*/

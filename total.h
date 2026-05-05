@@ -2,17 +2,22 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
+#include <unistd.h>// close
+#include <sys/socket.h>// socket相关
+#include <sys/epoll.h>// 添加epoll头文件
+#include <fcntl.h>// 添加fcntl头文件 一些epoll相关的函数需要用到的宏
+#include <nlohmann/json.hpp>// JSON库
+#include <netinet/in.h>// sockaddr_in6
 #include <thread>
 #include <mutex>
 #include <unordered_map>
 #include <algorithm>
-#include <memory>
-#include <condition_variable>
+#include <memory>//智能指针
+#include <condition_variable>//信号量
 #include <chrono>
 #include "user.h"
+extern bool running;
+using json = nlohmann::json;
 class group;
 class handle_msg;
 

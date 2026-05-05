@@ -10,6 +10,7 @@ bool group::add_client(std::string name){
     int target_fd=-1;
     for(auto& pair:username_to_fd){
         if(pair.first == name){
+            std::lock_guard<std::mutex> lock(group_mutex_);
             target_fd=pair.second;
             break;
         }
@@ -21,6 +22,7 @@ bool group::add_client(std::string name){
     bool replace_one=false;
     for(int i=0;i<group_clients.size();i++){
         if(group_clients[i]==-1){
+            std::lock_guard<std::mutex> lock(group_mutex_);
             group_clients[i]=target_fd;
             replace_one=true;
             break;
@@ -36,6 +38,7 @@ bool group::delete_client(std::string name){
     int target_fd=-1;
     for(auto& pair:client_name_group){
         if(pair.first == name){
+            std::lock_guard<std::mutex> lock(group_mutex_);
             find=true;
             target_fd=pair.second;
             client_name_group.erase(name);
@@ -45,6 +48,7 @@ bool group::delete_client(std::string name){
     if(find){
         for(int i=0;i<group_clients.size();i++){
             if(group_clients[i]==target_fd){
+                std::lock_guard<std::mutex> lock(group_mutex_);
                 group_clients[i]=-1;
                 break;
             }
@@ -53,4 +57,7 @@ bool group::delete_client(std::string name){
     }else{
         return false;
     }
+}
+bool group::is_manager_fd(int fd){
+    return fd == manager_fd_;
 }
