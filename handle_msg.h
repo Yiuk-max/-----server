@@ -1,17 +1,17 @@
+#pragma once
 #include "total.h"
 #include "user.h"
 class handle_msg{
     private:
     int client_fd;
-
+    std::string out_buffer;      // 发送缓冲区
+    std::mutex out_mtx;          // 保护缓冲区的锁
 
     public:
     handle_msg(){};
     handle_msg(int fd):client_fd(fd){}
 
     void spk_to(std::string name,std::string message);//done
-
-    void close_server();//close server
 
     void handle(std::string message);//
     void login(std::string username,std::string password);//
@@ -25,6 +25,11 @@ class handle_msg{
     void group_delete_client(std::string group_name,std::string username);
 
     void modify_group_name(std::string old_name,std::string new_name);
+
+    void send_message(const std::string& message);
+
+    void on_write();
+    
     ~handle_msg();
 
     void exit_self();

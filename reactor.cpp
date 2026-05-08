@@ -1,7 +1,7 @@
 #include "reactor.h"
 
 void epoll_event_loop(int server_fd, ThreadPool& pool) {
-    int epoll_fd = epoll_create1(0);
+    epoll_fd = epoll_create1(0);
     if (epoll_fd == -1) { std::cerr << "Failed to create epoll instance" << std::endl; return; }
 
     struct epoll_event event;
@@ -33,6 +33,19 @@ void epoll_event_loop(int server_fd, ThreadPool& pool) {
                     manager->show_chatlist();
                 }
             } else {
+                std::shared_ptr<handle_msg> manager;
+                {
+                    std::lock_guard<std::mutex> lock(client_mutex);
+                    auto it = handle_msg_list.find(std::to_string(fd));
+                    if (it != handle_msg_list.end()) manager = it->second;
+                }
+                if (!manager) continue; // 连接可能已经被关闭了
+                // 处理EPOLLOUT事件
+                if (events[i].events & EPOLLOUT) {
+                    manager->on_write();
+                    continue; // 处理完写事件后继续下一轮循环
+                }
+                if(!(events[i].events & EPOLLIN)) continue; // 不是读事件，继续下一轮循环
                 // 处理read事件
                 std::string received_data;
                 char buf[1024];

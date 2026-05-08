@@ -1,11 +1,13 @@
 #pragma once
 #include "total.h"
+class handle_msg;
 class group{
     private:
         std::vector<int> group_clients;
         std::unordered_map<std::string,int> client_name_group;
         int manager_fd_;
         std::mutex group_mutex_;
+
     public:
         group()=default;
         group(int manager):manager_fd_(manager){
@@ -51,5 +53,4 @@ class group{
             }
             return *this;
         }
-
 };

@@ -6,7 +6,7 @@ ThreadPool::ThreadPool():is_exit_(false),num_threads_(8){
         workers.emplace_back(std::make_unique<std::thread>(&ThreadPool::run,this));
 
     }
-
+    std::cout <<"thread pool initialized with "<<num_threads_<<" threads."<<std::endl;
 }
 ThreadPool::ThreadPool(int num):is_exit_(false),num_threads_(num){
     if(num_threads_ <= 0){
