@@ -91,7 +91,9 @@ void epoll_event_loop(int server_fd, ThreadPool& pool) {
                             if (it != handle_msg_list.end()) manager = it->second;
                         }
                         if (manager) {
-                            manager->handle(received_data);
+                            manager->process_input(received_data);
+                            // 这里不直接调用handle，而是调用process_input，让handle_msg自己解析消息
+                            // manager->handle(received_data);
                         }
                     });
                 }

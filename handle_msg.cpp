@@ -259,9 +259,16 @@ handle_msg::~handle_msg(){
     close(client_fd);
 }
 void handle_msg::send_message(const std::string& message) {
+    //计算消息长度，构造包头
+    uint32_t msg_length = message.size();
+    std::string packet;
+    packet.append(reinterpret_cast<const char*>(&msg_length), sizeof(msg_length)); // 包头：
+    packet += message; // 包体：消息内容
+
+
     std::lock_guard<std::mutex> lock(out_mtx);
     bool need_register_write = out_buffer.empty();
-    out_buffer += message;
+    out_buffer += packet;
     if (need_register_write) {
         // 这里需要注册写事件，具体实现取决于你的epoll管理逻辑
         // 例如，你可能需要调用一个函数来修改epoll事件，注册EPOLLOUT事件
@@ -297,4 +304,22 @@ void handle_msg::on_write() {
         epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_fd, &event);
     }
 }
-        
+void handle_msg::process_input(std::string raw_message){
+    in_buffer += raw_message;
+    while (in_buffer.size()>=4)
+    {
+        // 解析包头，获取消息长度
+        uint32_t msg_length;
+        std::memcpy(&msg_length, in_buffer.c_str(), sizeof(msg_length));
+        if (in_buffer.size() < 4 + msg_length) {
+            // 包体未完全接收，等待更多数据
+            break;
+        }
+        std::string message = in_buffer.substr(4, msg_length); // 提取消息
+        in_buffer.erase(0, 4 + msg_length); // 移除已处理的部分
+        if(!message.empty()) {
+            handle(message); // 处理消息
+        }
+    }
+    
+}    

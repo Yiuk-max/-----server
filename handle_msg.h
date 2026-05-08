@@ -3,6 +3,7 @@
 #include "user.h"
 class handle_msg{
     private:
+    std::string in_buffer;       // 未处理原始数据
     int client_fd;
     std::string out_buffer;      // 发送缓冲区
     std::mutex out_mtx;          // 保护缓冲区的锁
@@ -26,8 +27,8 @@ class handle_msg{
 
     void modify_group_name(std::string old_name,std::string new_name);
 
+    void process_input(std::string raw_message);//解析包头和包体，调用相应的处理函数
     void send_message(const std::string& message);
-
     void on_write();
     
     ~handle_msg();
