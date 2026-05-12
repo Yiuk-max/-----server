@@ -19,11 +19,11 @@
 extern bool running;
 using json = nlohmann::json;
 class group;
-class handle_msg;
+class Text_msg_handler;
 extern int epoll_fd;
     inline std::mutex client_mutex;
     inline std::vector<int> activate_clients;
     inline std::unordered_map<std::string, int> username_to_fd;
     inline std::unordered_map<int, user> users;
     inline std::unordered_map<std::string,std::shared_ptr<group>> group_list;
-    inline std::unordered_map<std::string,std::shared_ptr<handle_msg>> handle_msg_list;
+    inline std::unordered_map<std::string,std::shared_ptr<Text_msg_handler>> handle_msg_list;

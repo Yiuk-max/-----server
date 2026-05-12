@@ -1,16 +1,17 @@
 #pragma once
 #include "total.h"
-class handle_msg;
+std::shared_ptr<group> find_group_by_name(std::string group_name);
+class Text_msg_handler;
 class group{
     private:
         std::vector<int> group_clients;
         std::unordered_map<std::string,int> client_name_group;
         int manager_fd_;
         std::mutex group_mutex_;
-
+        std::string group_name_;
     public:
         group()=default;
-        group(int manager):manager_fd_(manager){
+        group(int manager,std::string name):manager_fd_(manager),group_name_(name){
             group_clients.push_back(manager_fd_);
             // 补充：将创建者用户名加入组映射（需依赖total.h的users全局变量）
             auto it = users.find(manager_fd_);
@@ -22,6 +23,7 @@ class group{
         bool delete_client(std::string name);
         void group_spk(std::string message);
         bool is_manager_fd(int fd);
+        bool modify_group_name(int renmaer_fd,std::string new_group_name);
         // 拷贝构造
         group(const group& other)
             : group_clients(other.group_clients),

@@ -1,5 +1,14 @@
 #include "group.h"
-#include "handle_msg.h"
+#include "Text_msg_handler.h"
+std::shared_ptr<group> find_group_by_name(std::string group_name){
+    auto it = group_list.find(group_name);
+    if (it == group_list.end()) {
+        // std::string fail = "Group [" + group_name + "] does not exist.\n";
+        // send_message(fail);
+        return nullptr;
+    }
+    return it->second;
+}
 void group::group_spk(std::string message){
     std::lock_guard<std::mutex> lock(group_mutex_);
     for(int fd:group_clients){
@@ -61,4 +70,13 @@ bool group::delete_client(std::string name){
 }
 bool group::is_manager_fd(int fd){
     return fd == manager_fd_;
+}
+bool group::modify_group_name(int renmaer_fd,std::string new_group_name){
+    if(is_manager_fd(renmaer_fd)){
+        group_name_ = new_group_name;
+        return true;
+    }else{
+        //发送失败提示
+    }
+    return false;
 }
