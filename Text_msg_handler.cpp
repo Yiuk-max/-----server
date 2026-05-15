@@ -160,7 +160,7 @@ void Text_msg_handler::create_group(std::string group_name){
     }
     
     //group new_group (client_fd);
-    group_list[group_name]=std::make_shared<group>(client_fd);
+    group_list[group_name]=std::make_shared<group>(client_fd,group_name);
     lock.unlock();
     //  修复：创建成功给客户端提示
     std::string success = "create group [" + group_name + "] success!\n";

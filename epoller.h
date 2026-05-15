@@ -18,7 +18,7 @@ protected:
     int epoller_fd_;
 };
 
-
+class sub_reactor;
 class main_reactor : public epoller{
 public:
     main_reactor(
