@@ -29,7 +29,7 @@ void Text_msg_handler::show_chatlist(){
         
     }
     //write(client_fd,name_list.c_str(),name_list.size());
-    send_message(name_list);
+    package_message(name_list);
 }
 //控制=====================
 void Text_msg_handler::handle(std::string message){
@@ -42,7 +42,7 @@ void Text_msg_handler::handle(std::string message){
     if(!msg_json.contains("type")){
         std::string fail = "Invalid message format: missing 'type' field.\n";
         //write(client_fd, fail.c_str(), fail.size());
-        send_message(fail);
+        package_message(fail);
         return;
     }
     std::string type = msg_json["type"];
@@ -65,12 +65,14 @@ void Text_msg_handler::handle(std::string message){
     }else if(type == "delete_group"){
         delete_group(msg_json["target_name"].get<std::string>());
 
+    }else if(type == "modify_group_name"){
+        modify_group_name(msg_json["target_name"].get<std::string>(),msg_json["content"].get<std::string>());
     }else if(type == "login"){
         login(msg_json["username"].get<std::string>(),msg_json["password"].get<std::string>());
 
     }else{
         std::string fail = "Unknown command type.\n";
-        send_message(fail);
+        package_message(fail);
     }
 
 }
@@ -78,7 +80,7 @@ void Text_msg_handler::spk_to(std::string name,std::string message){
 
     if (name.empty() || message.empty()) {
         std::string fail = "Invalid format. Use /spk_to:group_or_user:content\n";
-        send_message(fail);
+        package_message(fail);
         return;
     }
 
@@ -107,17 +109,17 @@ void Text_msg_handler::login(std::string username,std::string password){
        
         activate_clients.push_back(client_fd);
         std::string success = "Login successful\n";
-        send_message(success);
+        package_message(success);
     }else {
         std::string fail = "Login failed\n";
-        send_message(fail);
+        package_message(fail);
         close(client_fd);
     }
 }
 
 void Text_msg_handler::spk_group(std::shared_ptr<group> chat_group,std::string message){
 
-    send_message("[group chat]:"+message);
+    package_message("[group chat]:"+message);
 
     chat_group->group_spk(message);
         
@@ -128,7 +130,7 @@ void Text_msg_handler::spk_group(std::shared_ptr<group> chat_group,std::string m
 void Text_msg_handler::spk_personally(int target_fd,std::string message){    
     std::string msg="["+users[client_fd].getName()+"]:"+message;
     if(target_fd != -1){
-        send_message(msg);
+        package_message(msg);
     }
 
 }
@@ -141,18 +143,18 @@ void Text_msg_handler::create_group(std::string group_name){
 
     if (group_name.empty()) {
         std::string fail = "Group name cannot be empty.\n";
-        send_message(fail);
+        package_message(fail);
         return;
     }
     for(auto &pair:group_list){
         if(pair.first == group_name){
-            send_message(tishi2);
+            package_message(tishi2);
             return;
         }
     }
     for(auto &pair:username_to_fd){
         if(pair.first == group_name){
-            send_message(tishi2);
+            package_message(tishi2);
             return;
         }
     }
@@ -162,14 +164,14 @@ void Text_msg_handler::create_group(std::string group_name){
     lock.unlock();
     //  修复：创建成功给客户端提示
     std::string success = "create group [" + group_name + "] success!\n";
-    send_message(success);
+    package_message(success);
     return;
 }
 void Text_msg_handler::group_add_client(std::string group_name,std::string username){
 
     if (group_name.empty() || username.empty()) {
         std::string fail = "Invalid format. Use /group_add_client:group_name:user_name\n";
-        send_message(fail);
+        package_message(fail);
         return;
     }
     auto it = group_list.find(group_name);
@@ -177,73 +179,73 @@ void Text_msg_handler::group_add_client(std::string group_name,std::string usern
     if (it != group_list.end()) {
         if(!it->second->is_manager_fd(client_fd)){
             std::string fail = "You are not the manager of group [" + group_name + "].\n";
-            send_message(fail);
+            package_message(fail);
             return;
         }
         //找到username对应的fd
         auto user_it = username_to_fd.find(username);
         if(user_it == username_to_fd.end()){
             std::string fail = "User [" + username + "] does not exist.\n";
-            send_message(fail);
+            package_message(fail);
             return;
         }
         it->second->add_client(username);
          std::string success = "User [" + username + "] added to group [" + group_name + "] successfully.\n";
-        send_message(success);
+        package_message(success);
     } else {
         std::string fail = "Group [" + group_name + "] does not exist.\n";
-        send_message(fail);
+        package_message(fail);
     }
 }
 void Text_msg_handler::group_delete_client(std::string group_name,std::string username){
     if (group_name.empty() || username.empty()) {
         std::string fail = "Invalid format. Use /group_delete_client:group_name:user_name\n";
-        send_message(fail);
+        package_message(fail);
         return;
     }
     auto it = group_list.find(group_name);
     if (it != group_list.end()) {
         if(!it->second->is_manager_fd(client_fd)){
             std::string fail = "You are not the manager of group [" + group_name + "].\n";
-            send_message(fail);
+            package_message(fail);
             return;
         }
         if(it->second->delete_client(username)){
             std::string success = "User [" + username + "] removed from group [" + group_name + "] successfully.\n";
-            send_message(success);
+            package_message(success);
         }else{
             std::string fail = "User [" + username + "] is not in group [" + group_name + "].\n";
-            send_message(fail);
+            package_message(fail);
         }
         
     } else {
         std::string fail = "Group [" + group_name + "] does not exist.\n";
-        send_message(fail);
+        package_message(fail);
     }
 }
 void Text_msg_handler::delete_group(std::string group_name){
     if (group_name.empty()) {
         std::string fail = "Invalid format. Use /group_delete_client:group_name:user_name\n";
-        send_message(fail);
+        package_message(fail);
         return;
     }
     std::lock_guard<std::mutex> lock(client_mutex);
     auto it = group_list.find(group_name);
     if (it == group_list.end()) {
         std::string fail = "Group [" + group_name + "] does not exist.\n";
-        send_message(fail);
+        package_message(fail);
         return;
     }
     if(!it->second->is_manager_fd(client_fd)){
         std::string fail = "You are not the manager of group [" + group_name + "].\n";
-        send_message(fail);
+        package_message(fail);
         return;
     }
     it->second->group_spk("Group [" + group_name + "] is being deleted by the manager.\n");
     group_list.erase(it);
 
     std::string success = "Group [" + group_name + "] deleted successfully.\n";
-    send_message(success);
+    package_message(success);
 
 }
 void Text_msg_handler::modify_group_name(std::string old_name,std::string new_name){
@@ -268,7 +270,7 @@ Text_msg_handler::~Text_msg_handler(){
     users.erase(client_fd);
     close(client_fd);
 }
-void Text_msg_handler::send_message(const std::string& message) {
+void Text_msg_handler::package_message(const std::string& message) {
     //计算消息长度，构造包头
     uint32_t msg_length = message.size();
     std::string packet;
@@ -286,11 +288,40 @@ void Text_msg_handler::send_message(const std::string& message) {
         struct epoll_event event;
         event.data.fd = client_fd;
         event.events = EPOLLIN | EPOLLOUT | EPOLLET; // 注册
-        epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_fd, &event);
+        epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, client_fd, &event);
     }
 
 }
-// 这个函数应该在epoll事件循环中被调用，当socket可写时触发
+
+void Text_msg_handler::send_msg(){
+    sender->send_msg();
+}
+void Text_msg_handler::preprocess_recv_data(std::string raw_message){
+    std::string message = recver->process_recv_data(raw_message);
+    handle(message);
+}
+/*void Text_msg_handler::process_input(std::string raw_message){
+    in_buffer += raw_message;
+    while (in_buffer.size()>=4)
+    {
+        // 解析包头，获取消息长度
+        uint32_t msg_length;
+        std::memcpy(&msg_length, in_buffer.c_str(), sizeof(msg_length));
+        if (in_buffer.size() < 4 + msg_length) {
+            // 包体未完全接收，等待更多数据
+            break;
+        }
+        std::string message = in_buffer.substr(4, msg_length); // 提取消息
+        in_buffer.erase(0, 4 + msg_length); // 移除已处理的部分
+        if(!message.empty()) {
+            handle(message); // 处理消息
+        }
+    }
+    
+} 
+      
+
+    // 这个函数应该在epoll事件循环中被调用，当socket可写时触发
 void Text_msg_handler::on_write() {
     std::lock_guard<std::mutex> lock(out_mtx);
     while (!out_buffer.empty()) {
@@ -312,25 +343,7 @@ void Text_msg_handler::on_write() {
         struct epoll_event event;
         event.data.fd = client_fd;
         event.events = EPOLLIN | EPOLLET; // 只保留读事件
-        epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_fd, &event);
+        epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, client_fd, &event);
     }
 }
-void Text_msg_handler::process_input(std::string raw_message){
-    in_buffer += raw_message;
-    while (in_buffer.size()>=4)
-    {
-        // 解析包头，获取消息长度
-        uint32_t msg_length;
-        std::memcpy(&msg_length, in_buffer.c_str(), sizeof(msg_length));
-        if (in_buffer.size() < 4 + msg_length) {
-            // 包体未完全接收，等待更多数据
-            break;
-        }
-        std::string message = in_buffer.substr(4, msg_length); // 提取消息
-        in_buffer.erase(0, 4 + msg_length); // 移除已处理的部分
-        if(!message.empty()) {
-            handle(message); // 处理消息
-        }
-    }
-    
-}    
+    */

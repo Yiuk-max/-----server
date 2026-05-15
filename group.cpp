@@ -15,7 +15,7 @@ void group::group_spk(std::string message){
         if(fd == -1) continue;
         auto it = handle_msg_list.find(std::to_string(fd));
         if (it == handle_msg_list.end()) continue; // 连接可能已经被关闭
-        it->second->send_message("[group chat]:"+message);
+        it->second->package_message("[group chat]:"+message);
     }
 }
 bool group::add_client(std::string name){

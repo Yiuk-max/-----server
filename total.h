@@ -20,7 +20,7 @@ extern bool running;
 using json = nlohmann::json;
 class group;
 class Text_msg_handler;
-extern int epoll_fd;
+
     inline std::mutex client_mutex;
     inline std::vector<int> activate_clients;
     inline std::unordered_map<std::string, int> username_to_fd;
