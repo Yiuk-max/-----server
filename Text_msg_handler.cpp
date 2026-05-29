@@ -124,8 +124,18 @@ void Text_msg_handler::spk_group(std::shared_ptr<group> chat_group,std::string m
 
 void Text_msg_handler::spk_personally(int target_fd,std::string message){    
     std::string msg="["+users[client_fd].getName()+"]:"+message;
+    auto user_it = users.find(target_fd);
+    if (user_it == users.end()) {
+        std::string fail = "User [" + std::to_string(target_fd) + "] does not exist.\n";
+        package_message(fail,"system");
+        return;
+    }
     if(target_fd != -1){
-        package_message(msg,users[client_fd].getName());
+        // package_message(msg,users[target_fd].getName());
+        auto it = handle_msg_list.find(std::to_string(target_fd));
+        if (it != handle_msg_list.end()) {
+            it->second->package_message(msg,users[client_fd].getName());
+        }
     }
 
 }
@@ -288,6 +298,12 @@ void Text_msg_handler::send_msg(){
     sender->send_msg();
 }
 void Text_msg_handler::preprocess_recv_data(std::string raw_message){
-    std::string message = recver->process_recv_data(raw_message);
-    handle(message);
+    while (true) {
+        std::string message = recver->process_recv_data(raw_message);
+        if (message.empty()) {
+            break;
+        }
+        handle(message);
+        raw_message.clear();
+    }
 }

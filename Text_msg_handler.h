@@ -4,9 +4,7 @@
 #include "Text_recver_sender.h"
 class Text_msg_handler{
     private:
-    std::string in_buffer;       // 未处理原始数据
     int client_fd;
-    std::string out_buffer;      // 发送缓冲区
     int epoll_fd_;
 
     std::unique_ptr<Text_msg_recver> recver;
