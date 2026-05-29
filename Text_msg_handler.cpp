@@ -125,7 +125,7 @@ void Text_msg_handler::spk_group(std::shared_ptr<group> chat_group,std::string m
 void Text_msg_handler::spk_personally(int target_fd,std::string message){    
     std::string msg="["+users[client_fd].getName()+"]:"+message;
     if(target_fd != -1){
-        package_message(msg,"system");
+        package_message(msg,users[client_fd].getName());
     }
 
 }
@@ -291,50 +291,3 @@ void Text_msg_handler::preprocess_recv_data(std::string raw_message){
     std::string message = recver->process_recv_data(raw_message);
     handle(message);
 }
-/*void Text_msg_handler::process_input(std::string raw_message){
-    in_buffer += raw_message;
-    while (in_buffer.size()>=4)
-    {
-        // 解析包头，获取消息长度
-        uint32_t msg_length;
-        std::memcpy(&msg_length, in_buffer.c_str(), sizeof(msg_length));
-        if (in_buffer.size() < 4 + msg_length) {
-            // 包体未完全接收，等待更多数据
-            break;
-        }
-        std::string message = in_buffer.substr(4, msg_length); // 提取消息
-        in_buffer.erase(0, 4 + msg_length); // 移除已处理的部分
-        if(!message.empty()) {
-            handle(message); // 处理消息
-        }
-    }
-    
-} 
-      
-
-    // 这个函数应该在epoll事件循环中被调用，当socket可写时触发
-void Text_msg_handler::on_write() {
-    std::lock_guard<std::mutex> lock(out_mtx);
-    while (!out_buffer.empty()) {
-        ssize_t bytes_sent = send(client_fd, out_buffer.c_str(), out_buffer.size(), 0);
-        if (bytes_sent > 0) {
-            out_buffer.erase(0, bytes_sent); // 移除已发送的部分
-            
-        } else if (bytes_sent == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-            // Socket缓冲区满了，稍后再试
-            break;
-        } else {
-            // 发生错误，可能需要关闭连接
-            // close_connection();
-            break;
-        }
-    }
-    if (out_buffer.empty()) {
-        // 发送完毕，取消写事件的注册
-        struct epoll_event event;
-        event.data.fd = client_fd;
-        event.events = EPOLLIN | EPOLLET; // 只保留读事件
-        epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, client_fd, &event);
-    }
-}
-    */
