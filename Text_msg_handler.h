@@ -7,7 +7,6 @@ class Text_msg_handler{
     std::string in_buffer;       // 未处理原始数据
     int client_fd;
     std::string out_buffer;      // 发送缓冲区
-    std::mutex out_mtx;          // 保护缓冲区的锁
     int epoll_fd_;
 
     std::unique_ptr<Text_msg_recver> recver;
@@ -34,11 +33,8 @@ class Text_msg_handler{
 
     void modify_group_name(std::string old_name,std::string new_name);      //群聊——改名
 
-    //void process_input(std::string raw_message);                            //解析包头和包体，调用相应的处理函数
-    //void on_write();                                                        //EPOLLOUT事件
-    
     void preprocess_recv_data(std::string raw_message);//新的处理，仅调用
-    void package_message(const std::string& message);                       //打包信息并等待处理
+    void package_message(const std::string& message,std::string type);      //打包信息并等待处理
     void send_msg();                                                        //新版发送
     
     ~Text_msg_handler();

@@ -1,12 +1,26 @@
 #include "Text_recver_sender.h"
 #include "epoller.h"
+#include <arpa/inet.h>
 inline sender::~sender()
 {
 }
 inline recver::~recver()
 {
 }
-
+void Text_msg_sender::add_to_out_buffer(const std::string &message)
+{
+    std::lock_guard<std::mutex> lock(out_mtx);
+    bool was_empty = out_buffer.empty();
+    out_buffer += message;
+    // 仅当缓冲区由空变为非空时注册写事件，减少 epoll_ctl 调用
+    if (was_empty)
+    {
+        struct epoll_event event;
+        event.data.fd = client_fd_;
+        event.events = EPOLLIN | EPOLLOUT | EPOLLET; // 同时监听读和写事件
+        epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, client_fd_, &event);
+    }
+}
 void Text_msg_sender::send_msg()
 {
     std::lock_guard<std::mutex> lock(out_mtx);
@@ -41,18 +55,21 @@ void Text_msg_sender::send_msg()
 std::string Text_msg_recver::process_recv_data(std::string raw_message)
 {
     in_buffer += raw_message;
-    while (in_buffer.size()>=4)
+    while (in_buffer.size() >= 4)
     {
         // 解析包头，获取消息长度
-        uint32_t msg_length;
-        std::memcpy(&msg_length, in_buffer.c_str(), sizeof(msg_length));
-        if (in_buffer.size() < 4 + msg_length) {
+        uint32_t net_len;
+        std::memcpy(&net_len, in_buffer.c_str(), sizeof(net_len));
+        uint32_t msg_length = ntohl(net_len);
+        if (in_buffer.size() < 4 + msg_length)
+        {
             // 包体未完全接收，等待更多数据
             break;
         }
         std::string message = in_buffer.substr(4, msg_length); // 提取消息
-        in_buffer.erase(0, 4 + msg_length); // 移除已处理的部分
-        if(!message.empty()) {
+        in_buffer.erase(0, 4 + msg_length);                    // 移除已处理的部分
+        if (!message.empty())
+        {
             return message; // 返回处理后消息
         }
     }

@@ -10,6 +10,7 @@
 #include <netinet/in.h>// sockaddr_in6
 #include <thread>
 #include <mutex>
+#include <arpa/inet.h>
 #include <unordered_map>
 #include <algorithm>
 #include <memory>//智能指针

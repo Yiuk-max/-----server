@@ -19,6 +19,7 @@ private:
 
 public:
     Text_msg_sender(int epoll_fd,int fd):sender(epoll_fd,fd){}
+    void add_to_out_buffer(const std::string& message);
     void send_msg()override;
 };
 
