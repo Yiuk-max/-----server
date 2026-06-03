@@ -35,13 +35,20 @@ public:
     virtual ~recver();
 };
 
+// 接收消息解析结果结构体
+struct RecvMessage {
+    std::string json_part;   // JSON部分
+    std::string file_part;   // 文件数据部分
+    bool is_valid = false;   // 是否解析成功
+};
+
 class Text_msg_recver : public recver
 {
 private:
 
 public:
     Text_msg_recver(int epoll_fd,int fd):recver(epoll_fd,fd){}
-    std::string process_recv_data(std::string raw_message);
+    RecvMessage process_recv_data(std::string raw_message);
     void recv_msg(int fd);
 };
 

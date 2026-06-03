@@ -52,26 +52,55 @@ void Text_msg_sender::send_msg()
         epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, client_fd_, &event);
     }
 }
-std::string Text_msg_recver::process_recv_data(std::string raw_message)
+RecvMessage Text_msg_recver::process_recv_data(std::string raw_message)
 {
     in_buffer += raw_message;
-    while (in_buffer.size() >= 4)
+    RecvMessage result;
+    
+    // 需要包头：4字节包头总长度 + 4字节JSON长度
+    while (in_buffer.size() >= 8)
     {
-        // 解析包头，获取消息长度
-        uint32_t net_len;
-        std::memcpy(&net_len, in_buffer.c_str(), sizeof(net_len));
-        uint32_t msg_length = ntohl(net_len);
-        if (in_buffer.size() < 4 + msg_length)
+        // 解析1：包头总长度
+        uint32_t net_total_len;
+        std::memcpy(&net_total_len, in_buffer.c_str(), sizeof(net_total_len));
+        uint32_t total_len = ntohl(net_total_len);
+        
+        if (in_buffer.size() < 4 + total_len)
         {
             // 包体未完全接收，等待更多数据
             break;
         }
-        std::string message = in_buffer.substr(4, msg_length); // 提取消息
-        in_buffer.erase(0, 4 + msg_length);                    // 移除已处理的部分
-        if (!message.empty())
+        
+        // 解析2：JSON长度
+        uint32_t net_json_len;
+        std::memcpy(&net_json_len, in_buffer.c_str() + 4, sizeof(net_json_len));
+        uint32_t json_len = ntohl(net_json_len);
+        
+        // 验证长度合法性
+        if (json_len > total_len - 4)
         {
-            return message; // 返回处理后消息
+            // 数据错误，跳过这个包
+            in_buffer.erase(0, 4 + total_len);
+            break;
         }
+        
+        // 提取JSON部分
+        result.json_part = in_buffer.substr(8, json_len);
+        
+        // 提取文件部分 (如果有)
+        uint32_t file_len = total_len - 4 - json_len;
+        if (file_len > 0)
+        {
+            result.file_part = in_buffer.substr(8 + json_len, file_len);
+        }
+        
+        result.is_valid = true;
+        
+        // 移除已处理的部分
+        in_buffer.erase(0, 4 + total_len);
+        
+        return result;
     }
-    return "";
+    
+    return result; // is_valid = false
 }

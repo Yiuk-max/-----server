@@ -39,13 +39,13 @@ void Text_msg_handler::handle(std::string message){
     }catch(const std::exception& e){
         std::cerr << "Error handling message: " << e.what() << std::endl;
     }
-    if(!msg_json.contains("type")){
-        std::string fail = "Invalid message format: missing 'type' field.\n";
+    if(!msg_json.contains("cmd")){
+        std::string fail = "Invalid message format: missing 'cmd' field.\n";
         //write(client_fd, fail.c_str(), fail.size());
         package_message(fail,"system");
         return;
     }
-    std::string type = msg_json["type"];
+    std::string type = msg_json["cmd"];
     
 
     if(type == "spk"){
@@ -276,20 +276,23 @@ Text_msg_handler::~Text_msg_handler(){
     close(client_fd);
 }
 void Text_msg_handler::package_message(const std::string& message,std::string type){
-    // 构造包（4字节长度头 + 消息体），并直接交给 sender
+    // 统一协议: |4字节JSON长度|4字节文件长度|JSON|file|
     json msg_json;
-    msg_json["type"] = type;
+    msg_json["type"]= "chat"; // 这里的type是消息类型，和之前的cmd区分开
+    msg_json["cmd"] = type;
     msg_json["content"] = message;
-    std::string msg_str = msg_json.dump();
+    std::string json_str = msg_json.dump();
 
-    uint32_t msg_length = msg_str.size();
-    uint32_t net_len = htonl(msg_length);
+    uint32_t json_len = htonl(json_str.size());
+    uint32_t file_len = htonl(0);  // 非文件消息，file部分为空
+
     std::string packet;
-    // 在 packet.append 之前加这一行来预分配内存，避免多次扩容导致性能问题
-    packet.reserve(4 + msg_str.size());
-    packet.append(reinterpret_cast<const char*>(&net_len), sizeof(net_len)); // 包头（网络字节序）
-    packet += msg_str; // 包体
-    // 直接把本次构造的包交给 sender 处理并注册写事件，避免保留两份缓冲区
+    packet.reserve(8 + json_str.size());
+    packet.append(reinterpret_cast<const char*>(&json_len), 4);
+    packet.append(reinterpret_cast<const char*>(&file_len), 4);
+    packet += json_str;
+    // file部分为空，不追加
+
     sender->add_to_out_buffer(packet);
 
 }
@@ -299,11 +302,38 @@ void Text_msg_handler::send_msg(){
 }
 void Text_msg_handler::preprocess_recv_data(std::string raw_message){
     while (true) {
-        std::string message = recver->process_recv_data(raw_message);
-        if (message.empty()) {
+        RecvMessage recv_result = recver->process_recv_data(raw_message);
+        if (!recv_result.is_valid) {
             break;
         }
-        handle(message);
+        
+        // 解析JSON判断类型
+        json msg_json;
+        try {
+            msg_json = json::parse(recv_result.json_part);
+        } catch(const std::exception& e) {
+            std::cerr << "Error parsing JSON: " << e.what() << std::endl;
+            raw_message.clear();
+            continue;
+        }
+        
+        if (!msg_json.contains("type")) {
+            std::cerr << "Missing 'type' field in message" << std::endl;
+            raw_message.clear();
+            continue;
+        }
+        
+        std::string type = msg_json["type"];
+        
+        if (type == "chat") {
+            // chat类型：调用handle处理JSON内容
+            handle(recv_result.json_part);
+        } else if (type == "file") {
+            // file类型：交给文件类处理（暂未实现，留空）
+            // TODO: 文件处理逻辑
+            // FileHandler::process_file(recv_result.json_part, recv_result.file_part);
+        }
+        
         raw_message.clear();
     }
 }
