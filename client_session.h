@@ -1,19 +1,19 @@
 #pragma once
 #include "total.h"
 #include "user.h"
-#include "Text_recver_sender.h"
-class Text_msg_handler{
+#include "receiver_sender.h"
+class client_session{
     private:
     int client_fd;
     int epoll_fd_;
 
-    std::unique_ptr<Text_msg_recver> recver;
-    std::unique_ptr<Text_msg_sender> sender;
+    std::unique_ptr<receiver> receiver_;
+    std::unique_ptr<sender> sender_;
     public:
-    Text_msg_handler(){};
-    Text_msg_handler(int fd,int epoll_fd):client_fd(fd),epoll_fd_(epoll_fd){
-        recver = std::make_unique<Text_msg_recver>(epoll_fd,fd);
-        sender = std::make_unique<Text_msg_sender>(epoll_fd,fd);
+    client_session(){};
+    client_session(int fd,int epoll_fd):client_fd(fd),epoll_fd_(epoll_fd){
+        receiver_ = std::make_unique<receiver>(epoll_fd,fd);
+        sender_ = std::make_unique<sender>(epoll_fd,fd);
     }
 
     void spk_to(std::string name,std::string message);                      //找到聊天对象
@@ -35,7 +35,7 @@ class Text_msg_handler{
     void package_message(const std::string& message,std::string type);      //打包信息并等待处理
     void send_msg();                                                        //新版发送
     
-    ~Text_msg_handler();
+    ~client_session();
 
     void exit_self();//退出系统
 };

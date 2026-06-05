@@ -1,5 +1,5 @@
 #include "group.h"
-#include "Text_msg_handler.h"
+#include "client_session.h"
 std::shared_ptr<group> find_group_by_name(std::string group_name){
     auto it = group_list.find(group_name);
     if (it == group_list.end()) {

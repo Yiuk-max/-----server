@@ -4,6 +4,7 @@
 class user{
     private:
         int client_fd_;
+        //int UID;
         std::string name;
         std::string password="123456";
     public:

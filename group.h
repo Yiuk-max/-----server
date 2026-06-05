@@ -1,7 +1,7 @@
 #pragma once
 #include "total.h"
 std::shared_ptr<group> find_group_by_name(std::string group_name);
-class Text_msg_handler;
+class client_session;
 class group{
     private:
         std::vector<int> group_clients;
