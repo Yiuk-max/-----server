@@ -18,6 +18,10 @@
 #include <chrono>
 #include <fstream>                      //文件操作
 #include "user.h"
+#include "UID_allocator.h"              // UID分配器
+#include "group_manager.h"              // 群聊管理器
+#include "user_manager.h"               // 用户管理器
+
 
 #define SEND_CHUNK_SIZE (256*1024) // 256KB
 extern bool running;
@@ -44,7 +48,7 @@ struct Standard_Message {
     inline std::mutex client_mutex;
     inline std::vector<int> activate_clients;
     inline std::unordered_map<std::string, int> username_to_fd;
-    inline std::unordered_map<int, user> users;
-    inline std::unordered_map<std::string,std::shared_ptr<group>> group_list;
+    inline std::unordered_map<int, std::shared_ptr<user>> users;
+    //inline std::unordered_map<std::string,std::shared_ptr<group>> group_list;
     inline std::unordered_map<std::string,std::shared_ptr<client_session>> handle_msg_list;
     inline std::unordered_map<std::string, TransferContext> transfers;// 用 file_id 查对应的传输任务

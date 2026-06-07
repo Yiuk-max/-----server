@@ -4,34 +4,7 @@
 
 extern bool running;
 
-void client_session::exit_self(){
-    std::lock_guard<std::mutex> lock(client_mutex);
-    auto user_it = users.find(client_fd);
-    if (user_it != users.end()) {
-        username_to_fd.erase(user_it->second.getName());
-    }
-    auto it = std::find(activate_clients.begin(), activate_clients.end(), client_fd);
-    if (it != activate_clients.end()) {
-        activate_clients.erase(it);
-    }
-    users.erase(client_fd);
-    close(client_fd);
-}
-void client_session::show_chatlist(){
-    std::lock_guard<std::mutex>lock (client_mutex);
-    std::string name_list="group\n";
-    for(auto &pair : group_list){
-        name_list+=pair.first+"\n";
-    }
-    name_list+="person:\n";
-    for(auto it=username_to_fd.begin();it!=username_to_fd.end();++it){
-        name_list+=it->first+"\n";
-        
-    }
-    //write(client_fd,name_list.c_str(),name_list.size());
-    package_message(name_list,"system");
-}
-//控制=====================
+//===============消息处理===============
 void client_session::handle(std::string message){
     json msg_json;
     try{
@@ -46,11 +19,20 @@ void client_session::handle(std::string message){
         return;
     }
     std::string type = msg_json["cmd"];
-    
+    auto handler_it = handlers_.find(type);
+    if(handler_it != handlers_.end()){
+        handler_it->second->handle_message(msg_json, *this);
+        return;
+    }else{
+        std::string fail = "Unknown command type.\n";
+        //write(client_fd, fail.c_str(), fail.size());
+        package_message(fail,"system");
+        return;
+    }
 
     if(type == "spk"){
-        std::string name = msg_json["target_name"].get<std::string>();
-        spk_to(name,msg_json["content"].get<std::string>());
+        std::string UID = msg_json["target_UID"].get<std::string>();
+        spk_to(UID,msg_json["content"].get<std::string>());
         return;
     }
     if(type == "show"){
@@ -96,6 +78,62 @@ void client_session::handle(std::string message){
     
 
 }
+
+//===============注册、登录、退出、展示===============
+void client_session::register_user(std::string username,std::string password){
+
+}
+void client_session::login(std::string username,std::string password){
+
+    // 构造临时用户用于验证
+    user tmp_user(client_fd, username, password);
+    
+    if(tmp_user.passwd_check()){
+        std::lock_guard<std::mutex>lock(client_mutex);
+        // 创建shared_ptr并存入users
+        auto tmp = std::make_shared<user>(client_fd, username, password);
+        users[client_fd] = tmp;
+        username_to_fd[username]=client_fd;
+       
+        activate_clients.push_back(client_fd);
+        std::string success = "Login successful\n";
+        package_message(success,"system");
+    }else {
+        std::string fail = "Login failed\n";
+        package_message(fail,"system");
+        close(client_fd);
+    }
+}
+void client_session::exit_self(){
+    std::lock_guard<std::mutex> lock(client_mutex);
+    auto user_it = users.find(client_fd);
+    if (user_it != users.end()) {
+        username_to_fd.erase(user_it->second->getName());
+    }
+    auto it = std::find(activate_clients.begin(), activate_clients.end(), client_fd);
+    if (it != activate_clients.end()) {
+        activate_clients.erase(it);
+    }
+    users.erase(client_fd);
+    close(client_fd);
+}
+void client_session::show_chatlist(){
+    std::lock_guard<std::mutex>lock (client_mutex);
+    std::string name_list="group\n";
+    for(auto &pair : group_list){
+        name_list+=pair.first+"\n";
+    }
+    name_list+="person:\n";
+    for(auto it=username_to_fd.begin();it!=username_to_fd.end();++it){
+        name_list+=it->first+"\n";
+        
+    }
+    //write(client_fd,name_list.c_str(),name_list.size());
+    package_message(name_list,"system");
+}
+//==========================================================================================
+//============================================业务逻辑=======================================
+//==========================================================================================
 void client_session::spk_to(std::string name,std::string message){
 
     if (name.empty() || message.empty()) {
@@ -117,33 +155,13 @@ void client_session::spk_to(std::string name,std::string message){
         }
     }
 }
-//===============
-void client_session::login(std::string username,std::string password){
-
-    user new_user(client_fd, username, password);
-    
-    if(new_user.passwd_check()){
-        std::lock_guard<std::mutex>lock(client_mutex);
-        users[client_fd] = new_user;
-        username_to_fd[username]=client_fd;
-       
-        activate_clients.push_back(client_fd);
-        std::string success = "Login successful\n";
-        package_message(success,"system");
-    }else {
-        std::string fail = "Login failed\n";
-        package_message(fail,"system");
-        close(client_fd);
-    }
-}
-
 void client_session::spk_group(std::shared_ptr<group> chat_group,std::string message){
     //package_message("[group chat]:"+message);
     chat_group->group_spk(message);
 }
 
 void client_session::spk_personally(int target_fd,std::string message){    
-    std::string msg="["+users[client_fd].getName()+"]:"+message;
+    std::string msg="["+users[client_fd]->getName()+"]:"+message;
     auto user_it = users.find(target_fd);
     if (user_it == users.end()) {
         std::string fail = "User [" + std::to_string(target_fd) + "] does not exist.\n";
@@ -154,12 +172,12 @@ void client_session::spk_personally(int target_fd,std::string message){
         // package_message(msg,users[target_fd].getName());
         auto it = handle_msg_list.find(std::to_string(target_fd));
         if (it != handle_msg_list.end()) {
-            it->second->package_message(msg,users[client_fd].getName());
-        }
+                it->second->package_message(msg, users[client_fd]->getName());
+            }
     }
 
 }
-//============================群聊
+
 void client_session::create_group(std::string group_name){
     
 
@@ -281,11 +299,14 @@ void client_session::modify_group_name(std::string old_name,std::string new_name
     }
     it->modify_group_name(client_fd,new_name);
 }
-//================================
+//====================================================================================
+//====================================================================================
+
+//===============析构函数===============
 client_session::~client_session(){
     auto user_it = users.find(client_fd);
     if (user_it != users.end()) {
-        username_to_fd.erase(user_it->second.getName());
+        username_to_fd.erase(user_it->second->getName());
     }
 
     auto it = std::find(activate_clients.begin(), activate_clients.end(), client_fd);
@@ -295,6 +316,7 @@ client_session::~client_session(){
     users.erase(client_fd);
     close(client_fd);
 }
+//===============================数据处理================================
 void client_session::package_message(const std::string& message,std::string type){
     // 统一协议: |4字节总长度|4字节JSON长度|JSON|file|
     json msg_json;
