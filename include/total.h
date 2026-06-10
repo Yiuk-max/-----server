@@ -45,10 +45,10 @@ struct Standard_Message {
 };
 
 
-    inline std::mutex client_mutex;
-    inline std::vector<int> activate_clients;
-    inline std::unordered_map<std::string, int> username_to_fd;
-    inline std::unordered_map<int, std::shared_ptr<user>> users;
-    //inline std::unordered_map<std::string,std::shared_ptr<group>> group_list;
-    inline std::unordered_map<std::string,std::shared_ptr<client_session>> handle_msg_list;
-    inline std::unordered_map<std::string, TransferContext> transfers;// 用 file_id 查对应的传输任务
+    // inline std::mutex client_mutex;
+    // inline std::vector<int> activate_clients;
+    // inline std::unordered_map<std::string, int> username_to_fd;
+    // //inline std::unordered_map<int, std::shared_ptr<account>> users;
+    // //inline std::unordered_map<std::string,std::shared_ptr<group>> group_list;
+    // inline std::unordered_map<std::string,std::shared_ptr<client_session>> handle_msg_list;
+    // inline std::unordered_map<std::string, TransferContext> transfers;// 用 file_id 查对应的传输任务

@@ -18,61 +18,29 @@ void group::group_spk(std::string message){
         it->second->package_message("[group chat]:"+message,group_name_);
     }
 }
-bool group::add_client(std::string name){
-    int target_fd=-1;
+bool group::add_client(int UID){
     std::lock_guard<std::mutex> lock(group_mutex_);
-    for(auto& pair:username_to_fd){
-        if(pair.first == name){
-            target_fd=pair.second;
-            break;
-        }
-    }
-    if(target_fd==-1){
+    if(client_name_group.size() >= 100){
+        //发送群成员已满提示
         return false;
     }
-    client_name_group[name]=target_fd;
-    bool replace_one=false;
-    for(int i=0;i<group_clients.size();i++){
-        if(group_clients[i]==-1){
-            group_clients[i]=target_fd;
-            replace_one=true;
-            break;
-        }
-    }
-    if(!replace_one){
-        group_clients.push_back(target_fd);
-    }
+    member_UID_list.push_back(UID);
     return true;
 }
-bool group::delete_client(std::string name){
-    bool find=false;
-    int target_fd=-1;
+bool group::delete_client(int UID){
     std::lock_guard<std::mutex> lock(group_mutex_);
-    for(auto& pair:client_name_group){
-        if(pair.first == name){
-            find=true;
-            target_fd=pair.second;
-            client_name_group.erase(name);
-            break;
-        }
-    }
-    if(find){
-        for(int i=0;i<group_clients.size();i++){
-            if(group_clients[i]==target_fd){
-                group_clients[i]=-1;
-                break;
-            }
-        }
+    auto it = std::find(member_UID_list.begin(), member_UID_list.end(), UID);
+    if (it != member_UID_list.end()) {
+        member_UID_list.erase(it);
         return true;
-    }else{
-        return false;
     }
+    return false;
 }
-bool group::is_manager_fd(int fd){
-    return fd == manager_fd_;
+bool group::is_manager_(int UID){
+    return UID == manager_UID_;
 }
-bool group::modify_group_name(int renmaer_fd,std::string new_group_name){
-    if(is_manager_fd(renmaer_fd)){
+bool group::modify_group_name(int renmaer_UID,std::string new_group_name){
+    if(is_manager_(renmaer_UID)){
         group_name_ = new_group_name;
         return true;
     }else{

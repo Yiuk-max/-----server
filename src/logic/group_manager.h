@@ -23,6 +23,8 @@ public:
     void create_group(int UID,std::unique_ptr<group> new_group);
     void delete_group(int UID,int sender_fd);
     std::shared_ptr<group> find_group(int group_id);
-
+    void add_group_member(int group_UID,int newmember_UID);
+    void remove_group_member(int group_UID,int member_UID);
+    
     
 };

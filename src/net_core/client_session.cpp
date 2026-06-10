@@ -4,8 +4,27 @@
 
 extern bool running;
 
+void client_session::init_(){
+    //初始化消息处理器，后续可以根据需要添加更多类型的消息处理器
+    handlers_["spk"]                    = std::make_unique<Chat_handler>();// 聊天消息
+    //基本功能
+    handlers_["show"]                   = std::make_unique<Base_handler>();// 展示聊天对象
+    handlers_["exit"]                   = std::make_unique<Base_handler>();
+    handlers_["login"]                  = std::make_unique<Base_handler>();
+    handlers_["register"]               = std::make_unique<Base_handler>();
+    //群聊相关
+    handlers_["create_group"]           = std::make_unique<Group_handler>();
+    handlers_["group_add_client"]       = std::make_unique<Group_handler>();
+    handlers_["group_delete_client"]    = std::make_unique<Group_handler>();
+    handlers_["delete_group"]           = std::make_unique<Group_handler>();
+    handlers_["modify_group_name"]      = std::make_unique<Group_handler>();
+    //文件相关
+    handlers_["download_file"]          = std::make_unique<File_handler>();
+    handlers_["upload_file"]            = std::make_unique<File_handler>();
+}
+
 //===============消息处理===============
-void client_session::handle(std::string message){
+void client_session::handle(std::string message,std::string file_data){
     json msg_json;
     try{
         msg_json = json::parse(message);
@@ -21,7 +40,7 @@ void client_session::handle(std::string message){
     std::string type = msg_json["cmd"];
     auto handler_it = handlers_.find(type);
     if(handler_it != handlers_.end()){
-        handler_it->second->handle_message(msg_json, *this);
+        handler_it->second->handle_message(msg_json, *this, file_data);
         return;
     }else{
         std::string fail = "Unknown command type.\n";
@@ -30,104 +49,55 @@ void client_session::handle(std::string message){
         return;
     }
 
-    if(type == "spk"){
-        std::string UID = msg_json["target_UID"].get<std::string>();
-        spk_to(UID,msg_json["content"].get<std::string>());
-        return;
-    }
-    if(type == "show"){
-        show_chatlist();
-        return;
-    }
-    if(type == "create_group"){
-        create_group(msg_json["target_name"].get<std::string>());
-        return;
-    }
-    if(type == "group_add_client"){
-        group_add_client(msg_json["group_name"].get<std::string>(),msg_json["target_name"].get<std::string>());
-        return;
-    }
-    if(type == "group_delete_client"){
-        group_delete_client(msg_json["group_name"].get<std::string>(),msg_json["target_name"].get<std::string>());
-        return;
-    }
-    if(type == "exit"){
-        exit_self();
-        return;
-    }
-    if(type == "download_file"){
-        // 这里的content是文件路径，实际应用中可能还需要文件ID等信息
-        sender_->send_file(msg_json["content"].get<std::string>());
-        return;
-    }
-    if(type == "delete_group"){
-        delete_group(msg_json["target_name"].get<std::string>());
-        return;
-    }
-    if(type == "modify_group_name"){
-        modify_group_name(msg_json["target_name"].get<std::string>(),msg_json["content"].get<std::string>());
-        return;
-    } 
-    if(type == "login"){
-        login(msg_json["username"].get<std::string>(),msg_json["password"].get<std::string>());
-        return;
-    }
-    
-        std::string fail = "Unknown command type.\n";
-        package_message(fail,"system");
-    
 
 }
 
 //===============注册、登录、退出、展示===============
 void client_session::register_user(std::string username,std::string password){
-
-}
-void client_session::login(std::string username,std::string password){
-
-    // 构造临时用户用于验证
-    user tmp_user(client_fd, username, password);
-    
-    if(tmp_user.passwd_check()){
-        std::lock_guard<std::mutex>lock(client_mutex);
-        // 创建shared_ptr并存入users
-        auto tmp = std::make_shared<user>(client_fd, username, password);
-        users[client_fd] = tmp;
-        username_to_fd[username]=client_fd;
-       
-        activate_clients.push_back(client_fd);
-        std::string success = "Login successful\n";
-        package_message(success,"system");
-    }else {
-        std::string fail = "Login failed\n";
+    if(username.empty() || password.empty()){
+        std::string fail = "Username and password cannot be empty.\n";
         package_message(fail,"system");
-        close(client_fd);
+        return;
     }
+    account_manager::get_instance().register_account(username, password);
+    std::string success = "Registration successful. You can now log in.\n";
+    package_message(success,"system");
+}
+void client_session::login(int UID,std::string password){
+    auto account = account_manager::get_instance().find_account(UID);
+    if (!account) {
+        std::string fail = "Account with UID [" + std::to_string(UID) + "] does not exist.\n";
+        package_message(fail,"system");
+        return;
+    }
+    if (!account->passwd_check(password)) {
+        std::string fail = "Incorrect password for UID [" + std::to_string(UID) + "].\n";
+        package_message(fail,"system");
+        return;
+    }
+    current_account_ = std::make_unique<account>(*account);
+    social_manager_ = std::make_unique<social_relation_manager>(current_account_->get_uid());
+    std::string success = "Login successful. Welcome, " + account->getName() + "!\n";
+    package_message(success,"system");
+}
+void logout(){
+    //清除account信息，清除社交关系信息，清除当前用户的聊天对象列表
+    current_account_.reset();
+    social_manager_.reset();
+    //重新加载用户数据，清理当前用户的登录状态
+    //重新加载social_realations数据，清理当前用户的好友关系
+    package_message("Logout successful.\n","system");
 }
 void client_session::exit_self(){
-    std::lock_guard<std::mutex> lock(client_mutex);
-    auto user_it = users.find(client_fd);
-    if (user_it != users.end()) {
-        username_to_fd.erase(user_it->second->getName());
-    }
-    auto it = std::find(activate_clients.begin(), activate_clients.end(), client_fd);
-    if (it != activate_clients.end()) {
-        activate_clients.erase(it);
-    }
-    users.erase(client_fd);
+    //清理资源，关闭连接
+    std::string success = "Goodbye!\n";
+    package_message(success,"system");
+    online = false;
     close(client_fd);
 }
 void client_session::show_chatlist(){
-    std::lock_guard<std::mutex>lock (client_mutex);
     std::string name_list="group\n";
-    for(auto &pair : group_list){
-        name_list+=pair.first+"\n";
-    }
-    name_list+="person:\n";
-    for(auto it=username_to_fd.begin();it!=username_to_fd.end();++it){
-        name_list+=it->first+"\n";
-        
-    }
+    
     //write(client_fd,name_list.c_str(),name_list.size());
     package_message(name_list,"system");
 }
@@ -344,7 +314,7 @@ void client_session::send_msg(){
     sender_->send_msg();
 }
 void client_session::preprocess_recv_data(std::string raw_message){
-    while (true) {
+    while (!raw_message.empty() && online) {
         Standard_Message recv_result = receiver_->process_recv_data(raw_message);
         if (!recv_result.is_valid) {
             break;
@@ -367,17 +337,64 @@ void client_session::preprocess_recv_data(std::string raw_message){
         }
         
         std::string type = msg_json["type"];
-        
-        if (type == "chat") {
-            // chat类型：调用handle处理JSON内容
-            handle(recv_result.json_part);
-        } else if (type == "file") {
-            // file类型：交给文件类处理（暂未实现，留空）
-            // TODO: 文件处理逻辑
-            // FileHandler::process_file(recv_result.json_part, recv_result.file_part);
-            receiver_->handle_file(msg_json, recv_result.file_part);
-        }
-        
-        raw_message.clear();
+        handle(recv_result.json_part,recv_result.file_part,type);
+        // if (type == "chat") {
+        //     // chat类型：调用handle处理JSON内容
+        //     handle(recv_result.json_part);
+        // } else if (type == "file") {
+        //     // file类型：交给文件类处理（暂未实现，留空）
+        //     // TODO: 文件处理逻辑
+        //     // FileHandler::process_file(recv_result.json_part, recv_result.file_part);
+        //     receiver_->upload_file(msg_json, recv_result.file_part);
+        // }
     }
 }
+
+
+/*
+    if(type == "spk"){
+        std::string UID = msg_json["target_UID"].get<std::string>();
+        spk_to(UID,msg_json["content"].get<std::string>());
+        return;
+    }
+    if(type == "show"){
+        show_chatlist();
+        return;
+    }
+    if(type == "create_group"){
+        create_group(msg_json["target_name"].get<std::string>());
+        return;
+    }
+    if(type == "group_add_client"){
+        group_add_client(msg_json["group_name"].get<std::string>(),msg_json["target_name"].get<std::string>());
+        return;
+    }
+    if(type == "group_delete_client"){
+        group_delete_client(msg_json["group_name"].get<std::string>(),msg_json["target_name"].get<std::string>());
+        return;
+    }
+    if(type == "exit"){
+        exit_self();
+        return;
+    }
+    if(type == "download_file"){
+        // 这里的content是文件路径，实际应用中可能还需要文件ID等信息
+        sender_->send_file(msg_json["content"].get<std::string>());
+        return;
+    }
+    if(type == "delete_group"){
+        delete_group(msg_json["target_name"].get<std::string>());
+        return;
+    }
+    if(type == "modify_group_name"){
+        modify_group_name(msg_json["target_name"].get<std::string>(),msg_json["content"].get<std::string>());
+        return;
+    } 
+    if(type == "login"){
+        login(msg_json["username"].get<std::string>(),msg_json["password"].get<std::string>());
+        return;
+    }
+    
+        std::string fail = "Unknown command type.\n";
+        package_message(fail,"system");
+    */

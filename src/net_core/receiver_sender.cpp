@@ -155,7 +155,7 @@ Standard_Message receiver::process_recv_data(std::string raw_message)
     
     return result; // is_valid = false
 }
-void receiver::handle_file(const json &meta, const std::string &data)
+void receiver::upload_file(const json &meta, const std::string &data)
 {
     // 这里可以根据meta中的信息（如file_id、chunk_index等）来处理文件数据
     std::cout << "Received file chunk: " << meta.dump() << ", data size: " << data.size() << std::endl;

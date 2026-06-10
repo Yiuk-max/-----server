@@ -41,12 +41,13 @@ void sub_reactor::add_connect(int new_client_fd)
     event.data.fd = new_client_fd;
     epoll_ctl(epoller_fd_, EPOLL_CTL_ADD, new_client_fd, &event);
 
-    auto manager = std::make_shared<client_session>(new_client_fd, epoller_fd_);
+    auto session = std::make_shared<client_session>(new_client_fd, epoller_fd_);
     {
         std::lock_guard<std::mutex> lock(client_mutex);
-        handle_msg_list[std::to_string(new_client_fd)] = manager;
+        session_manager::get_instance().add_session(new_client_fd, session);
+
     }
-    manager->show_chatlist();
+    session->show_chatlist();
 }
 void main_reactor::loop()
 {
@@ -72,12 +73,7 @@ void sub_reactor::pool_add_task(std::string received_data, int fd)
     auto pool = pool_.lock();
     pool->add_task([pool, fd, received_data]()
                    {
-                        std::shared_ptr<client_session> manager;
-                        {
-                            std::lock_guard<std::mutex> lock(client_mutex);
-                            auto it = handle_msg_list.find(std::to_string(fd));
-                            if (it != handle_msg_list.end()) manager = it->second;
-                        }
+                        auto manager = session_manager::get_instance().find_session(fd);
                         if (manager) {
                             manager->preprocess_recv_data(received_data);
                         } });
@@ -86,11 +82,9 @@ void sub_reactor::remove_client(int fd)
 {
     epoll_ctl(epoller_fd_, EPOLL_CTL_DEL, fd, nullptr);
     {
-        std::lock_guard<std::mutex> lock(client_mutex);
-        auto it = handle_msg_list.find(std::to_string(fd));
-        if (it != handle_msg_list.end())
-        {
-            handle_msg_list.erase(it);
+        auto session = session_manager::get_instance().find_session(fd);
+        if (session) {
+            session_manager::get_instance().remove_session(fd);
         }
     }
     // 注意：handle_msg的析构函数里已经写了close(fd)和清理users的代码

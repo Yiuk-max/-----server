@@ -7,12 +7,18 @@
 using json = nlohmann::json;
 class client_session;
 class Message_handler{
-    virtual void handle_message(const json& message,client_session& session) = 0;
+    virtual void handle_message(const json& message,client_session& session,std::string &file_data) = 0;
     virtual ~Message_handler() = default;
 };
 class Chat_handler : public Message_handler{
-    void handle_message(const json& message,client_session& session) override;
+    void handle_message(const json& message,client_session& session,std::string &file_data) override;
 };
 class Group_handler : public Message_handler{
-    void handle_message(const json& message,client_session& session) override;
+    void handle_message(const json& message,client_session& session,std::string &file_data) override;
+};
+class File_handler : public Message_handler{
+    void handle_message(const json& message,client_session& session,std::string &file_data) override;
+};
+class Base_handler : public Message_handler{
+    void handle_message(const json& message,client_session& session,std::string &file_data) override;
 };

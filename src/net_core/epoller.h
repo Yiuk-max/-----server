@@ -1,6 +1,6 @@
 #pragma once
 #include "total.h"
-#include "client_session.h"
+#include "session_manager.h"
 #include "thread_pool.h"
 extern bool running;
 
@@ -53,7 +53,7 @@ public:
 private:
     std::weak_ptr<ThreadPool> pool_;
     std::vector<struct epoll_event> events;
-    //解析有问题，误认为函数，用=解决
+    std::mutex client_mutex;
 };
 
 

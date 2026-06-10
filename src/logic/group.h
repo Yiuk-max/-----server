@@ -1,28 +1,28 @@
 #pragma once
 #include "total.h"
-std::shared_ptr<group> find_group_by_name(std::string group_name);
 class client_session;
+
 class group{
     private:
-        std::vector<int> group_clients;
+        std::vector<int> member_UID_list;
         std::unordered_map<std::string,int> client_name_group;
-        int manager_fd_;
+        int manager_UID_;
         std::mutex group_mutex_;
         std::string group_name_;
 
         int UID;//群聊唯一标识
     public:
         group()=default;
-        group(int manager,std::string name):manager_fd_(manager),group_name_(name){
-            group_clients.push_back(manager_fd_);
+        group(int manager,std::string name):manager_UID_(manager),group_name_(name){
+            member_UID_list.push_back(manager_UID_);
             UID = UID_allocator::get_instance().request_group_id();
             Group_manager::get_instance().create_group(UID, std::make_unique<group>(*this));
         }
-        bool add_client(std::string name);
-        bool delete_client(std::string name);
+        bool add_client(int UID);
+        bool delete_client(int UID);
         void group_spk(std::string message);
-        bool is_manager_fd(int fd);
-        bool modify_group_name(int renmaer_fd,std::string new_group_name);
+        bool is_manager_(int UID);
+        bool modify_group_name(int renmaer_UID,std::string new_group_name);
         // 拷贝构造
         group(const group& other)
             : group_clients(other.group_clients),
