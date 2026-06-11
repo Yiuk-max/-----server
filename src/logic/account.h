@@ -31,10 +31,12 @@ private:
 
 public:
     void load_account_info();
-    account(){
-        load_account_info();
-    };
+    account();
+    account(int uid, const std::string& name, const std::string& password);
     std::string getName();
+    void setName(const std::string& name);
+    std::string get_string_UID();
     bool passwd_check(std::string password);
-    int getUID();
+    int getUID() const;
+    std::string get_info();
 };

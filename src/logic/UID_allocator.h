@@ -27,6 +27,5 @@ public:
     int request_group_id();
     int request_file_id();
     std::string get_string_UID(int uid);// 将整数UID转换为8字符字符串形式，便于使用
-    std::string get_string_group_ID(int group_id);// 将整数Group_ID转换为8字符字符串形式，便于使用
     std::string get_string_file_ID(int file_id);// 将整数File_ID转换为16字符字符串形式，便于使用
 };

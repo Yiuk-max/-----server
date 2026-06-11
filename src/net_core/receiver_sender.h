@@ -1,5 +1,28 @@
 #pragma once
-#include "total.h"
+#include <string>
+#include <memory>
+#include <mutex>
+#include <unordered_map>
+#include <nlohmann/json.hpp>
+#include <fstream>
+
+using json = nlohmann::json;
+
+// 接收消息解析结果结构体
+struct Standard_Message {
+    std::string json_part;
+    std::string file_part;
+    bool is_valid = false;
+};
+
+struct TransferContext {
+    std::fstream     file;
+    std::string      filename;
+    size_t           total_size;
+    size_t           chunk_count;
+    size_t           received_count;  // 已收到几块
+};
+
 class sender
 {
 private:
@@ -22,6 +45,7 @@ private:
     int client_fd_;
     int epoll_fd_;
     std::string in_buffer;       // 接收缓冲区，存储未处理的原始数据
+    std::unordered_map<std::string, TransferContext> transfers; // 用 file_id 查对应的传输任务
 public:
     receiver(int epoll_fd,int fd):epoll_fd_(epoll_fd),client_fd_(fd){}
     Standard_Message process_recv_data(std::string raw_message);// 处理原始数据，返回解析结果

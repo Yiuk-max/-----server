@@ -45,9 +45,7 @@ void sub_reactor::add_connect(int new_client_fd)
     {
         std::lock_guard<std::mutex> lock(client_mutex);
         session_manager::get_instance().add_session(new_client_fd, session);
-
     }
-    session->show_chatlist();
 }
 void main_reactor::loop()
 {
@@ -75,19 +73,16 @@ void sub_reactor::pool_add_task(std::string received_data, int fd)
                    {
                         auto manager = session_manager::get_instance().find_session(fd);
                         if (manager) {
-                            manager->preprocess_recv_data(received_data);
+                            manager->handle(received_data);
                         } });
 }
 void sub_reactor::remove_client(int fd)
 {
     epoll_ctl(epoller_fd_, EPOLL_CTL_DEL, fd, nullptr);
-    {
-        auto session = session_manager::get_instance().find_session(fd);
-        if (session) {
-            session_manager::get_instance().remove_session(fd);
-        }
+    auto session = session_manager::get_instance().find_session(fd);
+    if (session) {
+        session_manager::get_instance().remove_session(fd);
     }
-    // 注意：handle_msg的析构函数里已经写了close(fd)和清理users的代码
 }
 std::string sub_reactor::read_data(bool &disconnected, int &fd)
 {
@@ -128,19 +123,13 @@ void sub_reactor::loop()
         for (int i = 0; i < num_events; ++i)
         {
             int fd = events[i].data.fd;
-            std::shared_ptr<client_session> manager;
-            {
-                std::lock_guard<std::mutex> lock(client_mutex);
-                auto it = handle_msg_list.find(std::to_string(fd));
-                if (it != handle_msg_list.end())
-                    manager = it->second;
-            }
+            auto manager = session_manager::get_instance().find_session(fd);
             if (!manager)
                 continue; // 连接可能已经被关闭了
             // ===================处理EPOLLOUT事件====================
             if (events[i].events & EPOLLOUT)
             {
-                manager->send_msg();
+                manager->sender_->send_msg();
                 continue; // 处理完写事件后继续下一轮循环
             }
             //===============================================
@@ -152,7 +141,6 @@ void sub_reactor::loop()
 
             if (disconnected)
             {
-                // 【关键修改2】清理资源：从epoll移除并从全局map删除
                 remove_client(fd);
             }
             else if (!received_data.empty())

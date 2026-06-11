@@ -1,7 +1,9 @@
 #pragma once
 #include "total.h"
 #include "client_session.h"
-#include "group.h"
+#include "UID_allocator.h"
+
+class group;
 
 class Group_manager
 {
@@ -20,11 +22,11 @@ public:
         static Group_manager instance;
         return instance;
     }
-    void create_group(int UID,std::unique_ptr<group> new_group);
+    void create_group(int manager_UID,std::string group_name);
     void delete_group(int UID,int sender_fd);
     std::shared_ptr<group> find_group(int group_id);
-    void add_group_member(int group_UID,int newmember_UID);
-    void remove_group_member(int group_UID,int member_UID);
-    
+    void add_group_member(int group_UID,int newmember_UID,int sender_UID);
+    void remove_group_member(int group_UID,int member_UID,int sender_UID);
+    void show_group_member(int group_UID);
     
 };

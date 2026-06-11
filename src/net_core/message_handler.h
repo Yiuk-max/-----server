@@ -3,10 +3,12 @@
 #include <iostream>
 #include <string>
 #include <nlohmann/json.hpp>
-#include "client_session.h"
 using json = nlohmann::json;
+
 class client_session;
-class Message_handler{
+
+class Message_handler {
+public:
     virtual void handle_message(const json& message,client_session& session,std::string &file_data) = 0;
     virtual ~Message_handler() = default;
 };
