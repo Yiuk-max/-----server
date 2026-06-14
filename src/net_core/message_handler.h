@@ -1,4 +1,3 @@
-//Message_handler,Chat_handler,Group_handler
 #pragma once
 #include <iostream>
 #include <string>

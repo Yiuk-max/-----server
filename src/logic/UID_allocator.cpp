@@ -21,5 +21,5 @@ int UID_allocator::request_file_id() {
     return current_file_id++;
 }
 std::string UID_allocator::get_string_file_ID(int file_id){
-    
+    return "";
 }

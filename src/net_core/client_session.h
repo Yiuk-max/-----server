@@ -5,6 +5,7 @@
 #include "message_handler.h"
 #include "social_module_manager.h"
 #include "account_manager.h"
+#include "group.h"
 #include "group_manager.h"
 
 class client_session{
