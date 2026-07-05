@@ -69,7 +69,17 @@ void main_reactor::loop()
 void sub_reactor::pool_add_task(std::string received_data, int fd)
 {
     auto pool = pool_.lock();
-    pool->add_task([pool, fd, received_data]()
+    if(!pool) {
+        std::cerr << "ThreadPool is no longer available." << std::endl;
+        return;
+    }
+    // pool->add_task([pool, fd, received_data]()
+    //                {
+    //                     auto manager = session_manager::get_instance().find_session(fd);
+    //                     if (manager) {
+    //                         manager->handle(received_data);
+    //                     } });
+    pool->submit_task([pool,fd, received_data]()
                    {
                         auto manager = session_manager::get_instance().find_session(fd);
                         if (manager) {

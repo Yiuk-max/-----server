@@ -3,7 +3,7 @@
 ThreadPool::ThreadPool():is_exit_(false),num_threads_(8){
     std::cout <<"initializing thread pool ... "<<std::endl;
     for(int i=0;i<num_threads_;++i){
-        workers.emplace_back(std::make_unique<std::thread>(&ThreadPool::run,this));
+        workers.emplace_back(&ThreadPool::run,this);
 
     }
     std::cout <<"thread pool initialized with "<<num_threads_<<" threads."<<std::endl;
@@ -14,7 +14,7 @@ ThreadPool::ThreadPool(int num):is_exit_(false),num_threads_(num){
     }
     std::cout <<"initializing thread pool ... "<<std::endl;
     for(int i=0;i<num_threads_;++i){
-        workers.emplace_back(std::make_unique<std::thread>(&ThreadPool::run,this));
+        workers.emplace_back(&ThreadPool::run,this);
 
     }
 
@@ -30,17 +30,10 @@ void ThreadPool::stop_pool(){
     }
     cv_.notify_all();
     for(auto& worker:workers){
-        if(worker->joinable()){
-            worker->join();
+        if(worker.joinable()){
+            worker.join();
         }
     }
-}
-void ThreadPool::add_task(std::function<void()> task){
-    {
-        std::unique_lock<std::mutex> lock(th_pool_mtx_);
-        tasks.push(std::move(task));
-    }
-    cv_.notify_one();
 }
 void ThreadPool::run(){
     while(true){
