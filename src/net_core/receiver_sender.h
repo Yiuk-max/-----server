@@ -46,6 +46,7 @@ private:
     int epoll_fd_;
     std::string in_buffer;       // 接收缓冲区，存储未处理的原始数据
     std::unordered_map<std::string, TransferContext> transfers; // 用 file_id 查对应的传输任务
+    std::mutex in_mtx;           // 保护缓冲区的锁
 public:
     receiver(int epoll_fd,int fd):epoll_fd_(epoll_fd),client_fd_(fd){}
     Standard_Message process_recv_data(std::string raw_message);// 处理原始数据，返回解析结果

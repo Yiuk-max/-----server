@@ -35,9 +35,11 @@ void client_session::init_(){
 
 //===============消息处理===============
 void client_session::handle(std::string raw_message){
+    int try_times = 0;
     receiver_->append_data(raw_message); // 将新接收的数据追加到缓冲区
     //消息标准化处理，循环处理所有完整消息（支持粘包）
-    while (true) {
+    while (try_times < 10 && !raw_message.empty() && online) {
+        try_times++;
         Standard_Message recv_result = receiver_->process_recv_data(raw_message);
         if (!recv_result.is_valid) {
             break;  // 没有更多完整消息

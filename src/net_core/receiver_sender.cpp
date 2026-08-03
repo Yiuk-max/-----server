@@ -206,5 +206,6 @@ void receiver::upload_file(const json &meta, const std::string &data)
 }
 void receiver::append_data(const std::string &data)
 {
+    std::lock_guard<std::mutex> lock(in_mtx);
     in_buffer += data;
 }
