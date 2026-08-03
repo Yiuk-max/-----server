@@ -5,14 +5,14 @@
 
 class UID_allocator {
 private:
-    int current_uid = 0;
-    int current_group_id = 0;
-    int current_file_id = 0;
+    int current_uid = 1;
+    int current_group_id = 1;
+    int current_file_id = 1;
     std::mutex uid_mutex;
     int uid_length = 8; // 定义UID的长度，默认为8位
     int file_id_length = 16; // 定义文件ID的长度，默认为16位
     
-    UID_allocator() : current_uid(0), current_group_id(0), current_file_id(0) {} // 私有构造函数，禁止外部实例化
+    UID_allocator() : current_uid(1), current_group_id(1), current_file_id(1) {} // 私有构造函数，禁止外部实例化
     UID_allocator(const UID_allocator &) = delete;            // 禁止拷贝构造
     UID_allocator &operator=(const UID_allocator &) = delete; // 禁止拷贝赋值
     UID_allocator(UID_allocator &&) = delete;                 // 禁止移动构造

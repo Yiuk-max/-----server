@@ -1,9 +1,13 @@
 #include "account_manager.h"
 
-void account_manager::register_account(const std::string& name, const std::string& password) {
+std::string account_manager::register_account(const std::string& name, const std::string& password) {
     std::lock_guard<std::mutex> lock(accounts_mutex);
     auto new_account = std::make_shared<account>(UID_allocator::get_instance().request_uid(), name, password);
     accounts_[new_account->getUID()] = new_account;
+    std::string UID = UID_allocator::get_instance().get_string_UID(new_account->getUID());
+    social_manager::get_instance().add_social_module(new_account->getUID()); // 为新注册的用户创建社交模块
+
+    return UID;
 }
 void account_manager::remove_account(int UID) {
     std::lock_guard<std::mutex> lock(accounts_mutex);

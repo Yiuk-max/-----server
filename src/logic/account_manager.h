@@ -21,7 +21,7 @@ class account_manager{
             static account_manager instance;
             return instance;
         }
-        void register_account(const std::string& name, const std::string& password);
+        std::string register_account(const std::string& name, const std::string& password);
         void remove_account(int UID);
         std::shared_ptr<account> find_account(int UID);
         std::string get_account_info(int UID);

@@ -1,4 +1,5 @@
 #include "epoller.h"
+#include "client_session.h"
 inline epoller::~epoller()
 {
     if (epoller_fd_ >= 0)
@@ -44,6 +45,7 @@ void sub_reactor::add_connect(int new_client_fd)
     auto session = std::make_shared<client_session>(new_client_fd, epoller_fd_);
     {
         std::lock_guard<std::mutex> lock(client_mutex);
+        set_session(new_client_fd, session);
         session_manager::get_instance().add_session(new_client_fd, session);
     }
 }
@@ -73,26 +75,21 @@ void sub_reactor::pool_add_task(std::string received_data, int fd)
         std::cerr << "ThreadPool is no longer available." << std::endl;
         return;
     }
-    // pool->add_task([pool, fd, received_data]()
-    //                {
-    //                     auto manager = session_manager::get_instance().find_session(fd);
-    //                     if (manager) {
-    //                         manager->handle(received_data);
-    //                     } });
-    pool->submit_task([pool,fd, received_data]()
+    auto session = get_session(fd);
+    if (!session) {
+        return; // 连接可能已经关闭
+    }
+    pool->submit_task([session, received_data]()
                    {
-                        auto manager = session_manager::get_instance().find_session(fd);
-                        if (manager) {
-                            manager->handle(received_data);
-                        } });
+                        session->handle(received_data);
+                   });
 }
 void sub_reactor::remove_client(int fd)
 {
     epoll_ctl(epoller_fd_, EPOLL_CTL_DEL, fd, nullptr);
-    auto session = session_manager::get_instance().find_session(fd);
-    if (session) {
-        session_manager::get_instance().remove_session(fd);
-    }
+    std::lock_guard<std::mutex> lock(client_mutex);
+    erase_session(fd);
+    session_manager::get_instance().remove_session(fd);
 }
 std::string sub_reactor::read_data(bool &disconnected, int &fd)
 {
@@ -133,7 +130,8 @@ void sub_reactor::loop()
         for (int i = 0; i < num_events; ++i)
         {
             int fd = events[i].data.fd;
-            auto manager = session_manager::get_instance().find_session(fd);
+
+            auto manager = get_session(fd);
             if (!manager)
                 continue; // 连接可能已经被关闭了
             // ===================处理EPOLLOUT事件====================
@@ -159,4 +157,22 @@ void sub_reactor::loop()
             }
         }
     }
+}
+
+std::shared_ptr<class client_session> sub_reactor::get_session(int fd)
+{
+    std::lock_guard<std::mutex> lock(client_mutex);
+    auto it = sessions_by_fd.find(fd);
+    if (it != sessions_by_fd.end()) {
+        return it->second;
+    }
+    return nullptr;
+}
+void sub_reactor::set_session(int fd, std::shared_ptr<class client_session> session)
+{
+    sessions_by_fd[fd] = std::move(session);
+}
+void sub_reactor::erase_session(int fd)
+{
+    sessions_by_fd.erase(fd);
 }

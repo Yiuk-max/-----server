@@ -78,8 +78,8 @@ void client_session::register_user(std::string username,std::string password){
         package_message(fail,"system");
         return;
     }
-    account_manager::get_instance().register_account(username, password);
-    std::string success = "Registration successful. You can now log in.\n";
+    std::string UID = account_manager::get_instance().register_account(username, password);
+    std::string success = "Registration successful. You can now log in with UID " + UID + ".\n";
     package_message(success,"system");
 }
 void client_session::login(int UID,std::string password){
