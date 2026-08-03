@@ -9,8 +9,11 @@
 
 bool running = true;
 
+void test_mysql();
 
 int main(){
+    test_mysql();
+    return 0;
     // Create a socket
     int server_fd = socket(AF_INET6,SOCK_STREAM,0);
     if(server_fd == -1){
@@ -77,3 +80,24 @@ int main(){
     std::cout << "Server stopped." << std::endl;
     return 0;
 }
+
+
+void test_mysql(){
+    try {
+        sql::Driver *driver = get_driver_instance();
+        std::unique_ptr<sql::Connection> con(driver->connect("tcp://localhost:3306", "root", "123456"));
+        con->setSchema("test_database");
+        std::unique_ptr<sql::Statement> stmt(con->createStatement());
+        std::unique_ptr<sql::ResultSet> res(stmt->executeQuery("SELECT emp_id,gender,work_addr FROM test_database.emp"));
+        while (res->next()) {
+            std::cout << "id: " << res->getInt("emp_id") 
+            << ", gender: " << res->getString("gender") 
+            << ", work_addr: " << res->getString("work_addr") 
+            << std::endl;
+        }
+    } catch (sql::SQLException &e) {
+        std::cerr << "SQLException: " << e.what() << std::endl;
+        std::cerr << "SQLState: " << e.getSQLState() << std::endl;
+        std::cerr << "ErrorCode: " << e.getErrorCode() << std::endl;
+    }
+}   

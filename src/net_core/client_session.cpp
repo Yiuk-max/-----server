@@ -17,6 +17,8 @@ void client_session::init_(){
     //初始化消息处理器，后续可以根据需要添加更多类型的消息处理器
     handlers_["private_chat"]           = std::make_unique<Chat_handler>();// 聊天消息.私聊
     handlers_["group_chat"]             = std::make_unique<Chat_handler>();// 聊天消息.群聊
+    handlers_["add_friend"]             = std::make_unique<Chat_handler>();// 好友相关 -----------未实现
+    
     //基本功能
     handlers_["show"]                   = std::make_unique<Base_handler>();// 展示聊天对象
     handlers_["exit"]                   = std::make_unique<Base_handler>();
@@ -138,16 +140,7 @@ void client_session::show_chatlist(){
 //==========================================================================================
 //============================================业务逻辑=======================================
 //==========================================================================================
-// void client_session::spk_to(int UID,std::string message){
 
-//     if (message.empty()) {
-//         std::string fail = "Invalid format. Use /spk_to:group_or_user:content\n";
-//         package_message(fail,"system");
-//         return;
-//     }
-
-//     auto it = 
-// }
 void client_session::group_chat(int target_UID,std::string message){
     auto grp = Group_manager::get_instance().find_group(target_UID);
     if (grp) {

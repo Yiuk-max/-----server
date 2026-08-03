@@ -21,6 +21,7 @@
 #include "account.h"
 #include "UID_allocator.h"              // UID分配器
 //#include "group_manager.h"              // 群聊管理器
+#include <mysql/jdbc.h>                 // MySQL Connector/C++头文件
 
 using json = nlohmann::json;
 
