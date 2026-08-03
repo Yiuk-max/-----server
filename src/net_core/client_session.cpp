@@ -35,6 +35,7 @@ void client_session::init_(){
 
 //===============消息处理===============
 void client_session::handle(std::string raw_message){
+    receiver_->append_data(raw_message); // 将新接收的数据追加到缓冲区
     //消息标准化处理，循环处理所有完整消息（支持粘包）
     while (true) {
         Standard_Message recv_result = receiver_->process_recv_data(raw_message);
@@ -235,7 +236,7 @@ void client_session::package_message(const std::string& message,std::string type
     std::string json_str = msg_json.dump();
 
     uint32_t json_len = htonl(json_str.size());
-    uint32_t total_len = 8+msg_json.dump().size(); // 包头长度 + JSON长度 + file长度（0）
+    uint32_t total_len = htonl(8 + json_str.size()); // 包头长度 + JSON长度 + file长度（0）
 
     std::string packet;
     packet.reserve(8 + json_str.size());

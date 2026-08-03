@@ -105,7 +105,6 @@ void sender::process_file_data(json &msg_json, std::string &data)
 }
 Standard_Message receiver::process_recv_data(std::string raw_message)
 {
-    in_buffer += raw_message;
     Standard_Message result;
     
     // 需要包头：4字节包头总长度 + 4字节JSON长度
@@ -204,4 +203,8 @@ void receiver::upload_file(const json &meta, const std::string &data)
         
         std::cout << "文件接收完成: " << filename << std::endl;
     }
+}
+void receiver::append_data(const std::string &data)
+{
+    in_buffer += data;
 }

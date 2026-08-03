@@ -49,6 +49,7 @@ private:
 public:
     receiver(int epoll_fd,int fd):epoll_fd_(epoll_fd),client_fd_(fd){}
     Standard_Message process_recv_data(std::string raw_message);// 处理原始数据，返回解析结果
+    void append_data (const std::string& data); // 将新接收的数据追加到缓冲区
     void upload_file(const json& meta, const std::string& data);
     void recv_msg(int fd);
 };
