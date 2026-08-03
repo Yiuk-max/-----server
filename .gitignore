@@ -1,0 +1,13 @@
+build/
+
+*.obj
+*.o
+*.a
+*.so
+*.dylib
+*.pdb
+*.ilk
+*.exp
+*.d
+*.gcda
+*.gcno
