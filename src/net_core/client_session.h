@@ -15,10 +15,11 @@ private:
     bool online = true; // 用户在线状态
     std::shared_ptr<account> current_account_;                  // 当前用户的账户信息
     std::shared_ptr<social_module> social_manager_;   // 社交关系管理器
-    //===============收发模块（方案 3a 轻拆：收入 connection）===============
+    //===============收发模块（方案 3b 重拆：connection 彻底独立，此处仅存弱引用回指）===============
 public:
-    std::unique_ptr<connection> conn_;   // 纯网络收发层（receiver / sender / 帧协议）
-    connection& conn();                  // 供 message_handler 访问收发模块
+    std::weak_ptr<connection> conn_;   // 非拥有弱引用回指 connection；生命周期由 sub_reactor 持有
+    void set_connection(const std::shared_ptr<connection>& c);  // 绑定 connection（存弱引用）
+    connection& conn();                  // 供 message_handler 访问收发模块（仅在本连接消息处理期间调用）
     //===============消息处理模块===============
     std::unordered_map<std::string,std::unique_ptr<Message_handler>> handlers_; 
     //初始化消息处理器，后续可以根据需要添加更多类型的消息处理器
@@ -26,8 +27,8 @@ public:
     //============Account模块===============
     public:
     //===============构造、析构函数===============
-    client_session(){};
-    client_session(int fd,int epoll_fd);  // 实现在 .cpp，避免循环依赖    
+
+    client_session(): session_key_(-1){ init_(); };  // 会话由 sub_reactor 创建；init_ 初始化消息处理器；-1 表示尚未绑定连接
     ~client_session();
     //===============注册、登录、退出===============
     void register_user(std::string username,std::string password);          //注册新用户                                                   //注册新用户，分配UID
@@ -38,7 +39,8 @@ public:
     bool target_UID_is_exit(int target_UID);
     bool target_UID_is_online(int target_UID);
     //===============消息处理===============
-    void handle(std::string raw_message);                                       //判断信息类型
+    // 接收驱动：由 connection::process_incoming 回调；负责解析 JSON 并策略分发到 handlers_
+    void on_message(const std::string& json_data, std::string file_data);
     //===============业务逻辑===============
     void show_chatlist();                                                   //展示聊天对象（好友、群聊）   
 
@@ -62,5 +64,3 @@ public:
     //void send_msg();  已改为网络层直接调用发送模块                              //调用sender模块发送
     //void request_file(int file_name);                                     //请求文件
     //void preprocess_recv_data(std::string raw_message);  改为由handle调用接收模块预处理//处理接收到的信息
-
-

@@ -147,6 +147,44 @@ client_session中show_chatlist()中要展示UID
 - 修复：把 add_social_module 移出 accounts_mutex 的锁作用域（先写入账户并保存 UID，
         释放锁后再创建社交模块）。
 
+2026-xx-xx 重构：方案 3b（重拆）——connection 彻底独立，epoll 事件循环直接面向 connection
+- 目标：在 3a 基础上再进一步——彻底拆出 connection，client_session 退化为纯"会话+业务"，
+        且 sub_reactor 的事件循环不再面向 client_session，而是直接面向 connection。
+- 新增/改造：
+    - connection.h/.cpp
+        - 新增 process_incoming()：循环切出所有完整帧，逐帧回调 session->on_message()
+          （供线程池任务调用；持 recv_mtx_ 保护接收缓冲，避免与 IO 线程 append 竞争）
+        - 新增 attach_session(shared_ptr<client_session>)：绑定业务会话
+        - next_frame() 改为私有；append_raw_data 加锁
+        - recv_mtx_ 成员：串行化「append 追加」与「process 切帧」
+        - 持有 shared_ptr<client_session> session_
+    - client_session.h/.cpp
+        - 不再构造/持有 connection（把 make_unique<connection> 移除）
+        - conn_ 类型 unique_ptr -> weak_ptr<connection>（弱引用回指，防悬垂+防环）
+        - 新增 set_connection(const shared_ptr<connection>&)
+        - handle(raw_message) -> on_message(json_part, file_part)
+          （只解析 JSON + 按 type 策略分发，切帧逻辑已上移到 connection）
+        - package_message / exit_self 改用 conn_.lock() 安全访问
+        - 构造函数改为无参（由 sub_reactor 创建），构造时调用 init_()
+    - epoller.h/.cpp
+        - sessions_by_fd(fd->client_session) 改为 connections_by_fd(fd->connection)
+        - get/set/erase_session -> get/set/erase_connection
+        - add_connect：创建 connection + client_session，set_connection + attach_session 双向绑定
+        - pool_add_task：append_raw_data(received_data) -> 提交 conn->process_incoming 到线程池
+        - loop：EPOLLOUT -> conn->handle_write()；EPOLLIN -> 读数据 -> pool_add_task
+        - remove_client：erase_connection + session_manager.remove_session(fd)
+- 关键设计（安全/防环）：
+    - 对象关系单持有链：sub_reactor -> connection -> client_session；会话用 weak_ptr 回指 connection。
+    - 即使 epoll 已回收 connection 而会话仍在 session_manager（连接断开未登出），
+      package_message 经 conn_.lock() 失败即安全跳过，不再有悬垂访问。
+- 注意：
+    - connection.cpp 需 #include "client_session.h"（回调 on_message）
+    - client_session::conn() 仅在"本连接消息处理期间"调用（此时线程池任务持有 connection，
+      weak 锁必成功）；跨连接转发一律走 package_message（内部 lock，安全）。
+- 遗留问题（3b 前已存在，本次未改）：连接异常断开但已登录用户不会主动从 session_manager
+  移除（remove_client 只按 fd remove，登录后 key 变 UID），导致断线后 is_online 仍为 true、
+  会话残留；由于会话用弱引用回指 connection，至少不会再产生悬垂崩溃。
+
 2026-xx-xx 重构：方案 3a（轻拆）——把"收发部分"收敛到独立 connection 对象
 - 目标：只把 receiver_/sender_/帧解析/打包（package_message）/文件收发的"收发部分"拆出，
         client_session 对外 API 不变，只做内部瘦身；调用点改动最小。

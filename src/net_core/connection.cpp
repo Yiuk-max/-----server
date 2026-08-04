@@ -1,4 +1,5 @@
 #include "connection.h"
+#include "client_session.h"
 
 connection::connection(int epoll_fd, int fd)
     : client_fd_(fd), epoll_fd_(epoll_fd) {
@@ -10,17 +11,45 @@ connection::~connection() {
     close();
 }
 
+// ---------- 生命周期 ----------
+void connection::attach_session(std::shared_ptr<client_session> session) {
+    session_ = std::move(session);
+}
+
+void connection::close() {
+    if (client_fd_ >= 0) {
+        ::close(client_fd_);
+        client_fd_ = -1;
+    }
+}
+
 // ---------- 供 epoller（sub_reactor）调用 ----------
 void connection::handle_write() {
     sender_->send_msg();
 }
 
 void connection::append_raw_data(const std::string& data) {
+    std::lock_guard<std::mutex> lock(recv_mtx_);
     receiver_->append_data(data);
 }
 
+void connection::process_incoming() {
+    // 循环切出所有完整帧（支持粘包/半包），逐帧交给业务会话分发。
+    // 加锁保护接收缓冲的切换，避免与 append_raw_data（IO 线程）竞争。
+    std::lock_guard<std::mutex> lock(recv_mtx_);
+    while (true) {
+        Standard_Message recv_result = next_frame();
+        if (!recv_result.is_valid) {
+            break;  // 没有更多完整消息
+        }
+        if (session_) {
+            session_->on_message(recv_result.json_part, recv_result.file_part);
+        }
+    }
+}
+
+// 私有：从接收缓冲切出一个完整帧（调用方需已持 recv_mtx_）
 Standard_Message connection::next_frame() {
-    // process_recv_data 的入参在实现里只读 in_buffer，传空串即可
     return receiver_->process_recv_data("");
 }
 
@@ -59,12 +88,4 @@ sender& connection::sender_obj() {
 
 receiver& connection::receiver_obj() {
     return *receiver_;
-}
-
-// ---------- 连接生命周期 ----------
-void connection::close() {
-    if (client_fd_ >= 0) {
-        ::close(client_fd_);
-        client_fd_ = -1;
-    }
 }

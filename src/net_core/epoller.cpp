@@ -42,10 +42,14 @@ void sub_reactor::add_connect(int new_client_fd)
     event.data.fd = new_client_fd;
     epoll_ctl(epoller_fd_, EPOLL_CTL_ADD, new_client_fd, &event);
 
-    auto session = std::make_shared<client_session>(new_client_fd, epoller_fd_);
+    // 方案 3b 重拆：创建独立的 connection（纯网络收发），并为其创建并绑定业务会话。
+    auto conn = std::make_shared<connection>(epoller_fd_, new_client_fd);
+    auto session = std::make_shared<client_session>();
+    session->set_connection(conn);         // 会话用弱引用回指 connection
+    conn->attach_session(session);         // connection 持有会话（决定其生命周期）
     {
         std::lock_guard<std::mutex> lock(client_mutex);
-        set_session(new_client_fd, session);
+        set_connection(new_client_fd, conn);
         session_manager::get_instance().add_session(new_client_fd, session);
     }
 }
@@ -75,20 +79,22 @@ void sub_reactor::pool_add_task(std::string received_data, int fd)
         std::cerr << "ThreadPool is no longer available." << std::endl;
         return;
     }
-    auto session = get_session(fd);
-    if (!session) {
+    auto conn = get_connection(fd);
+    if (!conn) {
         return; // 连接可能已经关闭
     }
-    pool->submit_task([session, received_data]()
+    // 先把原始字节追加进 connection 的接收缓冲，再把切帧+业务处理提交到线程池
+    conn->append_raw_data(received_data);
+    pool->submit_task([conn]()
                    {
-                        session->handle(received_data);
+                        conn->process_incoming();
                    });
 }
 void sub_reactor::remove_client(int fd)
 {
     epoll_ctl(epoller_fd_, EPOLL_CTL_DEL, fd, nullptr);
     std::lock_guard<std::mutex> lock(client_mutex);
-    erase_session(fd);
+    erase_connection(fd);
     session_manager::get_instance().remove_session(fd);
 }
 std::string sub_reactor::read_data(bool &disconnected, int &fd)
@@ -131,13 +137,13 @@ void sub_reactor::loop()
         {
             int fd = events[i].data.fd;
 
-            auto manager = get_session(fd);
-            if (!manager)
+            auto conn = get_connection(fd);
+            if (!conn)
                 continue; // 连接可能已经被关闭了
             // ===================处理EPOLLOUT事件====================
             if (events[i].events & EPOLLOUT)
             {
-                manager->conn_->handle_write();
+                conn->handle_write();
                 continue; // 处理完写事件后继续下一轮循环
             }
             //===============================================
@@ -159,20 +165,20 @@ void sub_reactor::loop()
     }
 }
 
-std::shared_ptr<class client_session> sub_reactor::get_session(int fd)
+std::shared_ptr<connection> sub_reactor::get_connection(int fd)
 {
     std::lock_guard<std::mutex> lock(client_mutex);
-    auto it = sessions_by_fd.find(fd);
-    if (it != sessions_by_fd.end()) {
+    auto it = connections_by_fd.find(fd);
+    if (it != connections_by_fd.end()) {
         return it->second;
     }
     return nullptr;
 }
-void sub_reactor::set_session(int fd, std::shared_ptr<class client_session> session)
+void sub_reactor::set_connection(int fd, std::shared_ptr<connection> conn)
 {
-    sessions_by_fd[fd] = std::move(session);
+    connections_by_fd[fd] = std::move(conn);
 }
-void sub_reactor::erase_session(int fd)
+void sub_reactor::erase_connection(int fd)
 {
-    sessions_by_fd.erase(fd);
+    connections_by_fd.erase(fd);
 }

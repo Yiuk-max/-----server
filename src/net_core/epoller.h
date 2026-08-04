@@ -2,6 +2,7 @@
 #include "total.h"
 #include "session_manager.h"
 #include "thread_pool.h"
+#include "connection.h"
 extern bool running;
 
 class epoller{//epoll基类，实现main和sub reactor
@@ -55,15 +56,13 @@ private:
     std::vector<struct epoll_event> events;
     std::mutex client_mutex;
 
-    // 本 reactor 维护的 fd -> client_session 映射。
-    // 注意：session 登录后会在 session_manager 中把 key 从 fd 换成 UID，
-    // 因此这里必须用独立的 fd 映射，否则 epoll 事件循环将无法按 fd 找到对应连接。
-    std::unordered_map<int, std::shared_ptr<class client_session>> sessions_by_fd;
-    std::shared_ptr<class client_session> get_session(int fd);   // 按 fd 查找
-    void set_session(int fd, std::shared_ptr<class client_session> session);
-    void erase_session(int fd);
+    // 方案 3b 重拆：本 reactor 维护 fd -> connection 映射，事件循环直接面向 connection。
+    // connection 内部再绑定自己的 client_session（业务会话），从而把网络收发与业务彻底分离。
+    std::unordered_map<int, std::shared_ptr<connection>> connections_by_fd;
+    std::shared_ptr<connection> get_connection(int fd);   // 按 fd 查找
+    void set_connection(int fd, std::shared_ptr<connection> conn);
+    void erase_connection(int fd);
 };
 
 
 void epoll_event_loop(int server_fd, ThreadPool& pool);//旧单reactor模式，代码复用...
-

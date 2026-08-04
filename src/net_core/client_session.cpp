@@ -8,14 +8,23 @@
 
 extern bool running;
 
-client_session::client_session(int fd,int epoll_fd)
-    : session_key_(fd) {
-    conn_ = std::make_unique<connection>(epoll_fd, fd);
-    init_();
+// 方案 3b 重拆：client_session 不再构造/持有 connection（由 sub_reactor 创建并绑定）。
+// 客户端连接在 sub_reactor::add_connect 中创建 connection 与 client_session，
+// 再通过 set_connection() 把会话和 connection 绑定起来。
+
+void client_session::set_connection(const std::shared_ptr<connection>& c){
+    conn_ = c;   // 存弱引用，避免与 connection 持有的 shared_ptr<client_session> 形成环
+    // 未登录时 session_key_ 以连接 fd 作为 session_manager 的 key（登录后切换为 UID）
+    if (session_key_ < 0) {
+        session_key_ = c->fd();
+    }
 }
 
 connection& client_session::conn(){
-    return *conn_;
+    // 仅在本连接的消息处理（process_incoming 任务）期间调用：此时任务持有 connection，
+    // 弱引用锁定的共享所有权必成功。
+    auto c = conn_.lock();
+    return *c;
 }
 
 void client_session::init_(){
@@ -41,40 +50,29 @@ void client_session::init_(){
 }
 
 //===============消息处理===============
-void client_session::handle(std::string raw_message){
-    int try_times = 0;
-    conn_->append_raw_data(raw_message); // 将新接收的数据追加到缓冲区
-    //消息标准化处理，循环处理所有完整消息（支持粘包）
-    while (try_times < 10 && !raw_message.empty() && online) {
-        try_times++;
-        Standard_Message recv_result = conn_->next_frame();
-        if (!recv_result.is_valid) {
-            break;  // 没有更多完整消息
-        }
-        std::string json_data = recv_result.json_part;
-        std::string file_data = recv_result.file_part;
-        //解析消息
-        json msg_json;
-        try{
-            msg_json = json::parse(json_data);
-        }catch(const std::exception& e){
-            std::cerr << "Error handling message: " << e.what() << std::endl;
-            continue;
-        }//异常处理
-        if(!msg_json.contains("type")){
-            std::string fail = "Invalid message format: missing 'type' field.\n";
-            package_message(fail,"system");
-            continue;
-        }
-        //策略分发到对应的处理者
-        std::string type = msg_json["type"];
-        auto handler_it = handlers_.find(type);
-        if(handler_it != handlers_.end()){
-            handler_it->second->handle_message(msg_json, *this, file_data);
-        }else{
-            std::string fail = "Unknown command type.\n";
-            package_message(fail,"system");
-        }
+// 方案 3b：接收缓冲/切帧已在 connection::process_incoming 完成，
+// 这里只负责解析这一条完整 JSON 消息并按 type 策略分发到对应 handler。
+void client_session::on_message(const std::string& json_data, std::string file_data){
+    json msg_json;
+    try{
+        msg_json = json::parse(json_data);
+    }catch(const std::exception& e){
+        std::cerr << "Error handling message: " << e.what() << std::endl;
+        return;
+    }
+    if(!msg_json.contains("type")){
+        std::string fail = "Invalid message format: missing 'type' field.\n";
+        package_message(fail,"system");
+        return;
+    }
+    //策略分发到对应的处理者
+    std::string type = msg_json["type"];
+    auto handler_it = handlers_.find(type);
+    if(handler_it != handlers_.end()){
+        handler_it->second->handle_message(msg_json, *this, file_data);
+    }else{
+        std::string fail = "Unknown command type.\n";
+        package_message(fail,"system");
     }
 }
 
@@ -136,7 +134,10 @@ void client_session::exit_self(){
     if (current_account_) {
         session_manager::get_instance().remove_session(session_key_);
     }
-    conn_->close();
+    // 通知 connection 关闭底层 fd；sub_reactor 会在收到关闭事件后回收该 connection
+    if (auto c = conn_.lock()) {
+        c->close();
+    }
 }
 void client_session::show_chatlist(){
     std::string chat_list = social_manager_->show_friends();//调用社交模块的查询
@@ -233,12 +234,14 @@ void client_session::modify_group_name(int group_UID,std::string new_name){
 client_session::~client_session(){
     // 确保从 session_manager 移除
     session_manager::get_instance().remove_session(session_key_);
-    // connection 持有底层 fd，析构时由它负责关闭
+    // connection 由 sub_reactor 独立管理其生命周期，无关本会话析构；弱引用自动失效
 }
 //===============================数据处理================================
 void client_session::package_message(const std::string& message,std::string type){
-    // 方案 3a 轻拆：打包序列化已收敛到 connection，这里只做转发
-    conn_->package_message(message, type);
+    // 方案 3b 重拆：打包序列化在 connection，会话只做转发（conn_ 为弱引用，连接存活则发送成功）
+    if (auto c = conn_.lock()) {
+        c->package_message(message, type);
+    }
 }
 
 
