@@ -137,7 +137,7 @@ void sub_reactor::loop()
             // ===================处理EPOLLOUT事件====================
             if (events[i].events & EPOLLOUT)
             {
-                manager->sender_->send_msg();
+                manager->conn_->handle_write();
                 continue; // 处理完写事件后继续下一轮循环
             }
             //===============================================

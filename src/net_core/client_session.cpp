@@ -9,10 +9,13 @@
 extern bool running;
 
 client_session::client_session(int fd,int epoll_fd)
-    : client_fd(fd), epoll_fd_(epoll_fd), session_key_(fd) {
-    receiver_ = std::make_unique<receiver>(epoll_fd, fd);
-    sender_ = std::make_unique<sender>(epoll_fd, fd);
+    : session_key_(fd) {
+    conn_ = std::make_unique<connection>(epoll_fd, fd);
     init_();
+}
+
+connection& client_session::conn(){
+    return *conn_;
 }
 
 void client_session::init_(){
@@ -40,11 +43,11 @@ void client_session::init_(){
 //===============消息处理===============
 void client_session::handle(std::string raw_message){
     int try_times = 0;
-    receiver_->append_data(raw_message); // 将新接收的数据追加到缓冲区
+    conn_->append_raw_data(raw_message); // 将新接收的数据追加到缓冲区
     //消息标准化处理，循环处理所有完整消息（支持粘包）
     while (try_times < 10 && !raw_message.empty() && online) {
         try_times++;
-        Standard_Message recv_result = receiver_->process_recv_data(raw_message);
+        Standard_Message recv_result = conn_->next_frame();
         if (!recv_result.is_valid) {
             break;  // 没有更多完整消息
         }
@@ -133,7 +136,7 @@ void client_session::exit_self(){
     if (current_account_) {
         session_manager::get_instance().remove_session(session_key_);
     }
-    close(client_fd);
+    conn_->close();
 }
 void client_session::show_chatlist(){
     std::string chat_list = social_manager_->show_friends();//调用社交模块的查询
@@ -230,31 +233,12 @@ void client_session::modify_group_name(int group_UID,std::string new_name){
 client_session::~client_session(){
     // 确保从 session_manager 移除
     session_manager::get_instance().remove_session(session_key_);
-    if (online) {
-        close(client_fd);
-    }
+    // connection 持有底层 fd，析构时由它负责关闭
 }
 //===============================数据处理================================
 void client_session::package_message(const std::string& message,std::string type){
-    // 统一协议: |4字节总长度|4字节JSON长度|JSON|file|
-    json msg_json;
-    msg_json["type"]= type; // 这里的type是消息类型，和之前的cmd区分开
-    msg_json["content"] = message;
-    std::string json_str = msg_json.dump();
-
-    uint32_t json_len = htonl(json_str.size());
-    uint32_t total_len = htonl(8 + json_str.size()); // 包头长度 + JSON长度 + file长度（0）
-
-    std::string packet;
-    packet.reserve(8 + json_str.size());
-    packet.append(reinterpret_cast<const char*>(&total_len), 4);
-    packet.append(reinterpret_cast<const char*>(&json_len), 4);
-    // packet.append(reinterpret_cast<const char*>(&file_len), 4);
-    packet += json_str;
-    // file部分为空，不追加
-
-    sender_->add_to_out_buffer(packet);
-
+    // 方案 3a 轻拆：打包序列化已收敛到 connection，这里只做转发
+    conn_->package_message(message, type);
 }
 
 

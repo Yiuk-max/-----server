@@ -1,7 +1,7 @@
 #pragma once
 #include "total.h"
 #include "account.h"
-#include "receiver_sender.h"
+#include "connection.h"
 #include "message_handler.h"
 #include "social_module_manager.h"
 #include "account_manager.h"
@@ -11,16 +11,14 @@
 class client_session{
 private:
     //===============基本信息===============
-    int client_fd;
-    int epoll_fd_;
     int session_key_;           // 当前在 session_manager 中的 key（未登录时为 fd，登录后为 UID）
     bool online = true; // 用户在线状态
     std::shared_ptr<account> current_account_;                  // 当前用户的账户信息
     std::shared_ptr<social_module> social_manager_;   // 社交关系管理器
-    //===============发送模块、接收模块===============
+    //===============收发模块（方案 3a 轻拆：收入 connection）===============
 public:
-    std::unique_ptr<receiver> receiver_;
-    std::unique_ptr<sender> sender_;
+    std::unique_ptr<connection> conn_;   // 纯网络收发层（receiver / sender / 帧协议）
+    connection& conn();                  // 供 message_handler 访问收发模块
     //===============消息处理模块===============
     std::unordered_map<std::string,std::unique_ptr<Message_handler>> handlers_; 
     //初始化消息处理器，后续可以根据需要添加更多类型的消息处理器

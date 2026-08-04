@@ -147,6 +147,24 @@ client_session中show_chatlist()中要展示UID
 - 修复：把 add_social_module 移出 accounts_mutex 的锁作用域（先写入账户并保存 UID，
         释放锁后再创建社交模块）。
 
+2026-xx-xx 重构：方案 3a（轻拆）——把"收发部分"收敛到独立 connection 对象
+- 目标：只把 receiver_/sender_/帧解析/打包（package_message）/文件收发的"收发部分"拆出，
+        client_session 对外 API 不变，只做内部瘦身；调用点改动最小。
+- 新增：
+    - src/net_core/connection.h/.cpp   纯网络收发层
+      - 拥有 fd/epoll_fd，持有 receiver_ / sender_，析构负责关闭 fd
+      - API：append_raw_data / next_frame / handle_write（供 epoller 调用）
+             package_message / send_file / upload_file（供业务层调用）
+             sender_obj() / receiver_obj() 访问器；close()
+- 改造：
+    - client_session.h    移除 client_fd/epoll_fd_/receiver_/sender_ 成员，新增 conn_（unique_ptr<connection>）与 conn() 访问器
+    - client_session.cpp  handle() 改用 conn_->append_raw_data / conn_->next_frame()；
+                          exit_self()/析构 改用 conn_->close()；
+                          package_message() 转发到 conn_->package_message()
+    - message_handler.cpp File_handler 收发改用 session.conn().upload_file / session.conn().send_file
+    - epoller.cpp         EPOLLOUT 处理改用 manager->conn_->handle_write()
+- 注意：aux_source_directory 需重新 cmake configure 以纳入 connection.cpp。
+
 2026-xx-xx 重构：引入 NoticeService，解耦 logic 层对网络层的直接调用
 - 目标：业务层(group/social_module)不再直接依赖 session_manager / client_session。
 - 新增：
