@@ -2,7 +2,6 @@
 #include <vector>
 #include <string>
 #include <mutex>
-#include "session_manager.h"
 #include "UID_allocator.h"
 
 class client_session;

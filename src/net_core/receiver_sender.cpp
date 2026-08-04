@@ -48,7 +48,7 @@ void sender::send_msg()
 }
 void sender::send_file(const std::string &file_name)
 {
-    std::string file_path = saving_path + file_name; // 构造文件路径
+    std::string file_path = SERVER_SAVING_PATH + file_name; // 构造文件路径
     // 1. 打开文件，算总大小
     std::ifstream file(file_path, std::ios::binary);
     
@@ -175,7 +175,7 @@ void receiver::upload_file(const json &meta, const std::string &data)
 
         // 预分配文件大小
         // 先跳到最后一个字节位置写一个0，文件就有了完整大小
-        std::string save_path = saving_path + filename + "_" + file_id; // 避免重名
+        std::string save_path = SERVER_SAVING_PATH + filename + "_" + file_id; // 避免重名
         ctx.file.open(save_path, std::ios::binary | std::ios::out | std::ios::in);
         if (!ctx.file.is_open()) {
             // 文件不存在则先创建

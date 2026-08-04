@@ -1,6 +1,6 @@
 #include "epoller.h"
 #include "client_session.h"
-inline epoller::~epoller()
+epoller::~epoller()
 {
     if (epoller_fd_ >= 0)
     {

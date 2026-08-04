@@ -37,7 +37,7 @@
 | `show`                | 基础     | 展示聊天对象列表（好友 + 群组）        |
 | `exit`                | 基础     | 退出系统、关闭连接                     |
 | `private_chat`        | 私聊     | 私聊（一对一向指定 UID 发消息）        |
-| `group_chat`          | 群聊     | 群聊发言（当前版本暂未实现）           |
+| `group_chat`          | 群聊     | 群聊发言（向指定群 UID 广播）           |
 | `create_group`        | 群组     | 创建群聊                               |
 | `delete_group`        | 群组     | 解散群聊                               |
 | `group_add_client`    | 群组     | 添加群成员                             |
@@ -60,7 +60,7 @@
     "password": "123456"
 }
 ```
-*   *注意*：当前版本的 `register_account()` 返回 void，服务器不会回传新分配的 UID。注册成功后客户端需通过其它方式（如服务器后续扩展）或登录时获知 UID。
+*   *注意*：注册成功后服务器会在返回的 `system` 消息中回传分配到的 UID，例如 `Registration successful. You can now log in with UID 000001.`，请解析 content 获取 UID 用于后续登录。
 
 ### 2. 用户登录 (login)
 *   **用途**：使用 UID + 密码登录。连接建立后客户端应在收到登录成功之前等待。
@@ -96,8 +96,8 @@
 *   *注意*：服务器会校验目标 UID 是否存在及是否在线，收到后以 `[发送者名字]: 内容` 的格式转发给目标。
 
 ### 5. 群聊 (group_chat)
-*   **用途**：向指定群发消息。**当前实现中该分支为空（未完成）**，接入时请注意。
-*   **设计 JSON 结构**：
+*   **用途**：向指定群发消息，群内所有在线成员会收到以 `Group_Chat` 类型转发的消息。
+*   **JSON 结构**：
 ```json
 {
     "type": "group_chat",
@@ -107,7 +107,7 @@
 ```
 
 ### 6. 创建群聊 (create_group)
-*   **用途**：新建群，创建者自动成为群主（管理员）。
+*   **用途**：新建群，创建者自动成为群主（管理员），并加入自己的好友/群组列表。
 *   **JSON 结构**：
 ```json
 {
@@ -115,6 +115,7 @@
     "group_name": "我的新群聊"
 }
 ```
+*   *注意*：创建成功后服务器会在返回的 `system` 消息中回传新建群的 UID，例如 `Group created successfully. Group name: [我的新群聊], Group UID: 002001.`，请解析 content 获取群 UID，后续加人/发言/改名都使用该 UID。
 
 ### 7. 解散群聊 (delete_group)
 *   **用途**：群主解散指定群。
@@ -227,12 +228,13 @@
 ### 常见系统提示文本
 | 触发场景                 | content 内容（示例）                                          |
 |--------------------------|---------------------------------------------------------------|
-| **注册成功**             | `Registration successful. You can now log in.`                |
+| **注册成功**             | `Registration successful. You can now log in with UID 000001.`  |
 | **用户名或密码为空**     | `Username and password cannot be empty.`                      |
 | **登录成功**             | `Login successful. Welcome, <用户名>!`                        |
 | **UID 不存在**           | `Account with UID [<UID>] does not exist.`                    |
 | **密码错误**             | `Incorrect password for UID [<UID>].`                         |
 | **退出系统**             | `Goodbye!`                                                    |
+| **创建群成功**           | `Group created successfully. Group name: [<群名>], Group UID: <群UID>.` |
 | **消息为空**（私聊）     | `Message cannot be empty.`                                    |
 | **未登录发私聊**         | `You must be logged in to send private messages.`             |
 | **目标 UID 不存在**      | `UID [<UID>] does not exist.`                                 |

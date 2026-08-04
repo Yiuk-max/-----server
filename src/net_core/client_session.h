@@ -48,6 +48,7 @@ public:
     void group_chat(int target_UID,std::string message);  //群聊——发言
 
     void create_group(std::string group_name);                              //创建群聊
+    void send_friend_request(int target_UID,std::string apply_message);     //添加好友(通过social_manager_)
     void delete_group(int group_UID);                              //删除群聊
     void group_add_client(int target_group_UID,int target_user_UID);     //群聊——添加群成员
     void group_delete_client(int target_group_UID,int target_user_UID);  //群聊——踢出群成员

@@ -1,16 +1,12 @@
 #include "group.h"
-#include "client_session.h"
+#include "notice_service.h"
+#include <algorithm>
 
 
 void group::group_spk(std::string message){
     std::lock_guard<std::mutex> lock(group_mutex_);
-    for(int UID:member_UID_list){
-        auto it = session_manager::get_instance().find_session(UID);
-        if(it){
-            it->package_message(message,"Group_Chat");
-        }
-    }
-
+    // 通过全局通知服务向群内所有成员广播消息（自动忽略不在线的成员）
+    NoticeService::get_instance().send_to_users(member_UID_list, message, "Group_Chat");
 }
 bool group::add_client(int UID,int sender_UID){
     if(!is_manager_(sender_UID)){
@@ -49,10 +45,7 @@ bool group::modify_group_name(int renmaer_UID,std::string new_group_name){
         return true;
     }else{
         //发送失败提示
-        auto session = session_manager::get_instance().find_session(renmaer_UID);
-        if (session) {
-            session->package_message("Permission denied: only manager can modify group name.", "system");
-        }
+        NoticeService::get_instance().send_to_user(renmaer_UID, "Permission denied: only manager can modify group name.", "system");
     }
     return false;
 }

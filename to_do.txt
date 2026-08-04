@@ -115,3 +115,62 @@ client_session中show_chatlist()中要展示UID
     - sub_reactor 的 fd 映射仅负责 epoll 事件循环，二者共享同一 client_session 对象(shared_ptr)
 - 作用：登录成功后 EPOLLOUT 写事件可被正确处理，登录成功响应正常返回，用户可正常登录。
 
+=====================================================================================
+【架构重构与问题修复记录】（面向"消除循环依赖、理顺分层"）
+=====================================================================================
+
+2026-xx-xx 重构：清理 total.h 万能头
+- 现象：include/total.h 把标准库、业务头(account.h/UID_allocator.h)、MySQL头(<mysql/jdbc.h>)
+        全部塞进去，任何 include total.h 的文件都会被强制依赖业务头与 MySQL，污染严重。
+- 处理：total.h 收缩为"纯基础设施公共头"，只保留标准库、系统库、nlohmann/json、全局宏与前置声明。
+        - 移除 <mysql/jdbc.h>（不再全项目强制依赖数据库驱动）
+        - 移除 account.h / UID_allocator.h 等业务头
+        - saving_path 由【全局变量】改为宏 SERVER_SAVING_PATH（receiver_sender.cpp 相应改用宏）
+        - 各源文件改为按需自行 include 自己真正需要的头文件
+
+2026-xx-xx 重构：打破业务层对网络层的头文件循环依赖
+- 现象：logic 层的 group_manager.h / group.h / account_manager.h
+        直接 include 网络层的 client_session.h / session_manager.h，形成循环依赖。
+- 处理：
+    - group_manager.h   移除 #include "client_session.h"
+    - group.h           移除 #include "session_manager.h"
+    - account_manager.h 移除 #include "social_module.h"，改为前置声明 + 补齐标准库头
+    - group.cpp / account_manager.cpp / client_session.cpp 等 .cpp 中显式 include 各自所需头，
+      不再依赖"传递 include"碰运气。
+- 效果：头文件层面形成单向依赖 网络层→业务层→标准库，消除循环。
+
+2026-xx-xx 修复：注册无响应（accounts_mutex 重入死锁）
+- 根因：account_manager::register_account 持有 accounts_mutex 的锁时，调用 add_social_module
+        -> new social_module(UID) -> 构造函数里 find_account(UID) 再次对同一把
+        accounts_mutex 加锁。std::mutex 不可重入，同一线程二次加锁造成永久死锁，
+        于是注册永远处理不完、不返回任何响应。
+- 修复：把 add_social_module 移出 accounts_mutex 的锁作用域（先写入账户并保存 UID，
+        释放锁后再创建社交模块）。
+
+2026-xx-xx 重构：引入 NoticeService，解耦 logic 层对网络层的直接调用
+- 目标：业务层(group/social_module)不再直接依赖 session_manager / client_session。
+- 新增：
+    - src/net_core/notice_service.h/.cpp  全局通知服务，封装"向在线用户发消息"。
+      API：send_to_user(uid,msg,type) / send_to_users(list,msg,type) / is_online(uid)
+- 改造：
+    - group.cpp        group_spk 群发、modify_group_name 权限提示 改用 NoticeService
+    - social_module.cpp add_friend/remove_friend/send_friend_request/
+                       handle_friend_request/accept_friend_request 改用 NoticeService
+    - 移除 logic 层对 session_manager/client_session 的直接调用与 include
+- 注意：新建并加入 .cpp 后需重新 cmake configure（aux_source_directory 不会自动重扫旧缓存）。
+
+2026-xx-xx 修复：epoller 析构链接错误
+- 现象：main_reactor/sub_reactor 默认析构函数需要 epoller::~epoller()，但它在 epoller.cpp
+        中定义成了 inline，链接阶段找不到符号。
+- 修复：去掉 inline 关键字，改为普通非内联定义。
+
+2026-xx-xx 功能：create_group 回传群 UID
+- 现象：创建群聊后静默成功，客户端收不到群 UID，无法用其做 group_add_client 等。
+- 处理：Group_manager::create_group 增加输出参数 int& out_group_uid；
+        social_module::create_friend_group 透传；client_session::create_group 打包回传：
+        "Group created successfully. Group name: [<name>], Group UID: <uid>."
+
+2026-xx-xx 修复：/show 不显示自己创建的群
+- 根因：create_friend_group 只调 Group_manager::create_group 把群建到全局列表，
+        却没有把新群 UID 加入当前用户的 friend_groups，导致 show_friends() 里列表为空。
+- 修复：create_friend_group 成功后把 out_group_uid push_back 进 friend_groups。

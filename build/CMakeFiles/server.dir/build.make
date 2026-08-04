@@ -72,80 +72,256 @@ include CMakeFiles/server.dir/flags.make
 CMakeFiles/server.dir/codegen:
 .PHONY : CMakeFiles/server.dir/codegen
 
-CMakeFiles/server.dir/group.cpp.o: CMakeFiles/server.dir/flags.make
-CMakeFiles/server.dir/group.cpp.o: /home/ubuntu/Desktop/server/group.cpp
-CMakeFiles/server.dir/group.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/server.dir/group.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/group.cpp.o -MF CMakeFiles/server.dir/group.cpp.o.d -o CMakeFiles/server.dir/group.cpp.o -c /home/ubuntu/Desktop/server/group.cpp
+CMakeFiles/server.dir/src/main.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/main.cpp.o: /home/ubuntu/Desktop/server/src/main.cpp
+CMakeFiles/server.dir/src/main.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/server.dir/src/main.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/main.cpp.o -MF CMakeFiles/server.dir/src/main.cpp.o.d -o CMakeFiles/server.dir/src/main.cpp.o -c /home/ubuntu/Desktop/server/src/main.cpp
 
-CMakeFiles/server.dir/group.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/group.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/group.cpp > CMakeFiles/server.dir/group.cpp.i
+CMakeFiles/server.dir/src/main.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/main.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/main.cpp > CMakeFiles/server.dir/src/main.cpp.i
 
-CMakeFiles/server.dir/group.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/group.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/group.cpp -o CMakeFiles/server.dir/group.cpp.s
+CMakeFiles/server.dir/src/main.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/main.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/main.cpp -o CMakeFiles/server.dir/src/main.cpp.s
 
-CMakeFiles/server.dir/handle_msg.cpp.o: CMakeFiles/server.dir/flags.make
-CMakeFiles/server.dir/handle_msg.cpp.o: /home/ubuntu/Desktop/server/handle_msg.cpp
-CMakeFiles/server.dir/handle_msg.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/server.dir/handle_msg.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/handle_msg.cpp.o -MF CMakeFiles/server.dir/handle_msg.cpp.o.d -o CMakeFiles/server.dir/handle_msg.cpp.o -c /home/ubuntu/Desktop/server/handle_msg.cpp
+CMakeFiles/server.dir/src/net_core/client_session.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/net_core/client_session.cpp.o: /home/ubuntu/Desktop/server/src/net_core/client_session.cpp
+CMakeFiles/server.dir/src/net_core/client_session.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/server.dir/src/net_core/client_session.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/net_core/client_session.cpp.o -MF CMakeFiles/server.dir/src/net_core/client_session.cpp.o.d -o CMakeFiles/server.dir/src/net_core/client_session.cpp.o -c /home/ubuntu/Desktop/server/src/net_core/client_session.cpp
 
-CMakeFiles/server.dir/handle_msg.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/handle_msg.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/handle_msg.cpp > CMakeFiles/server.dir/handle_msg.cpp.i
+CMakeFiles/server.dir/src/net_core/client_session.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/net_core/client_session.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/net_core/client_session.cpp > CMakeFiles/server.dir/src/net_core/client_session.cpp.i
 
-CMakeFiles/server.dir/handle_msg.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/handle_msg.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/handle_msg.cpp -o CMakeFiles/server.dir/handle_msg.cpp.s
+CMakeFiles/server.dir/src/net_core/client_session.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/net_core/client_session.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/net_core/client_session.cpp -o CMakeFiles/server.dir/src/net_core/client_session.cpp.s
 
-CMakeFiles/server.dir/main.cpp.o: CMakeFiles/server.dir/flags.make
-CMakeFiles/server.dir/main.cpp.o: /home/ubuntu/Desktop/server/main.cpp
-CMakeFiles/server.dir/main.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/server.dir/main.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/main.cpp.o -MF CMakeFiles/server.dir/main.cpp.o.d -o CMakeFiles/server.dir/main.cpp.o -c /home/ubuntu/Desktop/server/main.cpp
+CMakeFiles/server.dir/src/net_core/epoller.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/net_core/epoller.cpp.o: /home/ubuntu/Desktop/server/src/net_core/epoller.cpp
+CMakeFiles/server.dir/src/net_core/epoller.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/server.dir/src/net_core/epoller.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/net_core/epoller.cpp.o -MF CMakeFiles/server.dir/src/net_core/epoller.cpp.o.d -o CMakeFiles/server.dir/src/net_core/epoller.cpp.o -c /home/ubuntu/Desktop/server/src/net_core/epoller.cpp
 
-CMakeFiles/server.dir/main.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/main.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/main.cpp > CMakeFiles/server.dir/main.cpp.i
+CMakeFiles/server.dir/src/net_core/epoller.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/net_core/epoller.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/net_core/epoller.cpp > CMakeFiles/server.dir/src/net_core/epoller.cpp.i
 
-CMakeFiles/server.dir/main.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/main.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/main.cpp -o CMakeFiles/server.dir/main.cpp.s
+CMakeFiles/server.dir/src/net_core/epoller.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/net_core/epoller.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/net_core/epoller.cpp -o CMakeFiles/server.dir/src/net_core/epoller.cpp.s
 
-CMakeFiles/server.dir/user.cpp.o: CMakeFiles/server.dir/flags.make
-CMakeFiles/server.dir/user.cpp.o: /home/ubuntu/Desktop/server/user.cpp
-CMakeFiles/server.dir/user.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/server.dir/user.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/user.cpp.o -MF CMakeFiles/server.dir/user.cpp.o.d -o CMakeFiles/server.dir/user.cpp.o -c /home/ubuntu/Desktop/server/user.cpp
+CMakeFiles/server.dir/src/net_core/message_handler.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/net_core/message_handler.cpp.o: /home/ubuntu/Desktop/server/src/net_core/message_handler.cpp
+CMakeFiles/server.dir/src/net_core/message_handler.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/server.dir/src/net_core/message_handler.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/net_core/message_handler.cpp.o -MF CMakeFiles/server.dir/src/net_core/message_handler.cpp.o.d -o CMakeFiles/server.dir/src/net_core/message_handler.cpp.o -c /home/ubuntu/Desktop/server/src/net_core/message_handler.cpp
 
-CMakeFiles/server.dir/user.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/user.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/user.cpp > CMakeFiles/server.dir/user.cpp.i
+CMakeFiles/server.dir/src/net_core/message_handler.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/net_core/message_handler.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/net_core/message_handler.cpp > CMakeFiles/server.dir/src/net_core/message_handler.cpp.i
 
-CMakeFiles/server.dir/user.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/user.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/user.cpp -o CMakeFiles/server.dir/user.cpp.s
+CMakeFiles/server.dir/src/net_core/message_handler.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/net_core/message_handler.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/net_core/message_handler.cpp -o CMakeFiles/server.dir/src/net_core/message_handler.cpp.s
+
+CMakeFiles/server.dir/src/net_core/notice_service.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/net_core/notice_service.cpp.o: /home/ubuntu/Desktop/server/src/net_core/notice_service.cpp
+CMakeFiles/server.dir/src/net_core/notice_service.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/server.dir/src/net_core/notice_service.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/net_core/notice_service.cpp.o -MF CMakeFiles/server.dir/src/net_core/notice_service.cpp.o.d -o CMakeFiles/server.dir/src/net_core/notice_service.cpp.o -c /home/ubuntu/Desktop/server/src/net_core/notice_service.cpp
+
+CMakeFiles/server.dir/src/net_core/notice_service.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/net_core/notice_service.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/net_core/notice_service.cpp > CMakeFiles/server.dir/src/net_core/notice_service.cpp.i
+
+CMakeFiles/server.dir/src/net_core/notice_service.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/net_core/notice_service.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/net_core/notice_service.cpp -o CMakeFiles/server.dir/src/net_core/notice_service.cpp.s
+
+CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o: /home/ubuntu/Desktop/server/src/net_core/receiver_sender.cpp
+CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o -MF CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o.d -o CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o -c /home/ubuntu/Desktop/server/src/net_core/receiver_sender.cpp
+
+CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/net_core/receiver_sender.cpp > CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.i
+
+CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/net_core/receiver_sender.cpp -o CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.s
+
+CMakeFiles/server.dir/src/net_core/session_manager.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/net_core/session_manager.cpp.o: /home/ubuntu/Desktop/server/src/net_core/session_manager.cpp
+CMakeFiles/server.dir/src/net_core/session_manager.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object CMakeFiles/server.dir/src/net_core/session_manager.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/net_core/session_manager.cpp.o -MF CMakeFiles/server.dir/src/net_core/session_manager.cpp.o.d -o CMakeFiles/server.dir/src/net_core/session_manager.cpp.o -c /home/ubuntu/Desktop/server/src/net_core/session_manager.cpp
+
+CMakeFiles/server.dir/src/net_core/session_manager.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/net_core/session_manager.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/net_core/session_manager.cpp > CMakeFiles/server.dir/src/net_core/session_manager.cpp.i
+
+CMakeFiles/server.dir/src/net_core/session_manager.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/net_core/session_manager.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/net_core/session_manager.cpp -o CMakeFiles/server.dir/src/net_core/session_manager.cpp.s
+
+CMakeFiles/server.dir/src/logic/UID_allocator.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/logic/UID_allocator.cpp.o: /home/ubuntu/Desktop/server/src/logic/UID_allocator.cpp
+CMakeFiles/server.dir/src/logic/UID_allocator.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object CMakeFiles/server.dir/src/logic/UID_allocator.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/logic/UID_allocator.cpp.o -MF CMakeFiles/server.dir/src/logic/UID_allocator.cpp.o.d -o CMakeFiles/server.dir/src/logic/UID_allocator.cpp.o -c /home/ubuntu/Desktop/server/src/logic/UID_allocator.cpp
+
+CMakeFiles/server.dir/src/logic/UID_allocator.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/logic/UID_allocator.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/logic/UID_allocator.cpp > CMakeFiles/server.dir/src/logic/UID_allocator.cpp.i
+
+CMakeFiles/server.dir/src/logic/UID_allocator.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/logic/UID_allocator.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/logic/UID_allocator.cpp -o CMakeFiles/server.dir/src/logic/UID_allocator.cpp.s
+
+CMakeFiles/server.dir/src/logic/account.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/logic/account.cpp.o: /home/ubuntu/Desktop/server/src/logic/account.cpp
+CMakeFiles/server.dir/src/logic/account.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object CMakeFiles/server.dir/src/logic/account.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/logic/account.cpp.o -MF CMakeFiles/server.dir/src/logic/account.cpp.o.d -o CMakeFiles/server.dir/src/logic/account.cpp.o -c /home/ubuntu/Desktop/server/src/logic/account.cpp
+
+CMakeFiles/server.dir/src/logic/account.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/logic/account.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/logic/account.cpp > CMakeFiles/server.dir/src/logic/account.cpp.i
+
+CMakeFiles/server.dir/src/logic/account.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/logic/account.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/logic/account.cpp -o CMakeFiles/server.dir/src/logic/account.cpp.s
+
+CMakeFiles/server.dir/src/logic/account_manager.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/logic/account_manager.cpp.o: /home/ubuntu/Desktop/server/src/logic/account_manager.cpp
+CMakeFiles/server.dir/src/logic/account_manager.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object CMakeFiles/server.dir/src/logic/account_manager.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/logic/account_manager.cpp.o -MF CMakeFiles/server.dir/src/logic/account_manager.cpp.o.d -o CMakeFiles/server.dir/src/logic/account_manager.cpp.o -c /home/ubuntu/Desktop/server/src/logic/account_manager.cpp
+
+CMakeFiles/server.dir/src/logic/account_manager.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/logic/account_manager.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/logic/account_manager.cpp > CMakeFiles/server.dir/src/logic/account_manager.cpp.i
+
+CMakeFiles/server.dir/src/logic/account_manager.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/logic/account_manager.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/logic/account_manager.cpp -o CMakeFiles/server.dir/src/logic/account_manager.cpp.s
+
+CMakeFiles/server.dir/src/logic/group.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/logic/group.cpp.o: /home/ubuntu/Desktop/server/src/logic/group.cpp
+CMakeFiles/server.dir/src/logic/group.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/server.dir/src/logic/group.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/logic/group.cpp.o -MF CMakeFiles/server.dir/src/logic/group.cpp.o.d -o CMakeFiles/server.dir/src/logic/group.cpp.o -c /home/ubuntu/Desktop/server/src/logic/group.cpp
+
+CMakeFiles/server.dir/src/logic/group.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/logic/group.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/logic/group.cpp > CMakeFiles/server.dir/src/logic/group.cpp.i
+
+CMakeFiles/server.dir/src/logic/group.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/logic/group.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/logic/group.cpp -o CMakeFiles/server.dir/src/logic/group.cpp.s
+
+CMakeFiles/server.dir/src/logic/group_manager.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/logic/group_manager.cpp.o: /home/ubuntu/Desktop/server/src/logic/group_manager.cpp
+CMakeFiles/server.dir/src/logic/group_manager.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/server.dir/src/logic/group_manager.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/logic/group_manager.cpp.o -MF CMakeFiles/server.dir/src/logic/group_manager.cpp.o.d -o CMakeFiles/server.dir/src/logic/group_manager.cpp.o -c /home/ubuntu/Desktop/server/src/logic/group_manager.cpp
+
+CMakeFiles/server.dir/src/logic/group_manager.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/logic/group_manager.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/logic/group_manager.cpp > CMakeFiles/server.dir/src/logic/group_manager.cpp.i
+
+CMakeFiles/server.dir/src/logic/group_manager.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/logic/group_manager.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/logic/group_manager.cpp -o CMakeFiles/server.dir/src/logic/group_manager.cpp.s
+
+CMakeFiles/server.dir/src/logic/social_module.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/logic/social_module.cpp.o: /home/ubuntu/Desktop/server/src/logic/social_module.cpp
+CMakeFiles/server.dir/src/logic/social_module.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object CMakeFiles/server.dir/src/logic/social_module.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/logic/social_module.cpp.o -MF CMakeFiles/server.dir/src/logic/social_module.cpp.o.d -o CMakeFiles/server.dir/src/logic/social_module.cpp.o -c /home/ubuntu/Desktop/server/src/logic/social_module.cpp
+
+CMakeFiles/server.dir/src/logic/social_module.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/logic/social_module.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/logic/social_module.cpp > CMakeFiles/server.dir/src/logic/social_module.cpp.i
+
+CMakeFiles/server.dir/src/logic/social_module.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/logic/social_module.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/logic/social_module.cpp -o CMakeFiles/server.dir/src/logic/social_module.cpp.s
+
+CMakeFiles/server.dir/src/logic/social_module_manager.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/logic/social_module_manager.cpp.o: /home/ubuntu/Desktop/server/src/logic/social_module_manager.cpp
+CMakeFiles/server.dir/src/logic/social_module_manager.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building CXX object CMakeFiles/server.dir/src/logic/social_module_manager.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/logic/social_module_manager.cpp.o -MF CMakeFiles/server.dir/src/logic/social_module_manager.cpp.o.d -o CMakeFiles/server.dir/src/logic/social_module_manager.cpp.o -c /home/ubuntu/Desktop/server/src/logic/social_module_manager.cpp
+
+CMakeFiles/server.dir/src/logic/social_module_manager.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/logic/social_module_manager.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/logic/social_module_manager.cpp > CMakeFiles/server.dir/src/logic/social_module_manager.cpp.i
+
+CMakeFiles/server.dir/src/logic/social_module_manager.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/logic/social_module_manager.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/logic/social_module_manager.cpp -o CMakeFiles/server.dir/src/logic/social_module_manager.cpp.s
+
+CMakeFiles/server.dir/src/utils/thread_pool.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/utils/thread_pool.cpp.o: /home/ubuntu/Desktop/server/src/utils/thread_pool.cpp
+CMakeFiles/server.dir/src/utils/thread_pool.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/server.dir/src/utils/thread_pool.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/utils/thread_pool.cpp.o -MF CMakeFiles/server.dir/src/utils/thread_pool.cpp.o.d -o CMakeFiles/server.dir/src/utils/thread_pool.cpp.o -c /home/ubuntu/Desktop/server/src/utils/thread_pool.cpp
+
+CMakeFiles/server.dir/src/utils/thread_pool.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/utils/thread_pool.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/utils/thread_pool.cpp > CMakeFiles/server.dir/src/utils/thread_pool.cpp.i
+
+CMakeFiles/server.dir/src/utils/thread_pool.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/utils/thread_pool.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/utils/thread_pool.cpp -o CMakeFiles/server.dir/src/utils/thread_pool.cpp.s
 
 # Object files for target server
 server_OBJECTS = \
-"CMakeFiles/server.dir/group.cpp.o" \
-"CMakeFiles/server.dir/handle_msg.cpp.o" \
-"CMakeFiles/server.dir/main.cpp.o" \
-"CMakeFiles/server.dir/user.cpp.o"
+"CMakeFiles/server.dir/src/main.cpp.o" \
+"CMakeFiles/server.dir/src/net_core/client_session.cpp.o" \
+"CMakeFiles/server.dir/src/net_core/epoller.cpp.o" \
+"CMakeFiles/server.dir/src/net_core/message_handler.cpp.o" \
+"CMakeFiles/server.dir/src/net_core/notice_service.cpp.o" \
+"CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o" \
+"CMakeFiles/server.dir/src/net_core/session_manager.cpp.o" \
+"CMakeFiles/server.dir/src/logic/UID_allocator.cpp.o" \
+"CMakeFiles/server.dir/src/logic/account.cpp.o" \
+"CMakeFiles/server.dir/src/logic/account_manager.cpp.o" \
+"CMakeFiles/server.dir/src/logic/group.cpp.o" \
+"CMakeFiles/server.dir/src/logic/group_manager.cpp.o" \
+"CMakeFiles/server.dir/src/logic/social_module.cpp.o" \
+"CMakeFiles/server.dir/src/logic/social_module_manager.cpp.o" \
+"CMakeFiles/server.dir/src/utils/thread_pool.cpp.o"
 
 # External object files for target server
 server_EXTERNAL_OBJECTS =
 
-server: CMakeFiles/server.dir/group.cpp.o
-server: CMakeFiles/server.dir/handle_msg.cpp.o
-server: CMakeFiles/server.dir/main.cpp.o
-server: CMakeFiles/server.dir/user.cpp.o
+server: CMakeFiles/server.dir/src/main.cpp.o
+server: CMakeFiles/server.dir/src/net_core/client_session.cpp.o
+server: CMakeFiles/server.dir/src/net_core/epoller.cpp.o
+server: CMakeFiles/server.dir/src/net_core/message_handler.cpp.o
+server: CMakeFiles/server.dir/src/net_core/notice_service.cpp.o
+server: CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o
+server: CMakeFiles/server.dir/src/net_core/session_manager.cpp.o
+server: CMakeFiles/server.dir/src/logic/UID_allocator.cpp.o
+server: CMakeFiles/server.dir/src/logic/account.cpp.o
+server: CMakeFiles/server.dir/src/logic/account_manager.cpp.o
+server: CMakeFiles/server.dir/src/logic/group.cpp.o
+server: CMakeFiles/server.dir/src/logic/group_manager.cpp.o
+server: CMakeFiles/server.dir/src/logic/social_module.cpp.o
+server: CMakeFiles/server.dir/src/logic/social_module_manager.cpp.o
+server: CMakeFiles/server.dir/src/utils/thread_pool.cpp.o
 server: CMakeFiles/server.dir/build.make
 server: CMakeFiles/server.dir/compiler_depend.ts
 server: CMakeFiles/server.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Linking CXX executable server"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Linking CXX executable server"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/server.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

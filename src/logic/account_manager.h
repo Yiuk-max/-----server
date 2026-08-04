@@ -1,9 +1,14 @@
 #pragma once
 #include <iostream>
 #include <string>
+#include <mutex>
+#include <unordered_map>
+#include <memory>
 #include "account.h"
 #include "UID_allocator.h"
-#include "social_module.h"
+
+class social_module;
+
 class account_manager{
     private:
         account_manager() = default; // 私有构造函数，禁止外部实例化

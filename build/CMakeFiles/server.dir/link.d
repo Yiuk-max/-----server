@@ -2,10 +2,22 @@ server: \
   /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/Scrt1.o \
   /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/crti.o \
   /usr/lib/gcc/x86_64-linux-gnu/13/crtbeginS.o \
-  CMakeFiles/server.dir/group.cpp.o \
-  CMakeFiles/server.dir/handle_msg.cpp.o \
-  CMakeFiles/server.dir/main.cpp.o \
-  CMakeFiles/server.dir/user.cpp.o \
+  CMakeFiles/server.dir/src/main.cpp.o \
+  CMakeFiles/server.dir/src/net_core/client_session.cpp.o \
+  CMakeFiles/server.dir/src/net_core/epoller.cpp.o \
+  CMakeFiles/server.dir/src/net_core/message_handler.cpp.o \
+  CMakeFiles/server.dir/src/net_core/notice_service.cpp.o \
+  CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o \
+  CMakeFiles/server.dir/src/net_core/session_manager.cpp.o \
+  CMakeFiles/server.dir/src/logic/UID_allocator.cpp.o \
+  CMakeFiles/server.dir/src/logic/account.cpp.o \
+  CMakeFiles/server.dir/src/logic/account_manager.cpp.o \
+  CMakeFiles/server.dir/src/logic/group.cpp.o \
+  CMakeFiles/server.dir/src/logic/group_manager.cpp.o \
+  CMakeFiles/server.dir/src/logic/social_module.cpp.o \
+  CMakeFiles/server.dir/src/logic/social_module_manager.cpp.o \
+  CMakeFiles/server.dir/src/utils/thread_pool.cpp.o \
+  /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libmysqlcppconn.so \
   /usr/lib/gcc/x86_64-linux-gnu/13/libstdc++.so \
   /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libm.so \
   /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libm.so \
@@ -32,6 +44,10 @@ server: \
   /usr/lib/gcc/x86_64-linux-gnu/13/libgcc.a \
   /usr/lib/gcc/x86_64-linux-gnu/13/crtendS.o \
   /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/crtn.o \
+  /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libz.so.1 \
+  /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libssl.so.3 \
+  /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libcrypto.so.3 \
+  /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libresolv.so.2 \
   /lib/x86_64-linux-gnu/libm.so.6 \
   /lib64/ld-linux-x86-64.so.2
 
@@ -41,13 +57,37 @@ server: \
 
 /usr/lib/gcc/x86_64-linux-gnu/13/crtbeginS.o:
 
-CMakeFiles/server.dir/group.cpp.o:
+CMakeFiles/server.dir/src/main.cpp.o:
 
-CMakeFiles/server.dir/handle_msg.cpp.o:
+CMakeFiles/server.dir/src/net_core/client_session.cpp.o:
 
-CMakeFiles/server.dir/main.cpp.o:
+CMakeFiles/server.dir/src/net_core/epoller.cpp.o:
 
-CMakeFiles/server.dir/user.cpp.o:
+CMakeFiles/server.dir/src/net_core/message_handler.cpp.o:
+
+CMakeFiles/server.dir/src/net_core/notice_service.cpp.o:
+
+CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o:
+
+CMakeFiles/server.dir/src/net_core/session_manager.cpp.o:
+
+CMakeFiles/server.dir/src/logic/UID_allocator.cpp.o:
+
+CMakeFiles/server.dir/src/logic/account.cpp.o:
+
+CMakeFiles/server.dir/src/logic/account_manager.cpp.o:
+
+CMakeFiles/server.dir/src/logic/group.cpp.o:
+
+CMakeFiles/server.dir/src/logic/group_manager.cpp.o:
+
+CMakeFiles/server.dir/src/logic/social_module.cpp.o:
+
+CMakeFiles/server.dir/src/logic/social_module_manager.cpp.o:
+
+CMakeFiles/server.dir/src/utils/thread_pool.cpp.o:
+
+/usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libmysqlcppconn.so:
 
 /usr/lib/gcc/x86_64-linux-gnu/13/libstdc++.so:
 
@@ -100,6 +140,14 @@ CMakeFiles/server.dir/user.cpp.o:
 /usr/lib/gcc/x86_64-linux-gnu/13/crtendS.o:
 
 /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/crtn.o:
+
+/usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libz.so.1:
+
+/usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libssl.so.3:
+
+/usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libcrypto.so.3:
+
+/usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libresolv.so.2:
 
 /lib/x86_64-linux-gnu/libm.so.6:
 

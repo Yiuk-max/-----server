@@ -9,7 +9,16 @@ void Chat_handler::handle_message(const json& message,client_session& session,st
         return;
     }
     else if(type == "group_chat"){
-        
+        int target_UID = message["target_UID"];
+        std::string msg = message["message"];
+        session.group_chat(target_UID, msg);
+        return;
+    }
+    else if(type == "add_friend"){
+        int target_UID = message["target_UID"];
+        std::string apply_message = message["apply_message"];
+        session.send_friend_request(target_UID, apply_message);
+        return;
     }
 }
 void Group_handler::handle_message(const json& message,client_session& session,std::string &file_data){

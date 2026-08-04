@@ -1,11 +1,12 @@
 #include "group_manager.h"
 #include "group.h"
 
-void Group_manager::create_group(int manager_UID,std::string group_name){
+void Group_manager::create_group(int manager_UID,std::string group_name, int& out_group_uid){
     std::lock_guard<std::mutex> lock(group_manager_mutex);
     int group_UID = UID_allocator::get_instance().request_group_id();
     auto new_group = std::make_shared<group>(manager_UID,group_name,group_UID);
     group_list_[group_UID] = new_group;
+    out_group_uid = group_UID; // 回传新建群的 UID
 }
 void Group_manager::delete_group(int group_UID,int requester_UID){
     std::lock_guard<std::mutex> lock(group_manager_mutex);

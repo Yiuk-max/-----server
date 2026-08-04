@@ -2,6 +2,8 @@
 #include "receiver_sender.h"
 #include "message_handler.h"
 #include "group.h" 
+#include "session_manager.h"
+#include "social_module.h"
 
 
 extern bool running;
@@ -177,13 +179,23 @@ void client_session::private_chat(int target_UID, std::string message) {
     // package_message("[to " + target_account->getName() + "]: " + message, "private_chat");
 }
 
+void client_session::send_friend_request(int target_UID, std::string apply_message){
+    if (social_manager_) {
+        social_manager_->send_friend_request(target_UID, apply_message);
+    }
+}
 void client_session::create_group(std::string group_name){
     if(group_name.empty()){
         std::string fail = "The group name can't be empty";
         package_message(fail,"system");
         return;
     }
-    social_manager_->create_friend_group(group_name);
+    int group_uid = -1;
+    social_manager_->create_friend_group(group_name, group_uid);
+    if (group_uid >= 0) {
+        std::string success = "Group created successfully. Group name: [" + group_name + "], Group UID: " + std::to_string(group_uid) + ".\n";
+        package_message(success,"system");
+    }
     return;
 }
 void client_session::group_add_client(int target_group_UID,int target_user_UID){

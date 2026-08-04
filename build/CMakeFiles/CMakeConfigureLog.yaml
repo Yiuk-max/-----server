@@ -1742,3 +1742,217 @@ events:
       Running the CXX compiler's linker: "/usr/bin/ld" "-v"
       GNU ld (GNU Binutils for Ubuntu) 2.42
 ...
+
+---
+events:
+  -
+    kind: "find_package-v1"
+    backtrace:
+      - "CMakeLists.txt:10 (find_package)"
+    name: "nlohmann_json"
+    configs:
+      -
+        filename: "nlohmann_json.cps"
+        kind: "cps"
+      -
+        filename: "nlohmann_jsonConfig.cmake"
+        kind: "cmake"
+      -
+        filename: "nlohmann_json-config.cmake"
+        kind: "cmake"
+    version_request:
+      exact: false
+    settings:
+      required: "required_explicit"
+      quiet: false
+      global: false
+      policy_scope: true
+      bypass_provider: false
+      names:
+        - "nlohmann_json"
+      path_suffixes:
+        - ""
+      paths:
+        CMAKE_FIND_USE_CMAKE_PATH: true
+        CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+        CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+        CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+        CMAKE_FIND_USE_INSTALL_PREFIX: true
+        CMAKE_FIND_USE_PACKAGE_ROOT_PATH: true
+        CMAKE_FIND_USE_CMAKE_PACKAGE_REGISTRY: true
+        CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY: true
+        CMAKE_FIND_ROOT_PATH_MODE: "BOTH"
+    candidates:
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/nlohmann_jsonConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/nlohmann_json-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/lib/x86_64-linux-gnu/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/lib/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/share/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.npm-global/nlohmann_jsonConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.npm-global/nlohmann_json-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.npm-global/lib/x86_64-linux-gnu/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.npm-global/lib/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.npm-global/share/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode/extensions/vadimcn.vscode-lldb-1.12.2/nlohmann_jsonConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode/extensions/vadimcn.vscode-lldb-1.12.2/nlohmann_json-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode/extensions/vadimcn.vscode-lldb-1.12.2/lib/x86_64-linux-gnu/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode/extensions/vadimcn.vscode-lldb-1.12.2/lib/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode/extensions/vadimcn.vscode-lldb-1.12.2/share/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.config/Code/User/globalStorage/github.copilot-chat/debugCommand/nlohmann_jsonConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.config/Code/User/globalStorage/github.copilot-chat/debugCommand/nlohmann_json-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.config/Code/User/globalStorage/github.copilot-chat/debugCommand/lib/x86_64-linux-gnu/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.config/Code/User/globalStorage/github.copilot-chat/debugCommand/lib/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.config/Code/User/globalStorage/github.copilot-chat/debugCommand/share/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.config/Code/User/globalStorage/github.copilot-chat/copilotCli/nlohmann_jsonConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.config/Code/User/globalStorage/github.copilot-chat/copilotCli/nlohmann_json-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.config/Code/User/globalStorage/github.copilot-chat/copilotCli/lib/x86_64-linux-gnu/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.config/Code/User/globalStorage/github.copilot-chat/copilotCli/lib/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.config/Code/User/globalStorage/github.copilot-chat/copilotCli/share/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/local/nlohmann_jsonConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/local/nlohmann_json-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/local/lib/x86_64-linux-gnu/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/local/lib/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/local/share/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/nlohmann_jsonConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/nlohmann_json-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/share/cps/nlohmann_json.cps"
+        mode: "cps"
+        reason: "no_exist"
+    found:
+      path: "/usr/share/cmake/nlohmann_json/nlohmann_jsonConfig.cmake"
+      mode: "config"
+      version: "3.11.3"
+    search_context:
+      ENV{PATH}:
+        - "/home/ubuntu/.npm-global/bin"
+        - "/home/ubuntu/.npm-global/bin"
+        - "/home/ubuntu/.vscode/extensions/vadimcn.vscode-lldb-1.12.2/bin"
+        - "/home/ubuntu/.config/Code/User/globalStorage/github.copilot-chat/debugCommand"
+        - "/home/ubuntu/.config/Code/User/globalStorage/github.copilot-chat/copilotCli"
+        - "/usr/local/sbin"
+        - "/usr/local/bin"
+        - "/usr/sbin"
+        - "/usr/bin"
+        - "/sbin"
+        - "/bin"
+        - "/usr/games"
+        - "/usr/local/games"
+        - "/snap/bin"
+        - "/snap/bin"
+        - "/home/ubuntu/.vscode/extensions/ms-python.debugpy-2026.6.0-linux-x64/bundled/scripts/noConfigScripts"
+      CMAKE_INSTALL_PREFIX: "/usr/local"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "/usr/local"
+        - "/usr"
+        - "/"
+        - "/usr/local"
+        - "/usr/local"
+        - "/usr/X11R6"
+        - "/usr/pkg"
+        - "/opt"
+...

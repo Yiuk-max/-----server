@@ -23,6 +23,8 @@ set(CMAKE_MAKEFILE_DEPENDS
   "/usr/local/share/cmake-4.3/Modules/Compiler/GNU-C.cmake"
   "/usr/local/share/cmake-4.3/Modules/Compiler/GNU-CXX.cmake"
   "/usr/local/share/cmake-4.3/Modules/Compiler/GNU.cmake"
+  "/usr/local/share/cmake-4.3/Modules/FindPackageHandleStandardArgs.cmake"
+  "/usr/local/share/cmake-4.3/Modules/FindPackageMessage.cmake"
   "/usr/local/share/cmake-4.3/Modules/Internal/CMakeCLinkerInformation.cmake"
   "/usr/local/share/cmake-4.3/Modules/Internal/CMakeCXXLinkerInformation.cmake"
   "/usr/local/share/cmake-4.3/Modules/Internal/CMakeCommonLinkerInformation.cmake"
@@ -39,6 +41,9 @@ set(CMAKE_MAKEFILE_DEPENDS
   "/usr/local/share/cmake-4.3/Modules/Platform/Linux-Initialize.cmake"
   "/usr/local/share/cmake-4.3/Modules/Platform/Linux.cmake"
   "/usr/local/share/cmake-4.3/Modules/Platform/UnixPaths.cmake"
+  "/usr/share/cmake/nlohmann_json/nlohmann_jsonConfig.cmake"
+  "/usr/share/cmake/nlohmann_json/nlohmann_jsonConfigVersion.cmake"
+  "/usr/share/cmake/nlohmann_json/nlohmann_jsonTargets.cmake"
   )
 
 # The corresponding makefile is:
