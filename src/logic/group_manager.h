@@ -6,8 +6,8 @@
 
 class group;
 
-class Group_manager
-{
+class Group_manager //类似的manager应该是为维护活跃群对象的生命周期而存在，而不是为群聊的创建和删除提供接口
+{                   //引入数据库后逐步改造，对接repo_interface接口
 private:
     Group_manager() = default; // 私有构造函数，禁止外部实例化
     Group_manager(const Group_manager &) = delete;            // 禁止拷贝构造

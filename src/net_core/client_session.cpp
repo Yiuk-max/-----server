@@ -186,7 +186,7 @@ void client_session::private_chat(int target_UID, std::string message) {
     target_session->package_message(formatted_msg, "private_chat");
 
     // 可选：给发送者一个回显（已发送提示）
-    // package_message("[to " + target_account->getName() + "]: " + message, "private_chat");
+    package_message("[to " + target_account->getName() + "]: " + message, "private_chat");
 }
 
 void client_session::send_friend_request(int target_UID, std::string apply_message){
@@ -250,7 +250,7 @@ void client_session::package_message(const std::string& message,std::string type
     }
 }
 
-
+//=======================效验target_UID_is_exit=====================
 bool client_session::target_UID_is_exit(int target_UID){
     // 校验个人UID是否存在
     if (account_manager::get_instance().find_account(target_UID)) {
@@ -272,97 +272,3 @@ bool client_session::target_UID_is_online(int target_UID){
     package_message(fail, "system");
     return false;
 }
-
-
-
-
-
-
-/*
-    if(type == "spk"){
-        std::string UID = msg_json["target_UID"].get<std::string>();
-        spk_to(UID,msg_json["content"].get<std::string>());
-        return;
-    }
-    if(type == "show"){
-        show_chatlist();
-        return;
-    }
-    if(type == "create_group"){
-        create_group(msg_json["target_name"].get<std::string>());
-        return;
-    }
-    if(type == "group_add_client"){
-        group_add_client(msg_json["group_name"].get<std::string>(),msg_json["target_name"].get<std::string>());
-        return;
-    }
-    if(type == "group_delete_client"){
-        group_delete_client(msg_json["group_name"].get<std::string>(),msg_json["target_name"].get<std::string>());
-        return;
-    }
-    if(type == "exit"){
-        exit_self();
-        return;
-    }
-    if(type == "download_file"){
-        // 这里的content是文件路径，实际应用中可能还需要文件ID等信息
-        sender_->send_file(msg_json["content"].get<std::string>());
-        return;
-    }
-    if(type == "delete_group"){
-        delete_group(msg_json["target_name"].get<std::string>());
-        return;
-    }
-    if(type == "modify_group_name"){
-        modify_group_name(msg_json["target_name"].get<std::string>(),msg_json["content"].get<std::string>());
-        return;
-    } 
-    if(type == "login"){
-        login(msg_json["username"].get<std::string>(),msg_json["password"].get<std::string>());
-        return;
-    }
-    
-        std::string fail = "Unknown command type.\n";
-        package_message(fail,"system");
-    */
-
-/*
-void client_session::send_msg(){
-    sender_->send_msg();
-}
-void client_session::preprocess_recv_data(std::string raw_message){
-    while (!raw_message.empty() && online) {
-        Standard_Message recv_result = receiver_->process_recv_data(raw_message);
-        if (!recv_result.is_valid) {
-            return;
-        }
-        
-        // 解析JSON判断类型
-        json msg_json;
-        try {
-            msg_json = json::parse(recv_result.json_part);
-        } catch(const std::exception& e) {
-            std::cerr << "Error parsing JSON: " << e.what() << std::endl;
-            raw_message.clear();
-            continue;
-        }
-        
-        if (!msg_json.contains("type")) {
-            std::cerr << "Missing 'type' field in message" << std::endl;
-            raw_message.clear();
-            continue;
-        }
-        
-        std::string type = msg_json["type"];
-        handle(recv_result.json_part,recv_result.file_part,type);
-        // if (type == "chat") {
-        //     // chat类型：调用handle处理JSON内容
-        //     handle(recv_result.json_part);
-        // } else if (type == "file") {
-        //     // file类型：交给文件类处理（暂未实现，留空）
-        //     // TODO: 文件处理逻辑
-        //     // FileHandler::process_file(recv_result.json_part, recv_result.file_part);
-        //     receiver_->upload_file(msg_json, recv_result.file_part);
-        // }
-    }
-}*/

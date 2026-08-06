@@ -3,6 +3,8 @@ project(server)
 set(CMAKE_CXX_STANDARD 17)
 
 # 分别扫描每个子目录
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/db/repo REPO_SRC)
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/db/repo_interface REPO_INTERFACE_SRC)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/net_core NET_SRC)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/logic    LOGIC_SRC)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/utils UTILS)
@@ -11,7 +13,7 @@ find_package(nlohmann_json REQUIRED)
 
 include_directories(/usr/include/mysql-cppconn)
 
-add_executable(server src/main.cpp ${NET_SRC} ${LOGIC_SRC} ${UTILS})
+add_executable(server src/main.cpp ${NET_SRC} ${LOGIC_SRC} ${UTILS} ${REPO_SRC} ${REPO_INTERFACE_SRC})
 
 target_include_directories(server PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}/src/net_core
