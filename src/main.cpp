@@ -4,12 +4,16 @@
 #include "group.h"
 #include "thread_pool.h"
 #include "epoller.h"
+#include "server_config.h"
 #include <cerrno>
 
 
 bool running = true;
 
 int main(){
+    // 启动时读取 configure.json，判断是否启用心跳包
+    ServerConfig::get_instance().load("configure.json");
+
     // Create a socket
     int server_fd = socket(AF_INET6,SOCK_STREAM,0);
     if(server_fd == -1){

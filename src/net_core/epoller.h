@@ -3,6 +3,7 @@
 #include "session_manager.h"
 #include "thread_pool.h"
 #include "connection.h"
+#include "server_config.h"
 extern bool running;
 
 class epoller{//epoll基类，实现main和sub reactor
@@ -51,6 +52,8 @@ public:
     std::string read_data(bool &disconnected,int &fd);
     void pool_add_task(std::string received_data,int fd);
     void remove_client(int fd);
+    // 心跳检测：每约 1 秒调用一次，断开 idle 超时的连接（由 loop 的定时点触发）
+    void check_idle_connections();
 private:
     std::weak_ptr<ThreadPool> pool_;
     std::vector<struct epoll_event> events;
@@ -63,6 +66,3 @@ private:
     void set_connection(int fd, std::shared_ptr<connection> conn);
     void erase_connection(int fd);
 };
-
-
-void epoll_event_loop(int server_fd, ThreadPool& pool);//旧单reactor模式，代码复用...

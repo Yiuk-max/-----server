@@ -67,10 +67,16 @@ void client_session::on_message(const std::string& json_data, std::string file_d
     }
     //策略分发到对应的处理者
     std::string type = msg_json["type"];
+    // 心跳包：不进入业务，立即回复 HeartbeatAck，确认连接仍有效
+    if (type == "heartbeat") {
+        package_message("pong", "heartbeat_ack");
+        return;
+    }
+
     auto handler_it = handlers_.find(type);
-    if(handler_it != handlers_.end()){
+    if (handler_it != handlers_.end()) {
         handler_it->second->handle_message(msg_json, *this, file_data);
-    }else{
+    } else {
         std::string fail = "Unknown command type.\n";
         package_message(fail,"system");
     }

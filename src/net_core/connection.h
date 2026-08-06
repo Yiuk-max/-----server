@@ -1,6 +1,7 @@
 #pragma once
 #include "total.h"
 #include "receiver_sender.h"
+#include <chrono>
 
 // ============================================================
 // connection（纯网络收发层）—— 方案 3b（重拆）彻底独立
@@ -41,6 +42,11 @@ public:
     void process_incoming();                          // 切出所有完整帧并交给 session 业务（线程池调用）
     void attach_session(std::shared_ptr<client_session> session); // 绑定业务会话
 
+    // ---------- 心跳 / 活动检测 ----------
+    void update_active();            // 收到数据时刷新最后活动时间
+    long long idle_seconds() const;  // 距最后活动已过去的秒数（<=0 表示活动未过期）
+    bool is_idle(int timeout_s) const; // 超过 timeout_s 无活动则返回 true
+
     // ---------- 供 client_session / 业务层调用 ----------
     void package_message(const std::string& message, const std::string& type); // 打包+入发送缓冲
     void send_file(const std::string& file_name);            // 下载文件（sender_）
@@ -63,4 +69,9 @@ private:
     std::unique_ptr<sender>    sender_;
     std::mutex                 recv_mtx_;       // 串行化接收缓冲的追加与切帧
     std::shared_ptr<client_session> session_;   // 绑定到此连接的业务会话
+
+    // 心跳/活动检测
+    mutable std::mutex                 active_mtx_;     // 保护 last_active_
+    std::chrono::steady_clock::time_point last_active_;  // 最后活动时刻（steady 时钟）
 };
+

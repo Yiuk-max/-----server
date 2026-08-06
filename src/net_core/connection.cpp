@@ -5,6 +5,7 @@ connection::connection(int epoll_fd, int fd)
     : client_fd_(fd), epoll_fd_(epoll_fd) {
     receiver_ = std::make_unique<receiver>(epoll_fd_, fd);
     sender_   = std::make_unique<sender>(epoll_fd_, fd);
+    last_active_ = std::chrono::steady_clock::now();
 }
 
 connection::~connection() {
@@ -31,6 +32,24 @@ void connection::handle_write() {
 void connection::append_raw_data(const std::string& data) {
     std::lock_guard<std::mutex> lock(recv_mtx_);
     receiver_->append_data(data);
+    // 收到任何数据都视为一次有效活动，刷新心跳时间
+    update_active();
+}
+
+// ---------- 心跳 / 活动检测 ----------
+void connection::update_active() {
+    std::lock_guard<std::mutex> lock(active_mtx_);
+    last_active_ = std::chrono::steady_clock::now();
+}
+
+long long connection::idle_seconds() const {
+    std::lock_guard<std::mutex> lock(active_mtx_);
+    auto now = std::chrono::steady_clock::now();
+    return std::chrono::duration_cast<std::chrono::seconds>(now - last_active_).count();
+}
+
+bool connection::is_idle(int timeout_s) const {
+    return idle_seconds() >= timeout_s;
 }
 
 void connection::process_incoming() {
@@ -89,3 +108,4 @@ sender& connection::sender_obj() {
 receiver& connection::receiver_obj() {
     return *receiver_;
 }
+

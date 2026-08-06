@@ -1,5 +1,6 @@
 #include "epoller.h"
 #include "client_session.h"
+#include "server_config.h"
 epoller::~epoller()
 {
     if (epoller_fd_ >= 0)
@@ -130,9 +131,11 @@ std::string sub_reactor::read_data(bool &disconnected, int &fd)
 }
 void sub_reactor::loop()
 {
+    auto last_check = std::chrono::steady_clock::now();
     while (running)
     {
-        int num_events = epoll_wait(epoller_fd_, events.data(), events.size(), -1);
+        // 设 1 秒超时，以便周期性做心跳/空闲检查
+        int num_events = epoll_wait(epoller_fd_, events.data(), events.size(), 1000);
         for (int i = 0; i < num_events; ++i)
         {
             int fd = events[i].data.fd;
@@ -161,6 +164,39 @@ void sub_reactor::loop()
             {
                 pool_add_task(received_data, fd);
             }
+        }
+
+        // 心跳检测：约每 1 秒检查一次所有连接，断开空间闲超时的连接
+        auto now = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::seconds>(now - last_check).count() >= 1) {
+            last_check = now;
+            check_idle_connections();
+        }
+    }
+}
+
+// 心跳/空闲检测：遍历本 reactor 的所有连接，超过配置的超时秒数无活动则断开
+void sub_reactor::check_idle_connections()
+{
+    if (!ServerConfig::get_instance().use_heartbeat()) {
+        return; // 未启用心跳则不检测
+    }
+    int timeout_s = ServerConfig::get_instance().heartbeat_interval();
+
+    // 先收集空间闲连接的 fd（避免在遍历时删除导致迭代器失效），再加锁逐个移除
+    std::vector<int> to_remove;
+    {
+        std::lock_guard<std::mutex> lock(client_mutex);
+        for (auto& kv : connections_by_fd) {
+            if (kv.second && kv.second->is_idle(timeout_s)) {
+                to_remove.push_back(kv.first);
+            }
+        }
+    }
+    for (int fd : to_remove) {
+        if (running) {
+            std::cout << "[Heartbeat] closing idle connection fd=" << fd << std::endl;
+            remove_client(fd);
         }
     }
 }
