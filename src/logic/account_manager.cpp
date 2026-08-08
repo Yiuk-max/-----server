@@ -1,5 +1,4 @@
 #include "account_manager.h"
-#include "social_module_manager.h"
 
 std::string account_manager::register_account(const std::string& name, const std::string& password) {
     int new_uid;
@@ -9,10 +8,8 @@ std::string account_manager::register_account(const std::string& name, const std
         accounts_[new_account->getUID()] = new_account;
         new_uid = new_account->getUID();
     }
-    // 注意：必须先释放 accounts_mutex 再创建社交模块。
-    // 因为 social_module 构造函数内部会调用 find_account() 重新获取 accounts_mutex，
-    // 而 std::mutex 不可重入，若在持有锁时调用 add_social_module 会造成死锁（注册无响应）。
-    social_manager::get_instance().add_social_module(new_uid);
+    // 社交模块不再在这里创建：social_module 属于"登录用户会话"的状态，
+    // 由 client_session 在 login 时随会话创建并持有（见 client_session::login）。
     return UID_allocator::get_instance().get_string_UID(new_uid);
 }
 void account_manager::remove_account(int UID) {

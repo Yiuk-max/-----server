@@ -58,6 +58,10 @@ void Base_handler::handle_message(const json& message,client_session& session,st
         session.show_chatlist();
         return;
     }
+    else if(type == "logout"){
+        session.logout();
+        return;
+    }
     else if(type == "exit"){
         session.exit_self();
         return;

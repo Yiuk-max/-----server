@@ -3,7 +3,7 @@
 #include "account.h"
 #include "connection.h"
 #include "message_handler.h"
-#include "social_module_manager.h"
+#include "social_module.h"
 #include "account_manager.h"
 #include "group.h"
 #include "group_manager.h"
@@ -14,7 +14,7 @@ private:
     int session_key_;                                           // 当前在 session_manager 中的 key（未登录时为 fd，登录后为 UID）
     bool online = true;                                         // 用户在线状态
     std::shared_ptr<account> current_account_;                  // 当前用户的账户信息
-    std::shared_ptr<social_module> social_manager_;             // 社交关系管理器
+    std::shared_ptr<social_module> social_manager_;             // 自己的社交关系模块（登录时创建，随会话生命周期）
     //===============收发模块（方案 3b 重拆：connection 彻底独立，此处仅存弱引用回指）===============
 public:
     std::weak_ptr<connection> conn_;                            // 非拥有弱引用回指 connection；生命周期由 sub_reactor 持有
@@ -34,6 +34,7 @@ public:
     void login(int UID,std::string password);                               //登陆
     void logout();                                                          //登出
     void exit_self();                                                       //退出系统
+    void kick_offline();                                                    //被顶下线：通知并关闭本连接（由新登录的另一会话调用）
     //=============效验==============
     bool target_UID_is_exit(int target_UID);                                //校验目标UID是否存在（个人或群聊UID）
     bool target_UID_is_online(int target_UID);                              //校验目标UID是否在线（个人或群聊UID）

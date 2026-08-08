@@ -1,0 +1,35 @@
+Account table
+----------------------------------------------------
+|UID|password|nickname|language|create_time|birdaty|
+ bigint unsigned主键
+----------------------------------------------------
+
+friend_relation table
+---------------------
+UID                 |主键1
+friend_UID          |主键2
+remark_name         |
+create_time         |
+---------------------
+
+friend_request
+----------------------------------------
+id                                      |自增 主键 int 
+sender_UID                              |
+receiver_UID                            |
+message                                 |
+status 0 等待 1同意并删除记录 2拒绝并删除记录|
+create_time                             |
+----------------------------------------
+
+Group table
+--------------------------------------
+|group_UID|name|owner_UID|create_time|
+bigint unsigned主键        
+--------------------------------------
+
+Groupmember table
+--------------------------------------
+|group_UID|member_UID|role|join_time|
+group_UID主键并外键到Group table主键上
+--------------------------------------

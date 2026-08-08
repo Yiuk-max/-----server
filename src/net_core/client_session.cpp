@@ -106,7 +106,15 @@ void client_session::login(int UID,std::string password){
         return;
     }
     current_account_ = account;//init 账户
-    social_manager_ = social_manager::get_instance().find_relation_manager(UID);//init 社交模块
+    social_manager_ = std::make_shared<social_module>(UID);//init 社交模块（登录时创建，随会话生命周期持有）
+
+    // 顶掉旧登录：同一 UID 若已有在线会话，先移除其映射并关闭其连接，避免同账号多会话/残留
+    auto old_session = session_manager::get_instance().find_session(UID);
+    if (old_session && old_session.get() != this) {
+        old_session->kick_offline();                       // 通知旧连接并关闭其 fd
+        session_manager::get_instance().remove_session(UID); // 移除旧会话的 UID 映射
+    }
+
     // 切换 session_manager 的 key：从 fd 切换到 UID
     // 先把当前 session 从 session_manager 里取出来（用旧 key）
     auto self_session = session_manager::get_instance().find_session(session_key_);
@@ -118,18 +126,42 @@ void client_session::login(int UID,std::string password){
     std::string success = "Login successful. Welcome, " + account->getName() + "!\n";
     package_message(success,"system");
 }
+// 被顶下线：通知 + 立即发送后关闭本连接；sub_reactor 会收到断开事件后回收 connection 与会话
+void client_session::kick_offline(){
+    if (auto c = conn_.lock()) {
+        // 先把提示放入发送缓冲（由 connection::package_message 打包）
+        c->package_message("Your account is logged in elsewhere, you have been kicked offline.\n", "system");
+        // 立即把缓冲真正 send 出去（非阻塞；单条小消息通常一次可发完），再关闭
+        // 否则依赖 EPOLLOUT 异步 flush，可能 close 前还没发出，导致旧客户端收不到提示
+        c->sender_obj().send_msg();
+        c->close();   // 关闭底层 fd，让 sub_reactor 通过断开事件移除本连接
+    }
+    online = false;
+}
+// 登出：退出当前账号登录，但保留连接（区别于 exit_self 的彻底断开）
+// 之后该连接仍可继续登录其他账户或接收系统消息。
 void client_session::logout(){
-    //清除account信息，清除社交关系信息，清除当前用户的聊天对象列表
+    // 1. 先通知客户端退出成功（同步 flush，确保真正送达）
+    if (auto c = conn_.lock()) {
+        c->package_message("Logout successful.\n", "system");
+        c->sender_obj().send_msg();
+    }
+    // 2. 从 session_manager 移除本次登录记录（key 为 UID）
     if (current_account_) {
         session_manager::get_instance().remove_session(session_key_);
     }
+    // 3. 登出后该连接回到"未登录"态：把 key 还原为 fd（以便下次登录时以 fd 作为查找键）
+    int self_fd = -1;
+    if (auto c = conn_.lock()) {
+        self_fd = c->fd();
+    }
+    if (session_key_ != self_fd) {
+        session_key_ = self_fd;
+    }
+    // 4. 清空账号状态与社交模块，连接保持在线可用
     current_account_.reset();
     social_manager_.reset();
-
-    //重新加载用户数据，清理当前用户的登录状态
-    //重新加载social_realations数据，清理当前用户的好友关系
-    package_message("Logout successful.\n","system");
-    exit_self();
+    online = true;
 }
 void client_session::exit_self(){
     //清理资源，关闭连接
@@ -184,9 +216,6 @@ void client_session::private_chat(int target_UID, std::string message) {
     }
     std::string formatted_msg = "[" + current_account_->getName() + "]: " + message;
     target_session->package_message(formatted_msg, "private_chat");
-
-    // 可选：给发送者一个回显（已发送提示）
-    package_message("[to " + target_account->getName() + "]: " + message, "private_chat");
 }
 
 void client_session::send_friend_request(int target_UID, std::string apply_message){
@@ -238,9 +267,12 @@ void client_session::modify_group_name(int group_UID,std::string new_name){
 
 //===============析构函数===============
 client_session::~client_session(){
-    // 确保从 session_manager 移除
-    session_manager::get_instance().remove_session(session_key_);
-    // connection 由 sub_reactor 独立管理其生命周期，无关本会话析构；弱引用自动失效
+    // 注意：这里不能再调用 session_manager::remove_session()。
+    // 触发本析构的常见路径是 session_manager::remove_session() 已在持有 sessions_mutex
+    // 排他锁时 erase() 使本对象引用归零、就地析构；若析构里再次 remove_session()，
+    // 会对同一把 sessions_mutex 二次排他加锁，导致 std::system_error("Resource deadlock avoided") 崩溃。
+    // 实际移除已在 logout()/exit_self()/remove_client() 等入口显式完成。
+    // connection 由 sub_reactor 独立管理其生命周期，无关本会话析构；弱引用自动失效。
 }
 //===============================数据处理================================
 void client_session::package_message(const std::string& message,std::string type){
