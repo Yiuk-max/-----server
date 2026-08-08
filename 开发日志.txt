@@ -250,3 +250,53 @@ client_session中show_chatlist()中要展示UID---------------------------------
 - 根因：create_friend_group 只调 Group_manager::create_group 把群建到全局列表，
         却没有把新群 UID 加入当前用户的 friend_groups，导致 show_friends() 里列表为空。
 - 修复：create_friend_group 成功后把 out_group_uid push_back 进 friend_groups。
+
+=====================================================================================
+
+2026-08-04 重构：取消 social_module_manager，每个 client_session 直接持有 social_module
+- 结论：social_module 的所有接口都只操作"自己"的社交状态（自己的好友/群组列表、给自己或
+        对方发通知），跨用户交互统一走 NoticeService，==不需要访问其它用户的 social_module 对象==。
+        因此全局的 social_manager 单例（UID → shared_ptr<social_module> 映射）是多余间接层。
+- 改动：
+    - client_session.h   移除 #include "social_module_manager.h"，改 #include "social_module.h"；
+                         social_manager_ 成员语义更新为"随会话持有"
+    - client_session.cpp login() 用 std::make_shared<social_module>(UID) 替代
+                         social_manager::get_instance().find_relation_manager(UID)
+    - account_manager.cpp register_account 不再调用 add_social_module（注册无需预建社交模块），
+                         并移除对应 include —— 顺带消除注册时的 accounts_mutex 重入死锁隐患
+    - social_module_manager.h/.cpp 已无任何引用，保留待清理（删除后重新 cmake configure 即可）
+- 收益：消除全局锁竞争、状态残留与注册死锁隐患，社交模块生命周期与登录会话一致。
+
+2026-08-04 修复：关闭客户端触发 std::system_error("Resource deadlock avoided") 崩溃
+- 崩溃：terminate called after throwing an instance of 'std::system_error'
+        what():  Resource deadlock avoided（EDEADLK：同一线程对非递归 mutex 二次加锁）
+- 根因：client_session::~client_session() 里调用 session_manager::remove_session(session_key_)。
+        触发析构的常见路径是 remove_session() 已在持有 sessions_mutex 排他锁时 erase() 使本对象
+        引用归零、就地析构；此时析构里再次 remove_session() 会对同一把 sessions_mutex 二次排他
+        加锁 → EDEADLK。
+- 修复：移除析构函数里的 remove_session 调用（对象正在消亡无需再移除；实际移除已由
+        logout()/exit_self()/remove_client() 等入口显式完成）。
+
+2026-08-04 功能：登录单账号管控——后登录顶掉先登录
+- 需求场景：两个客户端登录同一账户，关闭其中一个时崩溃（同 UID 多 session 并存易引发残留/死锁）。
+- 方案：登录时若同 UID 已有在线会话，先将其顶下线，保证同一账户同一时间只保留一个活跃会话。
+- 改动：
+    - client_session.h   新增 kick_offline() 声明
+    - client_session.cpp login()：find_session(UID) 拿到旧会话（非自身）时，先
+                        old->kick_offline()（发送提示 + 关闭其旧连接）再 remove_session(UID)，
+                        之后正常把当前连接 key 从 fd 切到 UID 登记
+        kick_offline()：先 package_message 提示，再 sender_obj().send_msg() 同步 flush
+                        后 close()——确保旧客户端断开前能收到"被顶下线"提示
+- 效果：从根源消除同 UID 多会话并存导致的崩溃与残留。
+
+2026-08-04 功能：重写 logout() 并新增 logout 消息类型
+- 问题：旧 logout() 调用 exit_self() 直接断开连接，把"登出"与"退出"混为一谈，且提示消息
+        可能因 close 时序丢失；且 message_handler 未注册 logout 分发，该方法实际从不被触发。
+- 重写语义：登出 = 退出当前账号但保留连接（区别于 exit 的彻底断开），
+        之后可继续登录其它账号或接收系统消息。
+    - 步骤：1) package_message + sender_obj().send_msg() 同步发出"Logout successful."
+            2) remove_session(session_key_) 移除登录记录
+            3) 把 session_key_ 还原为 fd（回到未登录态）
+            4) 清空 current_account_ / social_manager_，online 保持 true（连接存活）
+- 新增分发：message_handler.cpp Base_handler 增加 type=="logout" → session.logout()。
+

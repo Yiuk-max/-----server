@@ -34,8 +34,10 @@
 |-----------------------|----------|----------------------------------------|
 | `register`            | 基础     | 注册新账号                             |
 | `login`               | 基础     | 用户登录                               |
+| `logout`              | 基础     | 登出当前账号（保留连接，可再登录）     |
 | `show`                | 基础     | 展示聊天对象列表（好友 + 群组）        |
 | `exit`                | 基础     | 退出系统、关闭连接                     |
+| `heartbeat`           | 基础     | 心跳包（无业务消息时的保活）           |
 | `private_chat`        | 私聊     | 私聊（一对一向指定 UID 发消息）        |
 | `group_chat`          | 群聊     | 群聊发言（向指定群 UID 广播）           |
 | `create_group`        | 群组     | 创建群聊                               |
@@ -208,6 +210,26 @@
 }
 ```
 
+### 14. 登出账号 (logout)
+*   **用途**：退出当前账号登录，但**保持连接**（与 `exit` 的彻底断开不同）。登出后该连接仍可继续登录其他账号或接收系统消息。
+*   **JSON 结构**：
+```json
+{
+    "type": "logout"
+}
+```
+*   *注意*：服务器返回 `Logout successful.` 提示，并清空当前会话的账号与社交状态；连接本身不断开。
+
+### 15. 心跳包 (heartbeat) *（可选/可配）*
+*   **用途**：在无业务消息时维持连接活跃，避免被服务器判定为超时断开。由客户端按固定周期（如每 30 秒）发送。
+*   **JSON 结构**：
+```json
+{
+    "type": "heartbeat"
+}
+```
+*   *注意*：该功能是否启用、超时阈值（默认 60 秒）由服务器配置 `configure.json` 中的 `use_heartbeat` / `heartbeat_interval` 决定，默认关闭。启用后客户端需周期发送心跳；服务器收到心跳会回 `heartbeat_ack`。若一段时间内既无业务消息也无心跳，服务器会主动断开该连接。
+
 五、服务器返回格式（Server -> Client）
 --------------------------------------
 服务器返回的数据同样封装为二进制帧结构。其 JSON 部分包含 `type` 和 `content` 字段：
@@ -224,6 +246,7 @@
 | `private_chat`        | 收到私聊消息                                         | `[张三]: 你好呀！`                                     |
 | `Group_Chat`          | 收到群聊消息（注意大小写 `Group_Chat`）              | 群内消息内容                                            |
 | `file_chunk`          | 服务器发送文件块（下载响应）                         | JSON 中包含 `file_id/filename/total_size/chunk_index/...` 元信息，文件数据在帧尾 |
+| `heartbeat_ack`       | 服务器对心跳包的应答（`content` 为 `pong`）          | `pong`                                                  |
 
 ### 常见系统提示文本
 | 触发场景                 | content 内容（示例）                                          |
@@ -234,6 +257,9 @@
 | **UID 不存在**           | `Account with UID [<UID>] does not exist.`                    |
 | **密码错误**             | `Incorrect password for UID [<UID>].`                         |
 | **退出系统**             | `Goodbye!`                                                    |
+| **登出成功**             | `Logout successful.`                                          |
+| **被顶下线（新登录踢出）** | `Your account is logged in elsewhere, you have been kicked offline.` |
+| **心跳应答**             | `pong`（type 为 `heartbeat_ack`）                              |
 | **创建群成功**           | `Group created successfully. Group name: [<群名>], Group UID: <群UID>.` |
 | **消息为空**（私聊）     | `Message cannot be empty.`                                    |
 | **未登录发私聊**         | `You must be logged in to send private messages.`             |
