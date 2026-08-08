@@ -5,6 +5,7 @@
 #include "thread_pool.h"
 #include "epoller.h"
 #include "server_config.h"
+#include "mysql_conn_pool.h"
 #include <cerrno>
 
 
@@ -13,6 +14,9 @@ bool running = true;
 int main(){
     // 启动时读取 configure.json，判断是否启用心跳包
     ServerConfig::get_instance().load("configure.json");
+
+    // 初始化 MySQL 连接池（数量、连接信息读 configure.json 的 database 配置）
+    MySQL_Conn_Pool::get_instance().init();
 
     // Create a socket
     int server_fd = socket(AF_INET6,SOCK_STREAM,0);

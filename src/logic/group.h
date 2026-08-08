@@ -15,8 +15,12 @@ class group{
 
         int UID;//群聊唯一标识
         std::string str_UID;
+
+        //活跃成员列表
+        //std::vector<int> active_member_list;
     public:
         group() : manager_UID_(-1), UID(-1) {}
+        //从mysql初始化，应当读取数据创建群聊的session对象,而不是现有的创建新群聊的方式
         group(int manager,std::string name,int UID_):manager_UID_(manager),group_name_(name),UID(UID_){
             member_UID_list.push_back(manager_UID_);
             str_UID = UID_allocator::get_instance().get_string_UID(UID_);

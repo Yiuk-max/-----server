@@ -86,6 +86,20 @@
       "name": "ubuntu",
       "database": "test_database",
       "username": "root"
+    },
+    {
+      "mysqlOptions": {
+        "authProtocol": "default",
+        "enableSsl": "Disabled"
+      },
+      "ssh": "Disabled",
+      "previewLimit": 50,
+      "server": "localhost",
+      "port": 3306,
+      "driver": "MySQL",
+      "name": "chat_server",
+      "database": "chat_server",
+      "username": "root"
     }
   ]
 }

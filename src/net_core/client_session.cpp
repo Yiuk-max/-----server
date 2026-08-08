@@ -89,12 +89,23 @@ void client_session::register_user(std::string username,std::string password){
         package_message(fail,"system");
         return;
     }
-    std::string UID = account_manager::get_instance().register_account(username, password);
+    // 迁移：由 account_manager 改为账号仓储接口（I_account_repo）。当前为占位实现返回 nullptr，
+    // 接入 MySQL 后返回真实账户对象。注册成功后可直接用其 UID 提示登录。
+    auto new_account = account_repo_->register_account(username, password);
+    if (!new_account) {
+        // 迁移占位：持久化尚未就绪
+        std::string fail = "Registration failed (account persistence not ready yet).\n";
+        package_message(fail,"system");
+        return;
+    }
+    current_account_ = new_account;
+    std::string UID = new_account->get_string_UID();
     std::string success = "Registration successful. You can now log in with UID " + UID + ".\n";
     package_message(success,"system");
 }
 void client_session::login(int UID,std::string password){
-    auto account = account_manager::get_instance().find_account(UID);
+    // 迁移：由 account_manager 改为账号仓储接口加载账户（占位实现返回 nullptr，登录暂判定不存在）
+    auto account = account_repo_->load_account(UID);
     if (!account) {
         std::string fail = "Account with UID [" + std::to_string(UID) + "] does not exist.\n";
         package_message(fail,"system");
@@ -106,7 +117,7 @@ void client_session::login(int UID,std::string password){
         return;
     }
     current_account_ = account;//init 账户
-    social_manager_ = std::make_shared<social_module>(UID);//init 社交模块（登录时创建，随会话生命周期持有）
+    social_manager_ = std::make_shared<social_module>(UID, account_repo_);//init 社交模块（登录时创建，随会话生命周期持有）
 
     // 顶掉旧登录：同一 UID 若已有在线会话，先移除其映射并关闭其连接，避免同账号多会话/残留
     auto old_session = session_manager::get_instance().find_session(UID);
@@ -284,8 +295,8 @@ void client_session::package_message(const std::string& message,std::string type
 
 //=======================效验target_UID_is_exit=====================
 bool client_session::target_UID_is_exit(int target_UID){
-    // 校验个人UID是否存在
-    if (account_manager::get_instance().find_account(target_UID)) {
+    // 校验个人UID是否存在（改为账号仓储接口查询）
+    if (account_repo_->load_account(target_UID)) {
         return true;
     }
     // 校验群聊UID是否存在

@@ -2,14 +2,15 @@
 #include "notice_service.h"
 #include "group.h"
 #include <algorithm>
-social_module::social_module(int UID):user_UID_(UID){
-    auto acc = account_manager::get_instance().find_account(UID);
+social_module::social_module(int UID, std::shared_ptr<I_account_repo> repo)
+    :user_UID_(UID), account_repo_(repo) {
+    auto acc = account_repo_->load_account(UID);
         if (acc) {
         name_ = acc->getName();
         }
 }
 void social_module::add_friend(int friend_UID){
-    std::string target_name = account_manager::get_instance().find_account(friend_UID)->getName();
+    std::string target_name = account_repo_->load_account(friend_UID)->getName();
     std::string message = "You received a new friend request from [" + target_name + "]";
 
 
@@ -57,10 +58,10 @@ void social_module::exit_friend_group(int group_UID){
 }
 void social_module::send_friend_request(int receiver_UID, std::string &apply_message){
 
-    auto receiver = account_manager::get_instance().find_account(receiver_UID);//效验被添加者是否存在
+    auto receiver = account_repo_->load_account(receiver_UID);//效验被添加者是否存在
     if(receiver){
         std::string message;
-        auto sender = account_manager::get_instance().find_account(user_UID_);
+        auto sender = account_repo_->load_account(user_UID_);
         if (!sender) {
             return;
         }
@@ -74,7 +75,7 @@ void social_module::send_friend_request(int receiver_UID, std::string &apply_mes
 }
 void social_module::handle_friend_request(int sender_UID, bool accept){
     std::string notify;
-    auto self_account = account_manager::get_instance().find_account(user_UID_);
+    auto self_account = account_repo_->load_account(user_UID_);
     if (!self_account) {
         return;
     }
@@ -91,7 +92,7 @@ void social_module::handle_friend_request(int sender_UID, bool accept){
 std::string social_module::show_friends(){
     std::string chat_list;
     for(int UID:friend_relations){
-        auto acc = account_manager::get_instance().find_account(UID);
+        auto acc = account_repo_->load_account(UID);
         if (acc) {
             chat_list += acc->get_info() + "\n";
         }

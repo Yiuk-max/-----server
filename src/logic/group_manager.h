@@ -23,6 +23,11 @@ public:
         static Group_manager instance;
         return instance;
     }
+    //group相关内存管理接口
+    void active_group(int group_UID);//群聊第一个成员加入时，创建群聊对象并加入group_list_
+    void inactive_group(int group_UID);//群聊最后一个成员退出时，销毁群
+
+    //下面的接口应该是对repo_interface的封装，提供给上层逻辑使用
     void create_group(int manager_UID,std::string group_name, int& out_group_uid);
     void delete_group(int UID,int sender_fd);
     std::shared_ptr<group> find_group(int group_id);

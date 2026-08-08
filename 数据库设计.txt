@@ -1,35 +1,170 @@
-Account table
-----------------------------------------------------
-|UID|password|nickname|language|create_time|birdaty|
- bigint unsigned主键
-----------------------------------------------------
+数据库设计（已修正版，对应 sql/create_table.sql）
+数据库：MySQL 5.7+ / 8.0
+字符集：utf8mb4（必须，否则中文/emoji 会乱码或插入失败）
+本项目数据库专用账户，name: chat_server,password:Chat_123!
 
-friend_relation table
----------------------
-UID                 |主键1
-friend_UID          |主键2
-remark_name         |
-create_time         |
----------------------
+============================================================
+1. Account 表（用户账户）
+------------------------------------------------------------
+| 字段        | 类型             | 说明                         |
+| UID         | bigint unsigned | 主键，系统自增分配            |
+| password    | varchar(128)    | 密码（建议存 hash）           |
+| nickname    | varchar(64)     | 昵称，UNIQUE 唯一            |
+| settings    | json            | 可空，账号设置(主题/语言/通知开关)|
+| language    | varchar(16)     | 默认 'Chinese'               |
+| create_time | datetime        | 默认 CURRENT_TIMESTAMP       |
+| birthday    | date            | 可空                          |
+------------------------------------------------------------
+主键 UID；唯一键 uk_nickname(nickname)
+外键：无
 
-friend_request
-----------------------------------------
-id                                      |自增 主键 int 
-sender_UID                              |
-receiver_UID                            |
-message                                 |
-status 0 等待 1同意并删除记录 2拒绝并删除记录|
-create_time                             |
-----------------------------------------
+修正点：
+- nickname 加 UNIQUE（支持后续按用户名检索/登录）
+- 补 settings JSON 列（承载 account.h 中的账号设置字段）
+- 修正原 birthday 拼写，字段补 NOT NULL / 可空约束
 
-Group table
---------------------------------------
-|group_UID|name|owner_UID|create_time|
-bigint unsigned主键        
---------------------------------------
+============================================================
+2. friend_relation 表（好友关系，双向同步）
+------------------------------------------------------------
+| 字段        | 类型             | 说明                         |
+| UID         | bigint unsigned | 用户A（主键1）                |
+| friend_UID  | bigint unsigned | 好友B（主键2）                |
+| remark_name | varchar(64)     | 备注名，可空                  |
+| create_time | datetime        | 默认 CURRENT_TIMESTAMP       |
+------------------------------------------------------------
+联合主键 (UID, friend_UID)
+外键：UID->Account(UID)，friend_UID->Account(UID)，均 ON DELETE CASCADE
 
-Groupmember table
---------------------------------------
-|group_UID|member_UID|role|join_time|
-group_UID主键并外键到Group table主键上
---------------------------------------
+双向同步设计：
+- 逻辑上 A、B 互为好友后需存 (A,B) 与 (B,A) 两行
+- 由 repo 应用层在【事务内双写】保证一致性（不使用 DB 触发器，
+  因 DELIMITER 语法无法在 JDBC/Connector 逐条执行）
+- 查询任一方好友列表只需 WHERE UID=? 即可，无需双向判断
+- 删除好友同样在事务内删两行；删除账户时外键 CASCADE 自动清理两端
+
+DB 事务双写参考：
+    START TRANSACTION;
+    INSERT INTO friend_relation (UID, friend_UID, remark_name) VALUES (:A,:B,:r);
+    INSERT INTO friend_relation (UID, friend_UID, remark_name) VALUES (:B,:A,:r);
+    COMMIT;
+
+============================================================
+3. friend_request 表（好友申请）
+------------------------------------------------------------
+| 字段         | 类型            | 说明                         |
+| id           | int unsigned   | 自增主键                     |
+| sender_UID   | bigint unsigned| 发送方                       |
+| receiver_UID | bigint unsigned| 接收方                       |
+| message      | varchar(255)   | 申请附加留言，可空             |
+| status       | tinyint        | 0等待 1同意 2拒绝             |
+| create_time  | datetime       | 默认 CURRENT_TIMESTAMP       |
+------------------------------------------------------------
+主键 id
+唯一键 uk_sender_receiver_status(sender_UID, receiver_UID, status)
+外键：sender_UID->Account(UID)，receiver_UID->Account(UID)，
+      均 ON DELETE CASCADE
+
+修正点：
+- 加唯一约束，防止同一对用户重复产生多条"等待中"记录
+- status 语义：0=等待；1=同意(处理完删除)；2=拒绝(处理完删除)
+
+============================================================
+4. Group 表（群组）
+------------------------------------------------------------
+| 字段        | 类型             | 说明                         |
+| group_UID   | bigint unsigned | 主键，系统自增分配             |
+| name        | varchar(64)     | 群名称                       |
+| owner_UID   | bigint unsigned | 创建者/群主(管理员)            |
+| create_time | datetime        | 默认 CURRENT_TIMESTAMP       |
+------------------------------------------------------------
+主键 group_UID
+外键：owner_UID->Account(UID)，ON DELETE CASCADE
+
+============================================================
+5. Groupmember 表（群成员）
+------------------------------------------------------------
+| 字段        | 类型             | 说明                         |
+| group_UID   | bigint unsigned | 所属群（主键1）               |
+| member_UID  | bigint unsigned | 成员（主键2）                 |
+| role        | enum            | 'owner'群主 / 'member'普通   |
+| join_time   | datetime        | 默认 CURRENT_TIMESTAMP       |
+------------------------------------------------------------
+联合主键 (group_UID, member_UID)   ← 关键修正
+外键：group_UID->Group(group_UID)，member_UID->Account(UID)，
+      均 ON DELETE CASCADE
+
+修正点（最重要）：
+- 原设计"group_UID 主键"会导致每群只能存一个成员（错误）
+- 改为联合主键 (group_UID, member_UID)，一个用户可加入多个群
+
+============================================================
+6. message 表（聊天记录，新增）
+------------------------------------------------------------
+| 字段          | 类型             | 说明                          |
+| id            | bigint unsigned | 自增主键(保持发送顺序)          |
+| type          | tinyint         | 1=私聊 2=群聊                 |
+| sender_UID    | bigint unsigned | 发送者                        |
+| receiver_UID  | bigint unsigned | 接收方(私聊=对方UID;群聊=group_UID)|
+| content       | text            | 消息内容                      |
+| send_time     | datetime        | 默认 CURRENT_TIMESTAMP       |
+------------------------------------------------------------
+主键 id
+索引：
+  idx_private(sender_UID, receiver_UID, id)  私聊会话查询
+  idx_group(receiver_UID, id)                群聊历史
+  idx_sender(sender_UID)
+外键：(可选，若按发送者/接收者级联) sender_UID->Account(UID)；
+      本版为提升并发写入性能暂不强制外键，由应用层保证引用完整性
+
+设计要点：
+- 私聊只写一条 (sender, receiver)，查询两人会话：
+      WHERE ((sender=:me AND receiver=:other) OR (sender=:other AND receiver=:me))
+- 群聊写一条 (sender, receiver=group_UID)
+- 注：按需求"补消息不补文件"，未做文件表
+
+============================================================
+UID 分配与重启重定位（重要）
+------------------------------------------------------------
+现 C++ 侧用内存单例 UID_allocator 自增分配 UID/group_id。
+引入 MySQL 后：
+
+【方案A - 推荐，改造成本低】
+  Account.UID 与 Group.group_UID 已设为 AUTO_INCREMENT，
+  应用启动时(连上DB后、开始 accept 前)执行：
+      SELECT COALESCE(MAX(UID),0)+1       FROM Account;  -- 回填 uid 分配起点
+      SELECT COALESCE(MAX(group_UID),0)+1 FROM `Group`;  -- 回填 group 分配起点
+  用结果重定位 UID_allocator::current_uid / current_group_id，
+  之后仍用内存分配器快速分配，避免每次落库取 MAX 的性能开销。
+
+【方案B - 彻底弃用内存分配器】
+  插入前直接让 DB 生成 AUTO_INCREMENT 主键，再经 LAST_INSERT_ID() 取回。
+  每注册/建群一次 DB round trip。
+
+建议：注册/登录/建群为低频操作，方案B最简单可靠；
+      若想保持现有分配器设计，则用方案A在启动时重定位。
+
+============================================================
+关于"用户 UID 与群 group_UID 共用同一套编号空间"
+------------------------------------------------------------
+这是【有意为之、无歧义】的设计：request_uid() 与 request_group_id()
+是两个独立计数器，某个用户 UID 与某个群 group_UID 数值可能相同(撞号)。
+但每条消息都带 type 字段(private_chat/group_chat)，分发器 Chat_handler
+先按 type 路由到 session.private_chat() / session.group_chat()，两者内部
+各自只查 account_manager / Group_manager，两个查找空间天然隔离，
+因此撞号不会造成转发歧义；持久化时同样靠 message.type 区分，安全。
+
+============================================================
+数据库连接接入（连接池，与代码衔接）
+------------------------------------------------------------
+服务器通过 db/mysql 连接池（MySQL_Conn_Pool，单例）访问数据库：
+- 启动时（main.cpp）读 configure.json 的 database 配置并 init() 预建连接：
+      host / port / user / password / dbname / db_conn_count(连接池上限，默认 4)
+- get_connection() 取连接（达上限时阻塞等待归还），return_connection() 归还。
+- 连接信息默认值（未读到配置文件时）：
+      host=localhost  port=3306  user=chat_server  password=Chat_123!
+      dbname=chat_server  db_conn_count=4
+  （本仓库 DB 专用账户即上述 chat_server / Chat_123!）
+
+注意：配置文件 configure.json 为相对路径，须复制到运行目录（build/）才能生效，
+否则会使用上述默认值（可能连不上你本地的库或连到你预期的库）。
+

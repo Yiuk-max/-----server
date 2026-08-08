@@ -38,8 +38,12 @@ client_session中show_chatlist()中要展示UID---------------------------------
 增加日志模块，记录服务器的运行状态、错误信息等，便于调试和维护
 
 增加Mysql数据库,数据持久化，将单例manager改造为管理活跃状态session内存的生命周期管理,去除无关业务功能
+        --> 连接池层 db/mysql 已完成（mysql_conn_pool + 配置），repo 真实 SQL 持久化仍待实现
 
 增加Redis,提高效率
+
+客户端本地缓存机制（头像、昵称等展示数据），服务器推送"某UID资料已变更"让客户端重新查库，
+可大幅降低数据库压力；或客户端定期比对。 —— 变更推送功能列此处待实现
 ===================================数据包格式设计==========================================
 
     -----------
@@ -299,4 +303,29 @@ client_session中show_chatlist()中要展示UID---------------------------------
             3) 把 session_key_ 还原为 fd（回到未登录态）
             4) 清空 current_account_ / social_manager_，online 保持 true（连接存活）
 - 新增分发：message_handler.cpp Base_handler 增加 type=="logout" → session.logout()。
+
+=====================================================================================
+2026-08-05 新增：MySQL 连接池 + 配置
+- 需求：为 MySQL 持久化构建连接复用层，避免每次 SQL 都新建连接；数量/连接信息由配置控制。
+- 配置（configure.json，启动时读取）：
+    - database.host / database.port / database.user / database.password / database.dbname
+    - database.db_conn_count  : int，连接池上限，默认 4
+- 新增：
+    - src/db/mysql/mysql_conn_pool.h/.cpp   MySQL_Conn_Pool 单例
+        - init() 按 ServerConfig 的 database 配置预建 db_conn_count 个连接
+        - get_connection() 优先复用空闲连接；不足且未达上限时临时新建；
+          已达上限则条件变量阻塞等待归还；DB 不可用创建失败返回 nullptr（不崩溃）
+        - return_connection() 归还并唤醒等待线程；shutdown() 清空连接池
+        - 连接失败仅打印错误（ERRNO），进程不崩溃，可后续重试
+    - main.cpp 在 ServerConfig::load("configure.json") 后调用 init()
+    - CMakeLists.txt 纳入 src/db/mysql，并加入 MySQL JDBC 头目录
+      /usr/include/mysql-cppconn/jdbc（供 mysql_driver.h/cppconn 解析）
+- ServerConfig 扩展：
+    - 解析嵌套 database{} 配置，新增访问器 db_host/db_port/db_user/db_password/db_name/db_conn_count
+- 说明：
+    - 配置文件为相对路径，须复制到运行目录（build/）才生效，否则用默认值（本机 3306、
+      chat_server/Chat_123!、库 chat_server、连接池上限 4）。
+    - 数据持久化分层（repo_interface 接口 / repo 真实 SQL / mysql 连接池）见项目说明文档 §6.7；
+      本条目仅完成 db/mysql 连接池层，db/repo 的真实 SQL 实现仍在进行。
+
 

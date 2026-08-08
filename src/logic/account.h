@@ -30,6 +30,7 @@ private:
     account_info::account_base_info base_info;
 
 public:
+    //
     void load_account_info();
     account();
     account(int uid, const std::string& name, const std::string& password);
