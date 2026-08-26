@@ -3,7 +3,7 @@
 #include <string>
 #include "group_manager.h"
 #include "UID_allocator.h"
-#include "account_repository.h"
+#include "repository_hub.h"
 namespace friend_info
 {
     struct friend_relation
@@ -33,9 +33,9 @@ private:
     std::vector<friend_info::friend_request> friend_requests; 
     int user_UID_; // 当前用户的UID
     std::string name_; // 当前用户的昵称
-    std::shared_ptr<I_account_repo> account_repo_;  // 账户仓储（构造注入，用于按 UID 查他人资料/校验存在）
+    std::shared_ptr<RepositoryHub> repo_hub_;  // 仓储门面（构造注入，按需从 hub 取各 repo）
 public:
-    social_module(int UID, std::shared_ptr<I_account_repo> repo);   // 构造注入 repo（由 client_session 传入）
+    social_module(int UID, std::shared_ptr<RepositoryHub> hub);   // 构造注入 RepositoryHub（由 client_session 传入）
     void add_friend(int friend_UID);
     void accept_friend_request(int sender_UID);
     void remove_friend(int friend_UID);

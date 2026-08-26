@@ -4,7 +4,7 @@
 #include "connection.h"
 #include "message_handler.h"
 #include "social_module.h"
-#include "account_repository.h"
+#include "repository_hub.h"
 #include "group.h"
 #include "group_manager.h"
 
@@ -15,7 +15,7 @@ private:
     bool online = true;                                         // 用户在线状态
     std::shared_ptr<account> current_account_;                  // 当前用户的账户信息（会话模块，登录时经 repo 加载）
     std::shared_ptr<social_module> social_manager_;             // 自己的社交关系模块（登录时创建，随会话生命周期）
-    std::shared_ptr<I_account_repo> account_repo_ = std::make_shared<account_repo_placeholder>(); // 账户仓储（默认占位，接入 MySQL 后替换）
+    std::shared_ptr<RepositoryHub> repo_hub_ = std::make_shared<RepositoryHub>(); // 仓储门面（构造时装配真实 MySQL repo，业务层经 accounts() 调用）
     //===============收发模块（方案 3b 重拆：connection 彻底独立，此处仅存弱引用回指）===============
 public:
     std::weak_ptr<connection> conn_;                            // 非拥有弱引用回指 connection；生命周期由 sub_reactor 持有

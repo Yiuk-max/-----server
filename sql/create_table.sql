@@ -202,3 +202,5 @@ CREATE TABLE IF NOT EXISTS message (
 --   两者内部各自只查 account_manager 或 Group_manager，两个查找空间天然隔离，
 --   因此撞号不会造成转发歧义。持久化时同样靠 message.type 区分，安全。
 -- ============================================================
+
+

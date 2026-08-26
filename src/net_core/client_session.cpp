@@ -89,12 +89,12 @@ void client_session::register_user(std::string username,std::string password){
         package_message(fail,"system");
         return;
     }
-    // 迁移：由 account_manager 改为账号仓储接口（I_account_repo）。当前为占位实现返回 nullptr，
-    // 接入 MySQL 后返回真实账户对象。注册成功后可直接用其 UID 提示登录。
-    auto new_account = account_repo_->register_account(username, password);
+    // 经仓储门面调账号仓储接口注册：
+    //   client_session -> repo_hub_->accounts() -> I_account_repo 契约 -> account_repo (repo 层 MySQL 实现)
+    auto new_account = repo_hub_->accounts()->register_account(username, password);
     if (!new_account) {
-        // 迁移占位：持久化尚未就绪
-        std::string fail = "Registration failed (account persistence not ready yet).\n";
+        // 失败：nickname 重名 / DB 不可用等
+        std::string fail = "Registration failed (invalid username/password or account already exists).\n";
         package_message(fail,"system");
         return;
     }
@@ -104,8 +104,8 @@ void client_session::register_user(std::string username,std::string password){
     package_message(success,"system");
 }
 void client_session::login(int UID,std::string password){
-    // 迁移：由 account_manager 改为账号仓储接口加载账户（占位实现返回 nullptr，登录暂判定不存在）
-    auto account = account_repo_->load_account(UID);
+    // 经仓储门面调账号仓储接口加载账户（契约 I_account_repo，由 repo 层 MySQL 实现 SELECT Account WHERE UID=?）
+    auto account = repo_hub_->accounts()->load_account(UID);
     if (!account) {
         std::string fail = "Account with UID [" + std::to_string(UID) + "] does not exist.\n";
         package_message(fail,"system");
@@ -117,7 +117,7 @@ void client_session::login(int UID,std::string password){
         return;
     }
     current_account_ = account;//init 账户
-    social_manager_ = std::make_shared<social_module>(UID, account_repo_);//init 社交模块（登录时创建，随会话生命周期持有）
+    social_manager_ = std::make_shared<social_module>(UID, repo_hub_);//init 社交模块（登录时创建，随会话生命周期持有）
 
     // 顶掉旧登录：同一 UID 若已有在线会话，先移除其映射并关闭其连接，避免同账号多会话/残留
     auto old_session = session_manager::get_instance().find_session(UID);
@@ -296,7 +296,7 @@ void client_session::package_message(const std::string& message,std::string type
 //=======================效验target_UID_is_exit=====================
 bool client_session::target_UID_is_exit(int target_UID){
     // 校验个人UID是否存在（改为账号仓储接口查询）
-    if (account_repo_->load_account(target_UID)) {
+    if (repo_hub_->accounts()->load_account(target_UID)) {
         return true;
     }
     // 校验群聊UID是否存在

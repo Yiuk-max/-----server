@@ -5,57 +5,41 @@
 
 // ============================================================
 // 账户仓储接口层（repo_interface）
-// 定位：定义"账户增删改查"的契约，未来由 repo 层 MySQL 实现。
-// 当前提供空实现占位（account_repo_placeholder），用于迁移：
-//   先把调用点从 account_manager 迁到本接口，暂不真正写数据库；
-//   待接入 MySQL 后用真实实现替换占位类，上层代码无需改动。
+// 定位：只定义"账户增删改查"的契约（抽象接口 I_account_repo），不包含任何实现。
 //
-// 硬性约定：
-//   - 本层只声明接口 / 空实现占位，禁止出现任何 SQL 与 mysql 头。
-//   - 业务层（net_core / logic）只 include 本文件，不 include repo。
+// 分层约定：
+//   - 本文件只声明接口契约，禁止出现任何 SQL 与 mysql 头。
+//   - 真正的 MySQL 实现位于 repo 层：class account_repo（见 repo/account_repo.h）。
+//     由组合根 RepositoryHub 在构造时注入（见 repository_hub.cpp），上层无需改动。
+//   - 业务层（net_core/client_session 与 logic/social_module）只 include/依赖
+//     本文件（I_account_repo 接口），对具体 MySQL 实现完全无感知。
+//
+// 调用链路：client_session / social_module
+//        --> repo_hub_->accounts()                    （细粒度门面，见 repository_hub.h）
+//        --> I_account_repo::register/load/...    （本文件接口契约）
+//        --> account_repo::xxx()                  （repo 层真实 MySQL 实现）
 // ============================================================
 
 class I_account_repo {
 public:
     virtual ~I_account_repo() = default;
 
-    // 注册：新建账户并返回账户对象。
-    // 迁移占位：返回 nullptr；接入 MySQL 后由数据库分配 UID 并落库。
+    // 注册：新建账户，由数据库 AUTO_INCREMENT 分配 UID 并落库，返回带 UID 的账户对象。
+    // 成功返回账户对象；失败（如 nickname 重名 / DB 不可用）返回 nullptr。
     virtual std::shared_ptr<account> register_account(const std::string& name,
                                                       const std::string& password) = 0;
 
-    // 注销：删除指定账户。
-    // 迁移占位：暂无操作；接入 MySQL 后执行 DELETE。
+    // 注销：删除指定账户（依赖外键 ON DELETE CASCADE 清理关联数据）。
     virtual void remove_account(int uid) = 0;
 
-    // 加载：按 UID 查询账户。
-    // 用于登录加载自己 / social 查他人资料。
-    // 迁移占位：返回 nullptr；接入 MySQL 后 SELECT Account WHERE UID=?。
+    // 加载：按 UID 查询账户（登录加载自己 / social 查他人资料）。
+    // 存在返回账户对象，不存在返回 nullptr。
     virtual std::shared_ptr<account> load_account(int uid) = 0;
 
     // 修改：更新账户个人数据（改名 / 改设置等）。
-    // 迁移占位：暂无操作；接入 MySQL 后 UPDATE。
     virtual void update_account(const std::shared_ptr<account>& acc) = 0;
 };
 
-// 空实现占位类：只留函数壳子，不访问数据库。
-// 接入 MySQL 后应新建真实实现并将其替换到此（注入位置见 client_session）。
-class account_repo_placeholder : public I_account_repo {
-public:
-    std::shared_ptr<account> register_account(const std::string& name,
-                                              const std::string& password) override {
-        (void)name; (void)password;
-        return nullptr; // TODO: 接入 MySQL 后实现 INSERT Account
-    }
-    void remove_account(int uid) override {
-        (void)uid; // TODO: 接入 MySQL 后实现 DELETE Account
-    }
-    std::shared_ptr<account> load_account(int uid) override {
-        (void)uid;
-        return nullptr; // TODO: 接入 MySQL 后实现 SELECT Account WHERE UID=?
-    }
-    void update_account(const std::shared_ptr<account>& acc) override {
-        (void)acc; // TODO: 接入 MySQL 后实现 UPDATE Account
-    }
-};
+// 说明：具体实现 class account_repo 在 repo/account_repo.h（repo 层），
+//       由 RepositoryHub 组合根装配，这里不再提供占位实现。
 
