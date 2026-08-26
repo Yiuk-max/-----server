@@ -47,41 +47,25 @@ int main(){
         return 1;
     }
     std::cout << "Server is listening on port 8080..." << std::endl;
-    
-    auto pool = std::make_shared<ThreadPool>(8);
-    
-    auto sub1 = std::make_shared<sub_reactor>(pool);
-    auto sub2 = std::make_shared<sub_reactor>(pool);
-    auto sub3 = std::make_shared<sub_reactor>(pool);
 
-    std::thread t1([sub1](){ sub1->loop(); });
-    std::thread t2([sub2](){ sub2->loop(); });
-    std::thread t3([sub3](){ sub3->loop(); });
-    
-    // 分离线程，让它们在后台运行
-    t1.detach();
-    t2.detach();
-    t3.detach();
-
-    // 4. 在主线程中创建并运行 Main Reactor
-    // 注意：构造函数现在需要传入 server_fd
-    main_reactor main_react(server_fd, sub1, sub2, sub3);
+    // 在主线程中创建并运行 Main Reactor
+    main_reactor main_react(server_fd);
     
     std::cout << "Main reactor started on thread " << std::this_thread::get_id() << std::endl;
     
     // 主线程将阻塞在这里处理 Accept 事件
     main_react.loop(); 
     /*
-    //epoll_event_loop(server_fd, pool);
+    // epoll_event_loop(server_fd, pool);
     // 保持服务器运行
     while(running){
         std::this_thread::sleep_for(std::chrono::seconds(5));
     }
     */
-    pool->stop_pool();
-    
+    // 说明：sub_reactor 各自持有自己的线程池，由 main_reactor 负责其生命周期；
+    //       旧的 pool->stop_pool() 引用已不存在的变量，已移除。
     close(server_fd);
     std::cout << "Server stopped." << std::endl;
     return 0;
 }
- 
+

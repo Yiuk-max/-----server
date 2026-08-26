@@ -23,24 +23,22 @@ protected:
 class sub_reactor;
 class main_reactor : public epoller{
 public:
-    main_reactor(
-        int fd,
-        std::shared_ptr<sub_reactor> sub1,
-        std::shared_ptr<sub_reactor> sub2,
-        std::shared_ptr<sub_reactor> sub3
-    ) : server_fd_(fd),
-    sub1_(std::move(sub1)),
-    sub2_(std::move(sub2)),
-    sub3_(std::move(sub3)) {}
-    
+    // 统一创建 N 个 sub_reactor，各自在自己的后台线程上跑事件循环。
+    // 用 std::shared_ptr 存放 sub_reactor（sub_reactor 内含 std::mutex / unordered_map，
+    // 不可按值拷贝进容器），构造实现见 epoller.cpp（此处声明，使 epoller.cpp 能看到完整的
+    // sub_reactor 定义后再实例化，避免"前向声明不完整类型"）。
+    main_reactor(int fd, int sub_count = 3);
     void loop()override;
     void add_connect();
 private:
     int select_num = 0;
     int server_fd_;
-    std::shared_ptr<sub_reactor> sub1_;
-    std::shared_ptr<sub_reactor> sub2_;
-    std::shared_ptr<sub_reactor> sub3_;
+    // 每个 sub_reactor 配套一个独立线程池。sub_reactor 内部只持有 weak_ptr，
+    // 必须由 main_reactor 持有强引用，否则临时 shared_ptr 析构时线程池会被销毁，
+    // 导致 sub_reactor::pool_add_task() 报 "ThreadPool is no longer available."
+    std::vector<std::shared_ptr<ThreadPool>> pools_;
+    // 用 shared_ptr 存 sub_reactor：线程与 dispatch 共享同一实例，杜绝"复制出另一只 epoll"的错位。
+    std::vector<std::shared_ptr<sub_reactor>> sub_reactors_;
 };
 class sub_reactor : public epoller{
 public:

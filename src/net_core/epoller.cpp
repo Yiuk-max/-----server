@@ -1,6 +1,7 @@
 #include "epoller.h"
 #include "client_session.h"
 #include "server_config.h"
+#include <thread>
 epoller::~epoller()
 {
     if (epoller_fd_ >= 0)
@@ -8,7 +9,16 @@ epoller::~epoller()
         close(epoller_fd_);
     }
 }
-
+main_reactor::main_reactor(int fd, int sub_count) : server_fd_(fd){
+    for(int i = 0; i < sub_count; ++i){
+        auto pool = std::make_shared<ThreadPool>(8);
+        pools_.push_back(pool);                       // 强引用持有，保证线程池存活
+        auto sub = std::make_shared<sub_reactor>(pool);
+        std::thread t([sub](){ sub->loop(); });
+        t.detach();
+        sub_reactors_.push_back(sub);
+    }
+}
 void main_reactor::add_connect()
 {
     struct sockaddr_in6 client_addr;
@@ -16,23 +26,9 @@ void main_reactor::add_connect()
     int client_fd = accept(server_fd_, (struct sockaddr *)&client_addr, &len);
     if (client_fd != -1)
     {
-        int choose = (select_num) % 3 + 1;
+        int choose = (select_num) % sub_reactors_.size();
         select_num++;
-        switch (choose)
-        {
-        case 1:
-            sub1_->add_connect(client_fd);
-            break;
-        case 2:
-            sub2_->add_connect(client_fd);
-            break;
-        case 3:
-            sub3_->add_connect(client_fd);
-            break;
-        default:
-            // 需要错误处理
-            break;
-        }
+        sub_reactors_[choose]->add_connect(client_fd); // shared_ptr 元素，用 -> 访问
     }
 }
 void sub_reactor::add_connect(int new_client_fd)
