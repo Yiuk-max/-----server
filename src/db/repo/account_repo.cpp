@@ -26,12 +26,30 @@ private:
     sql::Connection* conn_;
 };
 
-// 构造 Account.settings 列的 JSON 字符串（theme + language）
-std::string make_settings_json(const std::string& theme, const std::string& language) {
+// 构造 Account.settings 列的 JSON 字符串（theme + language + last_login_time）
+std::string make_settings_json(const std::string& theme, const std::string& language,
+                               const std::string& last_login_time) {
     nlohmann::json j;
-    j["theme"]    = theme;
-    j["language"] = language;
+    j["theme"]           = theme;
+    j["language"]        = language;
+    j["last_login_time"] = last_login_time;
     return j.dump();
+}
+
+// 从 Account.settings 的 JSON 字符串解析出 last_login_time（解析失败/缺键回退空串）
+std::string parse_last_login_time(const std::string& settings_json) {
+    if (settings_json.empty()) {
+        return "";
+    }
+    try {
+        nlohmann::json j = nlohmann::json::parse(settings_json);
+        if (j.contains("last_login_time") && j["last_login_time"].is_string()) {
+            return j["last_login_time"].get<std::string>();
+        }
+    } catch (const std::exception&) {
+        // JSON 解析失败，回退空串
+    }
+    return "";
 }
 
 // 从 Account.settings 的 JSON 字符串解析出 theme（解析失败/缺键回退默认 white）
@@ -61,7 +79,7 @@ std::shared_ptr<account> account_repo::register_account(const std::string& name,
     }
     try {
         // 默认设置：theme=white, language=Chinese；写入 settings JSON 与 language 列
-        std::string settings = make_settings_json("white", "Chinese");
+        std::string settings = make_settings_json("white", "Chinese", "");
         {
             std::unique_ptr<sql::PreparedStatement> pstmt(
                 guard.get()->prepareStatement(
@@ -87,6 +105,7 @@ std::shared_ptr<account> account_repo::register_account(const std::string& name,
         // 填充设置项，与库中一致
         acc->set_theme("white");
         acc->set_language("Chinese");
+        acc->set_last_login_time("");
         acc->set_settings_json(settings);
         return acc;
     } catch (const sql::SQLException& e) {
@@ -140,6 +159,7 @@ std::shared_ptr<account> account_repo::load_account(int uid) {
         acc->set_settings_json(settings_json);
         acc->set_theme(parse_theme(settings_json));
         acc->set_language(rs->getString("language"));
+        acc->set_last_login_time(parse_last_login_time(settings_json));
         return acc;
     } catch (const sql::SQLException& e) {
         std::cerr << "[account_repo] load failed: " << e.what()
@@ -148,15 +168,15 @@ std::shared_ptr<account> account_repo::load_account(int uid) {
     }
 }
 
-// 更新：修改账户个人资料（昵称/密码/设置项）
-void account_repo::update_account(const std::shared_ptr<account>& acc) {
+// 更新：修改账户个人资料（昵称/密码/设置项）；成功返回 true
+bool account_repo::update_account(const std::shared_ptr<account>& acc) {
     if (!acc) {
-        return;
+        return false;
     }
     ConnGuard guard;
     if (!guard) {
         std::cerr << "[account_repo] update: no DB connection." << std::endl;
-        return;
+        return false;
     }
     try {
         std::unique_ptr<sql::PreparedStatement> pstmt(
@@ -164,12 +184,15 @@ void account_repo::update_account(const std::shared_ptr<account>& acc) {
                 "UPDATE Account SET nickname = ?, password = ?, settings = ?, language = ? WHERE UID = ?"));
         pstmt->setString(1, acc->getName());
         pstmt->setString(2, acc->passwd_raw());
-        pstmt->setString(3, make_settings_json(acc->get_theme(), acc->get_language()));
+        pstmt->setString(3, make_settings_json(acc->get_theme(), acc->get_language(),
+                                             acc->get_last_login_time()));
         pstmt->setString(4, acc->get_language());
         pstmt->setInt(5, acc->getUID());
-        pstmt->executeUpdate();
+        return pstmt->executeUpdate() > 0;
     } catch (const sql::SQLException& e) {
+        // 常见失败：nickname 违反唯一约束（uk_nickname），已存在同名账户
         std::cerr << "[account_repo] update failed: " << e.what()
                   << " (ERRNO=" << e.getErrorCode() << ")" << std::endl;
+        return false;
     }
 }

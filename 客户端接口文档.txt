@@ -36,10 +36,17 @@
 | `login`               | 基础     | 用户登录                               |
 | `logout`              | 基础     | 登出当前账号（保留连接，可再登录）     |
 | `show`                | 基础     | 展示聊天对象列表（好友 + 群组）        |
+| `change_name`         | 基础     | 修改自己的昵称                         |
 | `exit`                | 基础     | 退出系统、关闭连接                     |
 | `heartbeat`           | 基础     | 心跳包（无业务消息时的保活）           |
 | `private_chat`        | 私聊     | 私聊（一对一向指定 UID 发消息）        |
 | `group_chat`          | 群聊     | 群聊发言（向指定群 UID 广播）           |
+| `add_friend`          | 好友     | 发送好友申请（存于 `friend_request`）   |
+| `set_friend_remark`   | 好友     | 给好友设置备注名                       |
+| `accept_friend`       | 好友     | 同意好友申请                           |
+| `reject_friend`       | 好友     | 拒绝好友申请                           |
+| `remove_friend`       | 好友     | 删除好友                               |
+| `show_friend_requests`| 好友     | 查看待处理的好友申请                   |
 | `create_group`        | 群组     | 创建群聊                               |
 | `delete_group`        | 群组     | 解散群聊                               |
 | `group_add_client`    | 群组     | 添加群成员                             |
@@ -230,6 +237,80 @@
 ```
 *   *注意*：该功能是否启用、超时阈值（默认 60 秒）由服务器配置 `configure.json` 中的 `use_heartbeat` / `heartbeat_interval` 决定，默认关闭。启用后客户端需周期发送心跳；服务器收到心跳会回 `heartbeat_ack`。若一段时间内既无业务消息也无心跳，服务器会主动断开该连接。
 
+### 16. 设置好友备注名 (set_friend_remark)
+*   **用途**：给指定好友 UID 设置备注名（存于 `friend_relation.remark_name`）。
+*   **JSON 结构**：
+```json
+{
+    "type": "set_friend_remark",
+    "friend_UID": 1002,
+    "remark": "老张"
+}
+```
+*   *注意*：服务器会校验目标 UID 是否为当前登录用户的好友；不是好友或备注名为空时返回失败提示。
+
+### 17. 修改自己的昵称 (change_name)
+*   **用途**：修改当前登录账号的昵称（存于 `Account.nickname`）。
+*   **JSON 结构**：
+```json
+{
+    "type": "change_name",
+    "new_name": "新昵称"
+}
+```
+*   *注意*：昵称全局唯一（`uk_nickname`），新昵称为空或与现有用户重名时返回失败提示；成功后返回包含新昵称的系统提示。
+
+### 18. 发送好友申请 (add_friend)
+*   **用途**：向指定 UID 发送好友申请（存于 `friend_request`，status=0 等待）。
+*   **JSON 结构**：
+```json
+{
+    "type": "add_friend",
+    "target_UID": 1002,
+    "apply_message": "我是张三"
+}
+```
+*   *注意*：若同对用户已存在等待中的申请，会返回失败提示（由唯一约束拦截）。
+
+### 19. 查看待处理的好友申请 (show_friend_requests)
+*   **用途**：列出发给当前用户、等待处理（status=0）的好友申请。
+*   **JSON 结构**：
+```json
+{
+    "type": "show_friend_requests"
+}
+```
+
+### 20. 同意好友申请 (accept_friend)
+*   **用途**：同意来自 `sender_UID` 的好友申请，双方成为好友（事务内双向落库）。
+*   **JSON 结构**：
+```json
+{
+    "type": "accept_friend",
+    "sender_UID": 1001
+}
+```
+
+### 21. 拒绝好友申请 (reject_friend)
+*   **用途**：拒绝来自 `sender_UID` 的好友申请。
+*   **JSON 结构**：
+```json
+{
+    "type": "reject_friend",
+    "sender_UID": 1001
+}
+```
+
+### 22. 删除好友 (remove_friend)
+*   **用途**：删除指定好友（事务内双向删除 `friend_relation`）。
+*   **JSON 结构**：
+```json
+{
+    "type": "remove_friend",
+    "friend_UID": 1002
+}
+```
+
 五、服务器返回格式（Server -> Client）
 --------------------------------------
 服务器返回的数据同样封装为二进制帧结构。其 JSON 部分包含 `type` 和 `content` 字段：
@@ -265,6 +346,10 @@
 | **未登录发私聊**         | `You must be logged in to send private messages.`             |
 | **目标 UID 不存在**      | `UID [<UID>] does not exist.`                                 |
 | **目标不在线**           | `User [<UID>] is not online.`                                 |
+| **修改昵称成功**         | `Name updated successfully. Your new name is [<新昵称>].`      |
+| **修改昵称失败（重名/空）** | `Failed to update name (nickname may already exist).`         |
+| **设置备注成功**         | `Remark for UID [<UID>] updated successfully.`                |
+| **设置备注失败（非好友）** | `UID [<UID>] is not your friend.`                             |
 | **群名称为空**           | `The group name can't be empty`                               |
 | **修改群名无权限**       | `Permission denied: only manager can modify group name.`      |
 | **缺少 type 字段**       | `Invalid message format: missing 'type' field.`               |

@@ -23,6 +23,6 @@ public:
     // 加载：SELECT Account WHERE UID=?，填充账户对象；不存在返回 nullptr
     std::shared_ptr<account> load_account(int uid) override;
 
-    // 更新：UPDATE Account 个人资料（改名/设置等）
-    void update_account(const std::shared_ptr<account>& acc) override;
+    // 更新：UPDATE Account 个人资料（改名/设置等）；成功返回 true
+    bool update_account(const std::shared_ptr<account>& acc) override;
 };

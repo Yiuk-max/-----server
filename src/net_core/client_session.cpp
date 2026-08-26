@@ -4,6 +4,7 @@
 #include "group.h" 
 #include "session_manager.h"
 #include "social_module.h"
+#include <ctime>
 
 
 extern bool running;
@@ -31,13 +32,19 @@ void client_session::init_(){
     //初始化消息处理器，后续可以根据需要添加更多类型的消息处理器
     handlers_["private_chat"]           = std::make_unique<Chat_handler>();// 聊天消息.私聊
     handlers_["group_chat"]             = std::make_unique<Chat_handler>();// 聊天消息.群聊
-    handlers_["add_friend"]             = std::make_unique<Chat_handler>();// 好友相关 -----------未实现
+    handlers_["add_friend"]             = std::make_unique<Chat_handler>();// 好友申请
+    handlers_["set_friend_remark"]      = std::make_unique<Chat_handler>();// 给好友设置备注名
+    handlers_["accept_friend"]          = std::make_unique<Chat_handler>();// 同意好友申请
+    handlers_["reject_friend"]          = std::make_unique<Chat_handler>();// 拒绝好友申请
+    handlers_["remove_friend"]          = std::make_unique<Chat_handler>();// 删除好友
+    handlers_["show_friend_requests"]   = std::make_unique<Chat_handler>();// 查看待处理好友申请
     
     //基本功能
     handlers_["show"]                   = std::make_unique<Base_handler>();// 展示聊天对象
     handlers_["exit"]                   = std::make_unique<Base_handler>();
     handlers_["login"]                  = std::make_unique<Base_handler>();
     handlers_["register"]               = std::make_unique<Base_handler>();
+    handlers_["change_name"]            = std::make_unique<Base_handler>();// 修改自己的昵称
     //群聊相关
     handlers_["create_group"]           = std::make_unique<Group_handler>();
     handlers_["group_add_client"]       = std::make_unique<Group_handler>();
@@ -117,6 +124,18 @@ void client_session::login(int UID,std::string password){
         return;
     }
     current_account_ = account;//init 账户
+
+    // 更新"上次登录时间"（存入 Account.settings JSON），登录时更新一次并落库
+    {
+        char time_buf[32];
+        std::time_t now = std::time(nullptr);
+        std::tm tmv{};
+        localtime_r(&now, &tmv);
+        std::strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", &tmv);
+        account->set_last_login_time(time_buf);
+        repo_hub_->accounts()->update_account(account);
+    }
+
     social_manager_ = std::make_shared<social_module>(UID, repo_hub_);//init 社交模块（登录时创建，随会话生命周期持有）
 
     // 顶掉旧登录：同一 UID 若已有在线会话，先移除其映射并关闭其连接，避免同账号多会话/残留
@@ -232,6 +251,81 @@ void client_session::private_chat(int target_UID, std::string message) {
 void client_session::send_friend_request(int target_UID, std::string apply_message){
     if (social_manager_) {
         social_manager_->send_friend_request(target_UID, apply_message);
+    }
+}
+// 给好友设置备注名：先校验目标确实是自己的好友，再落库（friend_relation.remark_name）
+void client_session::set_friend_remark(int friend_UID, std::string remark){
+    if (!current_account_) {
+        package_message("You must be logged in to set a friend remark.\n", "system");
+        return;
+    }
+    if (remark.empty()) {
+        package_message("Remark cannot be empty.\n", "system");
+        return;
+    }
+    int my_uid = current_account_->getUID();
+    if (!repo_hub_->friends()->is_friend(my_uid, friend_UID)) {
+        std::string fail = "UID [" + std::to_string(friend_UID) + "] is not your friend.\n";
+        package_message(fail, "system");
+        return;
+    }
+    if (repo_hub_->friends()->set_remark(my_uid, friend_UID, remark)) {
+        std::string success = "Remark for UID [" + std::to_string(friend_UID) + "] updated successfully.\n";
+        package_message(success, "system");
+    } else {
+        std::string fail = "Failed to update remark for UID [" + std::to_string(friend_UID) + "].\n";
+        package_message(fail, "system");
+    }
+}
+// 修改自己的昵称：先改内存，再落库；失败时回滚内存中的昵称，保证与数据库一致
+void client_session::change_my_name(std::string new_name){
+    if (!current_account_) {
+        package_message("You must be logged in to change your name.\n", "system");
+        return;
+    }
+    if (new_name.empty()) {
+        package_message("Name cannot be empty.\n", "system");
+        return;
+    }
+    std::string old_name = current_account_->getName();
+    current_account_->setName(new_name);
+    if (repo_hub_->accounts()->update_account(current_account_)) {
+        std::string success = "Name updated successfully. Your new name is [" + new_name + "].\n";
+        package_message(success, "system");
+    } else {
+        current_account_->setName(old_name); // 失败回滚内存中的昵称，保持与库一致
+        std::string fail = "Failed to update name (nickname may already exist).\n";
+        package_message(fail, "system");
+    }
+}
+// 处理好友申请（同意/拒绝）
+void client_session::handle_friend_request(int sender_UID, bool accept){
+    if (!current_account_) {
+        package_message("You must be logged in to handle friend requests.\n", "system");
+        return;
+    }
+    if (social_manager_) {
+        social_manager_->handle_friend_request(sender_UID, accept);
+    }
+}
+// 删除好友
+void client_session::remove_friend(int friend_UID){
+    if (!current_account_) {
+        package_message("You must be logged in to remove a friend.\n", "system");
+        return;
+    }
+    if (social_manager_) {
+        social_manager_->remove_friend(friend_UID);
+    }
+}
+// 查看待处理的好友申请
+void client_session::show_friend_requests(){
+    if (!current_account_) {
+        package_message("You must be logged in to view friend requests.\n", "system");
+        return;
+    }
+    if (social_manager_) {
+        package_message(social_manager_->show_friend_requests(), "system");
     }
 }
 void client_session::create_group(std::string group_name){

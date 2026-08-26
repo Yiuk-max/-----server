@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include "account_repository.h"
+#include "friend_repository.h"
 
 // ============================================================
 // RepositoryHub：仓储门面（Facade / 组合根）
@@ -24,9 +25,12 @@ public:
     // 允许运行时替换实现（便于测试注入 mock / 未来切换数据源），业务层默认无需调用
     void set_account_repo(std::shared_ptr<I_account_repo> repo) { account_repo_ = std::move(repo); }
 
+    // 好友仓储（接口），默认已装配 repo 层真实 MySQL 实现（见 repository_hub.cpp）
+    std::shared_ptr<I_friend_repo> friends() const { return friend_repo_; }
+    // 允许运行时替换实现（便于测试注入 mock / 未来切换数据源），业务层默认无需调用
+    void set_friend_repo(std::shared_ptr<I_friend_repo> repo) { friend_repo_ = std::move(repo); }
+
     // ---- 未来仓储（接口定义就绪后在此扩展，方法同账户）----
-    // std::shared_ptr<IFriend_repo> friends() const { return friend_repo_; }
-    // void set_friend_repo(std::shared_ptr<IFriend_repo> repo) { friend_repo_ = std::move(repo); }
     // std::shared_ptr<IGroup_repo> groups() const { return group_repo_; }
     // void set_group_repo(std::shared_ptr<IGroup_repo> repo) { group_repo_ = std::move(repo); }
     // std::shared_ptr<IMessage_repo> messages() const { return message_repo_; }
@@ -34,7 +38,7 @@ public:
 
 private:
     std::shared_ptr<I_account_repo> account_repo_;          // 账户仓储（构造时装配真实 MySQL 实现）
-    // std::shared_ptr<IFriend_repo>   friend_repo_;
+    std::shared_ptr<I_friend_repo>  friend_repo_;           // 好友仓储（构造时装配真实 MySQL 实现）
     // std::shared_ptr<IGroup_repo>    group_repo_;
     // std::shared_ptr<IMessage_repo>  message_repo_;
 };

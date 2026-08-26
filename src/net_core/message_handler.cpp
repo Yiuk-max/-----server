@@ -20,6 +20,31 @@ void Chat_handler::handle_message(const json& message,client_session& session,st
         session.send_friend_request(target_UID, apply_message);
         return;
     }
+    else if(type == "set_friend_remark"){
+        int friend_UID = message["friend_UID"];
+        std::string remark = message["remark"];
+        session.set_friend_remark(friend_UID, remark);
+        return;
+    }
+    else if(type == "accept_friend"){
+        int sender_UID = message["sender_UID"];
+        session.handle_friend_request(sender_UID, true);
+        return;
+    }
+    else if(type == "reject_friend"){
+        int sender_UID = message["sender_UID"];
+        session.handle_friend_request(sender_UID, false);
+        return;
+    }
+    else if(type == "remove_friend"){
+        int friend_UID = message["friend_UID"];
+        session.remove_friend(friend_UID);
+        return;
+    }
+    else if(type == "show_friend_requests"){
+        session.show_friend_requests();
+        return;
+    }
 }
 void Group_handler::handle_message(const json& message,client_session& session,std::string &file_data){
     std::string type = message["type"];
@@ -76,6 +101,11 @@ void Base_handler::handle_message(const json& message,client_session& session,st
         std::string username = message["username"];
         std::string password = message["password"];
         session.register_user(username,password);
+        return;
+    }
+    else if(type == "change_name"){
+        std::string new_name = message["new_name"];
+        session.change_my_name(new_name);
         return;
     }
 }

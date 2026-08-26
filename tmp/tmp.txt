@@ -1,0 +1,3 @@
+虚拟机打字、看代码太卡,平常在这里传输文本什么的到虚拟机那里
+
+把friend_relation和friend_request两张表的增删改查实现一下吧，因为都是friend相关，repo层都写在一对friend_repo文件中吧

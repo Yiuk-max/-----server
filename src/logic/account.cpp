@@ -32,6 +32,7 @@ void account::load_account_info(){
     if (settings.language.empty()) {
         settings.language = "Chinese";
     }
+    // last_login_time 无默认值语义，空串表示"从未登录"，由 repo / 外层在登录时填充
 }
 
 // ---- 设置项存取 ----
@@ -39,6 +40,8 @@ std::string account::get_theme()    const { return settings.theme; }
 void        account::set_theme(const std::string& theme) { settings.theme = theme; }
 std::string account::get_language() const { return settings.language; }
 void        account::set_language(const std::string& language) { settings.language = language; }
+std::string account::get_last_login_time() const { return settings.last_login_time; }
+void        account::set_last_login_time(const std::string& t) { settings.last_login_time = t; }
 std::string account::get_settings_json()  const { return base_info.settings_json; }
 void        account::set_settings_json(const std::string& json) { base_info.settings_json = json; }
 

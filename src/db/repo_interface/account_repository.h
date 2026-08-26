@@ -37,7 +37,8 @@ public:
     virtual std::shared_ptr<account> load_account(int uid) = 0;
 
     // 修改：更新账户个人数据（改名 / 改设置等）。
-    virtual void update_account(const std::shared_ptr<account>& acc) = 0;
+    // 成功返回 true；失败（如 nickname 违反唯一约束 / 账户不存在 / DB 不可用）返回 false。
+    virtual bool update_account(const std::shared_ptr<account>& acc) = 0;
 };
 
 // 说明：具体实现 class account_repo 在 repo/account_repo.h（repo 层），

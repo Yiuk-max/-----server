@@ -16,13 +16,12 @@
 // ============================================================
 namespace account_info
 {
-    // 账户设置项（对应 Account.settings 的 JSON 内容 + 独立 language 列）
-    // 说明：theme/通知开关等都在 settings JSON 里扩展；
-    //       language 亦从 settings JSON 或独立列读取，二者取其一保持一致。
+    // 账户设置项
     struct account_settings
     {
         std::string theme    = "white";     // 主题（默认 white，存于 settings JSON）
         std::string language = "Chinese";   // 语言（Account.language 列 / settings JSON）
+        std::string last_login_time;        // 上次登录时间（存于 settings JSON，登录/注册时更新）
         // 后续可扩展：通知开关、头像等，均作为 settings JSON 的额外键
     };
 
@@ -33,8 +32,7 @@ namespace account_info
         std::string password;             // password
         int         UID;                  // UID（系统分配，AUTO_INCREMENT）
         std::string settings_json;        // Account.settings 原始 JSON（回写时用）
-        // 注：create_time / birthday 当前业务未用到，不额外引入字段；
-        //     未来需要时对照 Account 表补列即可。
+
     };
 }
 
@@ -68,9 +66,13 @@ public:
     void set_theme(const std::string& theme);
     std::string get_language() const;
     void set_language(const std::string& language);
+    // 上次登录时间（存于 settings JSON，登录/注册时由外层写入；失败时为空串）
+    std::string get_last_login_time() const;
+    void set_last_login_time(const std::string& t);
     // 原始 settings JSON（供 repo 落库时使用）
     std::string get_settings_json() const;
     void set_settings_json(const std::string& json);
 
     std::string get_info();     // 展示用：昵称:补零UID
 };
+
