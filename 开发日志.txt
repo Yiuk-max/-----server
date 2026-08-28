@@ -355,3 +355,34 @@ interface 层怎么还留着account的空占位实现，看着只做了数据库
 - 补齐好友闭环消息类型：accept_friend / reject_friend / remove_friend / show_friend_requests。
 - client_session 新增对应封装方法并接入 Chat_handler 分发。
 - 客户端接口文档.txt 补充好友相关消息类型（第 18~22 节）。
+
+=====================================================================================
+2026-08-28 群聊持久化贯通 + 删除内存分配器/群管理器（UID_allocator、group_manager）
+- 删除 UID_allocator（内存 UID/群ID/文件ID分配器）：数据库 Account.UID / Group.group_UID
+    已为 AUTO_INCREMENT，UID 由 DB 分配（repo 层经 LAST_INSERT_ID() 取回），内存分配器失去意义。
+- 删除 group_manager（内存群对象单例）：群聊数据已持久化到 Group / Groupmember 表，
+    group 类简化为纯数据模型（owner/群名/group_UID），群成员增删、权限、广播全部下沉 repo + NoticeService。
+- I_group_repo 补接口 remove_group_member：支持两种场景
+    - 本人退群：requester == target，任何成员均可
+    - 群主踢人：requester 必须是 owner
+- client_session 群聊业务全部对接 repo_hub_->groups()（I_group_repo 接口）：
+    - create_group → create_group（落库 Group + Groupmember 群主行，name 默认取昵称）
+    - group_add_client → member_add_group
+    - group_delete_client → remove_group_member
+    - delete_group → delete_group
+    - modify_group_name → modify_group_name
+    - group_chat → get_group_members 拉成员后经 NoticeService 广播（不再依赖内存群对象）
+    - target_UID_is_exit 群存在性校验 → load_group
+- 补实现原仅声明的群聊方法并接入消息分发（Group_handler + init_）：
+    - send_join_group：落库 relation_apply(apply_type=2, status=0)，等待群主处理
+    - handle_join_request：校验群主 → 更新申请状态(1同意/2拒绝) → 同意则拉人入群
+    - modify_member_role：群主提升/降级成员身份（owner/member）
+    - show_group_members：展示成员 UID + 群内名字（Groupmember.name）
+- social_module：构造时从 DB 加载好友列表 + 群列表（get_user_groups）；
+    create_friend_group / exit_friend_group / show_friends 全部改走 repo。
+- 数据库变更（sql/create_table.sql 已同步，需管理账号执行）：
+    - friend_request 表 更名扩展为 relation_apply（加 apply_type=1好友/2群聊、group_UID 列，
+      唯一约束 uk_apply 防重复"等待中"记录；重建时须先删外键再删索引，否则 ERROR 1553）
+    - Groupmember 表加 name 列（群内名字/群名片，默认取用户昵称，可单独修改）
+- 客户端接口文档.txt 补充 4 个新消息类型（第 23~26 节）及群聊相关返回提示。
+- 项目说明文档.md 更新：删除模块说明、I_group_repo 接口清单、消息类型列表、已实现功能。

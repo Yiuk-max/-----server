@@ -41,7 +41,7 @@
 | `heartbeat`           | 基础     | 心跳包（无业务消息时的保活）           |
 | `private_chat`        | 私聊     | 私聊（一对一向指定 UID 发消息）        |
 | `group_chat`          | 群聊     | 群聊发言（向指定群 UID 广播）           |
-| `add_friend`          | 好友     | 发送好友申请（存于 `friend_request`）   |
+| `add_friend`          | 好友     | 发送好友申请（存于 `relation_apply`，apply_type=1） |
 | `set_friend_remark`   | 好友     | 给好友设置备注名                       |
 | `accept_friend`       | 好友     | 同意好友申请                           |
 | `reject_friend`       | 好友     | 拒绝好友申请                           |
@@ -52,6 +52,10 @@
 | `group_add_client`    | 群组     | 添加群成员                             |
 | `group_delete_client` | 群组     | 移除群成员（踢人）                     |
 | `modify_group_name`   | 群组     | 修改群名称                             |
+| `send_join_group`     | 群组     | 申请加入群聊（落库申请，等待群主处理） |
+| `handle_join_request` | 群组     | 处理入群申请（同意/拒绝）              |
+| `modify_member_role`  | 群组     | 修改群成员身份（提升/降级）            |
+| `show_group_members`  | 群组     | 查看群成员（含群内名字）               |
 | `upload_file`         | 文件     | 上传文件（分块）                       |
 | `download_file`       | 文件     | 下载文件                               |
 
@@ -261,7 +265,7 @@
 *   *注意*：昵称全局唯一（`uk_nickname`），新昵称为空或与现有用户重名时返回失败提示；成功后返回包含新昵称的系统提示。
 
 ### 18. 发送好友申请 (add_friend)
-*   **用途**：向指定 UID 发送好友申请（存于 `friend_request`，status=0 等待）。
+*   **用途**：向指定 UID 发送好友申请（存于 `relation_apply`，apply_type=1，status=0 等待）。
 *   **JSON 结构**：
 ```json
 {
@@ -311,6 +315,53 @@
 }
 ```
 
+### 23. 申请加入群聊 (send_join_group)
+*   **用途**：向指定群发送入群申请。服务器落库一条申请（`relation_apply`，apply_type=2，status=0 等待），由群主调用 `handle_join_request` 处理。
+*   **JSON 结构**：
+```json
+{
+    "type": "send_join_group",
+    "group_UID": 2001
+}
+```
+*   *注意*：群不存在、已是群成员、或同人同群已有等待中的申请时返回失败提示。
+
+### 24. 处理入群申请 (handle_join_request)
+*   **用途**：群主处理某用户的入群申请。同意后该用户被拉入群（群内名字默认取其用户昵称），拒绝则仅更新申请状态。
+*   **JSON 结构**：
+```json
+{
+    "type": "handle_join_request",
+    "group_UID": 2001,
+    "requester_UID": 1003,
+    "accept": true
+}
+```
+*   *注意*：`requester_UID` 为申请人（待处理者），`accept` 为布尔值（true 同意 / false 拒绝）。只有群主能处理。
+
+### 25. 修改群成员身份 (modify_member_role)
+*   **用途**：群主提升/降级群成员身份。
+*   **JSON 结构**：
+```json
+{
+    "type": "modify_member_role",
+    "group_UID": 2001,
+    "target_UID": 1003,
+    "promote": true
+}
+```
+*   *注意*：`promote` 为布尔值（true 提升为 owner / false 降回 member）。只有群主能操作。
+
+### 26. 查看群成员 (show_group_members)
+*   **用途**：查看指定群的全部成员，返回每行一条 `UID: 群内名字`。
+*   **JSON 结构**：
+```json
+{
+    "type": "show_group_members",
+    "group_UID": 2001
+}
+```
+
 五、服务器返回格式（Server -> Client）
 --------------------------------------
 服务器返回的数据同样封装为二进制帧结构。其 JSON 部分包含 `type` 和 `content` 字段：
@@ -351,7 +402,23 @@
 | **设置备注成功**         | `Remark for UID [<UID>] updated successfully.`                |
 | **设置备注失败（非好友）** | `UID [<UID>] is not your friend.`                             |
 | **群名称为空**           | `The group name can't be empty`                               |
-| **修改群名无权限**       | `Permission denied: only manager can modify group name.`      |
+| **创建群成功**           | `Group created successfully. Group name: [<群名>], Group UID: <群UID>.` |
+| **创建群失败**           | `Failed to create group (group name may already exist or DB unavailable).` |
+| **添加成员成功**         | `Member [<UID>] added to group [<群UID>] successfully.`        |
+| **添加成员失败**         | `Failed to add member (you are not in the group or member already exists).` |
+| **踢人成功**             | `Member [<UID>] removed from group [<群UID>] successfully.`    |
+| **踢人失败（非群主）**   | `Failed to remove member (only owner can kick, or member not in group).` |
+| **解散群成功**           | `Group deleted successfully.`                                  |
+| **解散群失败（非群主）** | `Failed to delete group (only owner can delete).`              |
+| **改群名成功**           | `Group name updated successfully. New name: [<新群名>].`        |
+| **改群名失败（非群主）** | `Failed to modify group name (only owner can modify).`         |
+| **入群申请已发送**       | `Join request sent to group [<群UID>] successfully.`           |
+| **入群申请发送失败**     | `Failed to send join request (group not exists / already a member / duplicate request).` |
+| **处理入群申请成功**     | `Join request accepted.` / `Join request rejected.`            |
+| **处理入群申请失败**     | `Failed to handle join request (you are not owner or no pending request).` |
+| **改身份成功**           | `Role of UID [<UID>] updated successfully.`                    |
+| **改身份失败（非群主）** | `Failed to modify member role (only owner can promote/demote).` |
+| **群成员列表**           | 每行 `UID: 群内名字`，如 `1003: 张三`                          |
 | **缺少 type 字段**       | `Invalid message format: missing 'type' field.`               |
 | **未知命令类型**         | `Unknown command type.`                                       |
 

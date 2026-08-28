@@ -23,6 +23,8 @@ public:
 
     bool member_add_group(int group_uid, int requester_uid, int new_member_uid) override;
 
+    bool remove_group_member(int group_uid, int requester_uid, int target_uid) override;
+
     bool send_join_group(int group_uid, int requester_uid) override;
 
     bool handle_join_request(int group_uid, int requester_uid, int target_uid, bool accept) override;

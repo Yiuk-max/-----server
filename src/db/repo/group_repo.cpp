@@ -316,6 +316,44 @@ bool group_repo::member_add_group(int group_uid, int requester_uid, int new_memb
     }
 }
 
+// 移出群成员，两种场景：
+//   1. 自己退群：requester_uid == target_uid，任何成员均可（本人主动退出）
+//   2. 群主踢人：requester_uid 必须是群主，把 target_uid 移出
+bool group_repo::remove_group_member(int group_uid, int requester_uid, int target_uid) {
+    ConnGuard guard;
+    if (!guard) {
+        std::cerr << "[group_repo] remove_group_member: no DB connection." << std::endl;
+        return false;
+    }
+    try {
+        if (requester_uid != target_uid) {
+            // 踢人场景：校验请求者必须是群主
+            std::unique_ptr<sql::PreparedStatement> check_pstmt(
+                guard.get()->prepareStatement(
+                    "SELECT role FROM Groupmember WHERE group_UID = ? AND member_UID = ?"));
+            check_pstmt->setInt(1, group_uid);
+            check_pstmt->setInt(2, requester_uid);
+            std::unique_ptr<sql::ResultSet> rs(check_pstmt->executeQuery());
+            if (!rs->next() || rs->getString("role") != "owner") {
+                std::cerr << "[group_repo] remove_group_member: requester is not owner." << std::endl;
+                return false;
+            }
+        }
+        // 删除成员（若本就不在群中，executeUpdate=0 也视为成功）
+        std::unique_ptr<sql::PreparedStatement> pstmt(
+            guard.get()->prepareStatement(
+                "DELETE FROM Groupmember WHERE group_UID = ? AND member_UID = ?"));
+        pstmt->setInt(1, group_uid);
+        pstmt->setInt(2, target_uid);
+        pstmt->executeUpdate();
+        return true;
+    } catch (const sql::SQLException& e) {
+        std::cerr << "[group_repo] remove_group_member failed: " << e.what()
+                  << " (ERRNO=" << e.getErrorCode() << ")" << std::endl;
+        return false;
+    }
+}
+
 // 申请加入群聊：落库 relation_apply（apply_type=2, status=0 等待），
 // 由群主/管理员调用 handle_join_request 处理。
 bool group_repo::send_join_group(int group_uid, int requester_uid) {

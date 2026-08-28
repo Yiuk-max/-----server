@@ -4,6 +4,7 @@
 #include "group.h" 
 #include "session_manager.h"
 #include "social_module.h"
+#include "notice_service.h"
 #include <ctime>
 
 
@@ -51,6 +52,10 @@ void client_session::init_(){
     handlers_["group_delete_client"]    = std::make_unique<Group_handler>();
     handlers_["delete_group"]           = std::make_unique<Group_handler>();
     handlers_["modify_group_name"]      = std::make_unique<Group_handler>();
+    handlers_["send_join_group"]        = std::make_unique<Group_handler>();// 申请加入群聊
+    handlers_["handle_join_request"]    = std::make_unique<Group_handler>();// 处理入群申请
+    handlers_["modify_member_role"]     = std::make_unique<Group_handler>();// 修改成员身份
+    handlers_["show_group_members"]     = std::make_unique<Group_handler>();// 查看群成员
     //文件相关
     handlers_["download_file"]          = std::make_unique<File_handler>();
     handlers_["upload_file"]            = std::make_unique<File_handler>();
@@ -216,10 +221,20 @@ void client_session::show_chatlist(){
 //==========================================================================================
 
 void client_session::group_chat(int target_UID,std::string message){
-    auto grp = Group_manager::get_instance().find_group(target_UID);
-    if (grp) {
-        grp->group_spk(message);
+    if (!current_account_) {
+        package_message("You must be logged in to send group messages.\n", "system");
+        return;
     }
+    // 校验群存在
+    if (!repo_hub_->groups()->load_group(target_UID)) {
+        std::string fail = "Group [" + std::to_string(target_UID) + "] does not exist.\n";
+        package_message(fail, "system");
+        return;
+    }
+    // 从数据库拉取群成员列表，经全局通知服务广播（自动忽略不在线成员）
+    auto members = repo_hub_->groups()->get_group_members(target_UID);
+    std::string formatted_msg = "[" + current_account_->getName() + "]: " + message;
+    NoticeService::get_instance().send_to_users(members, formatted_msg, "Group_Chat");
 }
 
 void client_session::private_chat(int target_UID, std::string message) {
@@ -334,11 +349,18 @@ void client_session::create_group(std::string group_name){
         package_message(fail,"system");
         return;
     }
+    if (!current_account_) {
+        package_message("You must be logged in to create a group.\n", "system");
+        return;
+    }
     int group_uid = -1;
     social_manager_->create_friend_group(group_name, group_uid);
     if (group_uid >= 0) {
         std::string success = "Group created successfully. Group name: [" + group_name + "], Group UID: " + std::to_string(group_uid) + ".\n";
         package_message(success,"system");
+    } else {
+        std::string fail = "Failed to create group (group name may already exist or DB unavailable).\n";
+        package_message(fail,"system");
     }
     return;
 }
@@ -346,26 +368,94 @@ void client_session::group_add_client(int target_group_UID,int target_user_UID){
     if(!target_UID_is_exit(target_group_UID) || !target_UID_is_exit(target_user_UID)){
         return;
     }
-    Group_manager::get_instance().add_group_member(target_group_UID,target_user_UID,current_account_->getUID());
+    if (!repo_hub_->groups()->member_add_group(target_group_UID, current_account_->getUID(), target_user_UID)) {
+        package_message("Failed to add member (you are not in the group or member already exists).\n", "system");
+        return;
+    }
+    std::string success = "Member [" + std::to_string(target_user_UID) + "] added to group [" + std::to_string(target_group_UID) + "] successfully.\n";
+    package_message(success,"system");
 }
 void client_session::group_delete_client(int target_group_UID,int target_user_UID){
     if(!target_UID_is_exit(target_group_UID) || !target_UID_is_exit(target_user_UID)){
         return;
     }
-    Group_manager::get_instance().remove_group_member(target_group_UID,target_user_UID,current_account_->getUID());
+    if (!repo_hub_->groups()->remove_group_member(target_group_UID, current_account_->getUID(), target_user_UID)) {
+        package_message("Failed to remove member (only owner can kick, or member not in group).\n", "system");
+        return;
+    }
+    std::string success = "Member [" + std::to_string(target_user_UID) + "] removed from group [" + std::to_string(target_group_UID) + "] successfully.\n";
+    package_message(success,"system");
 }
 void client_session::delete_group(int group_UID){
     if(!target_UID_is_exit(group_UID)){
         return;
     }
-    Group_manager::get_instance().delete_group(group_UID,current_account_->getUID());
+    if (!repo_hub_->groups()->delete_group(group_UID, current_account_->getUID())) {
+        package_message("Failed to delete group (only owner can delete).\n", "system");
+        return;
+    }
+    // 同步清理本会话群列表
+    if (social_manager_) {
+        social_manager_->exit_friend_group(group_UID);
+    }
+    package_message("Group deleted successfully.\n", "system");
 }
 void client_session::modify_group_name(int group_UID,std::string new_name){
     if(!target_UID_is_exit(group_UID)){
         return;
     }
-    auto it = Group_manager::get_instance().find_group(group_UID);
-    it->modify_group_name(current_account_->getUID(),new_name);
+    if (!repo_hub_->groups()->modify_group_name(group_UID, current_account_->getUID(), new_name)) {
+        package_message("Failed to modify group name (only owner can modify).\n", "system");
+        return;
+    }
+    std::string success = "Group name updated successfully. New name: [" + new_name + "].\n";
+    package_message(success,"system");
+}
+// 申请加入群聊：落库申请（relation_apply, apply_type=2），等待群主处理
+void client_session::send_join_group(int group_UID){
+    if (!current_account_) {
+        package_message("You must be logged in to join a group.\n", "system");
+        return;
+    }
+    if (!repo_hub_->groups()->send_join_group(group_UID, current_account_->getUID())) {
+        package_message("Failed to send join request (group not exists / already a member / duplicate request).\n", "system");
+        return;
+    }
+    std::string success = "Join request sent to group [" + std::to_string(group_UID) + "] successfully.\n";
+    package_message(success,"system");
+}
+// 处理入群申请：requester_UID 为申请人，本会话为群主；同意则拉人入群
+void client_session::handle_join_request(int group_UID,int requester_UID,bool accept){
+    if (!current_account_) {
+        package_message("You must be logged in to handle join requests.\n", "system");
+        return;
+    }
+    if (!repo_hub_->groups()->handle_join_request(group_UID, current_account_->getUID(), requester_UID, accept)) {
+        package_message("Failed to handle join request (you are not owner or no pending request).\n", "system");
+        return;
+    }
+    std::string result = accept ? "Join request accepted.\n" : "Join request rejected.\n";
+    package_message(result, "system");
+}
+// 修改群成员身份：promote=true 提升为群主 / false 降回普通成员
+void client_session::modify_member_role(int group_UID,int target_UID,bool promote){
+    if (!current_account_) {
+        package_message("You must be logged in to modify member role.\n", "system");
+        return;
+    }
+    if (!repo_hub_->groups()->modify_member_role(group_UID, current_account_->getUID(), target_UID, promote)) {
+        package_message("Failed to modify member role (only owner can promote/demote).\n", "system");
+        return;
+    }
+    std::string success = "Role of UID [" + std::to_string(target_UID) + "] updated successfully.\n";
+    package_message(success,"system");
+}
+// 查看群成员（含群内名字）
+void client_session::show_group_members(int group_UID){
+    if(!target_UID_is_exit(group_UID)){
+        return;
+    }
+    package_message(repo_hub_->groups()->show_group_members(group_UID), "system");
 }
 //====================================================================================
 //====================================================================================
@@ -389,12 +479,12 @@ void client_session::package_message(const std::string& message,std::string type
 
 //=======================效验target_UID_is_exit=====================
 bool client_session::target_UID_is_exit(int target_UID){
-    // 校验个人UID是否存在（改为账号仓储接口查询）
+    // 校验个人UID是否存在（账号仓储接口查询）
     if (repo_hub_->accounts()->load_account(target_UID)) {
         return true;
     }
-    // 校验群聊UID是否存在
-    if (Group_manager::get_instance().find_group(target_UID)) {
+    // 校验群聊UID是否存在（群聊仓储接口查询）
+    if (repo_hub_->groups()->load_group(target_UID)) {
         return true;
     }
     std::string fail = "UID [" + std::to_string(target_UID) + "] does not exist.\n";

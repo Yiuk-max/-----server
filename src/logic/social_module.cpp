@@ -10,8 +10,9 @@ social_module::social_module(int UID, std::shared_ptr<RepositoryHub> hub)
     if (acc) {
         name_ = acc->getName();
     }
-    // 登录时从数据库加载好友列表，之后 show_friends() 直接读内存
+    // 登录时从数据库加载好友列表与群列表，之后 show_friends() 直接读内存
     friend_relations = repo_hub_->friends()->get_friend_list(UID);
+    friend_groups = repo_hub_->groups()->get_user_groups(UID);
 }
 
 // 建立双向好友关系：事务内双写落库 + 更新本地列表 + 通知对方
@@ -41,14 +42,21 @@ void social_module::remove_friend(int friend_UID){
 }
 
 void social_module::create_friend_group(std::string group_name, int& out_group_uid){
-    Group_manager::get_instance().create_group(user_UID_, group_name, out_group_uid);
+    auto grp = repo_hub_->groups()->create_group(user_UID_, group_name);
+    if (!grp) {
+        out_group_uid = -1;
+        return;
+    }
+    out_group_uid = grp->getUID();
     // 把新建群加入当前用户的群组列表，这样 /show 才能展示出自己的群
     if (out_group_uid >= 0) {
         friend_groups.push_back(out_group_uid);
     }
 }
 void social_module::exit_friend_group(int group_UID){
-    Group_manager::get_instance().remove_group_member(group_UID,user_UID_,user_UID_);
+    // 退群：本人作为 requester 将自己移出（群主踢人由 group_delete_client 走 remove_group_member）
+    repo_hub_->groups()->remove_group_member(group_UID, user_UID_, user_UID_);
+    friend_groups.erase(std::remove(friend_groups.begin(), friend_groups.end(), group_UID), friend_groups.end());
 }
 
 // 发送好友申请：落库（relation_apply, apply_type=1, status=0）+ 通知接收方
@@ -111,7 +119,7 @@ std::string social_module::show_friends(){
         }
     }
     for(int UID:friend_groups){
-        auto grp = Group_manager::get_instance().find_group(UID);
+        auto grp = repo_hub_->groups()->load_group(UID);
         if (grp) {
             chat_list += grp->get_group_info() + "\n";
         }

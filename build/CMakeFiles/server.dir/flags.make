@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = 
 
-CXX_INCLUDES = -I/usr/include/mysql-cppconn -I/home/ubuntu/Desktop/server/src/net_core -I/home/ubuntu/Desktop/server/src/logic -I/home/ubuntu/Desktop/server/src/utils -I/home/ubuntu/Desktop/server/include
+CXX_INCLUDES = -I/usr/include/mysql-cppconn -I/usr/include/mysql-cppconn/jdbc -I/home/ubuntu/Desktop/server/src/net_core -I/home/ubuntu/Desktop/server/src/db/repo -I/home/ubuntu/Desktop/server/src/db/repo_interface -I/home/ubuntu/Desktop/server/src/db/mysql -I/home/ubuntu/Desktop/server/src/logic -I/home/ubuntu/Desktop/server/src/utils -I/home/ubuntu/Desktop/server/include
 
 CXX_FLAGS = -O3 -DNDEBUG -std=gnu++17
 

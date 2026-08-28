@@ -28,6 +28,10 @@ public:
 
     virtual bool member_add_group(int group_uid, int requester_uid, int new_member_uid) = 0;
 
+    // 踢出群成员：requester_uid 为群主/管理员，把 target_uid 移出 group_uid。
+    // 成功返回 true（若本就不在群中也视为成功）。
+    virtual bool remove_group_member(int group_uid, int requester_uid, int target_uid) = 0;
+
     // 申请加入群聊：落库 relation_apply（apply_type=2, status=0 等待），
     // 由群主/管理员调用 handle_join_request 处理。成功返回 true。
     virtual bool send_join_group(int group_uid, int requester_uid) = 0;

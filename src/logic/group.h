@@ -1,36 +1,36 @@
 #pragma once
-#include <vector>
 #include <string>
-#include <mutex>
-#include "UID_allocator.h"
 
-class client_session;
-
+// ============================================================
+// 群聊数据模型（纯数据 holder，无 DB / SQL 依赖）
+// 定位：群聊对象只是"群"这一实体的数据载体，由 db/repo 层
+//       create_group / load_group 创建并返回（含 owner、名称、group_UID）。
+//       群成员的增删/权限/广播等业务全部下沉到 repo 层与 NoticeService，
+//       本类不再持有成员列表、不再管理活跃生命周期。
+// 分层约定：
+//   - 本类【不含任何 SQL / 不持有仓库】。数据库读写由 repo 层完成。
+//   - 结构体字段与 sql/create_table.sql 中 `Group` 表【严格对齐】：
+//         group_UID / name / owner_UID / create_time
+// ============================================================
 class group{
     private:
-        std::vector<int> member_UID_list;
-        int manager_UID_;
-        std::mutex group_mutex_;
-        std::string group_name_;
+        int manager_UID_;           // owner_UID：创建者/群主
+        std::string group_name_;    // name：群名称
+        int UID;                    // group_UID：群唯一标识（系统自增分配）
+        std::string str_UID;        // 补零字符串形式，便于展示
 
-        int UID;//群聊唯一标识
-        std::string str_UID;
-
-        //活跃成员列表
-        //std::vector<int> active_member_list;
     public:
         group() : manager_UID_(-1), UID(-1) {}
-        //从mysql初始化，应当读取数据创建群聊的session对象,而不是现有的创建新群聊的方式
-        group(int manager,std::string name,int UID_):manager_UID_(manager),group_name_(name),UID(UID_){
-            member_UID_list.push_back(manager_UID_);
-            str_UID = UID_allocator::get_instance().get_string_UID(UID_);
+        // 由 repo 层创建：从数据库读取/写入的群数据填充本对象
+        group(int manager, std::string name, int UID_)
+            : manager_UID_(manager), group_name_(name), UID(UID_) {
+            // UID 由数据库 AUTO_INCREMENT 分配，这里只做展示用补零，不再依赖内存分配器
+            str_UID = std::to_string(UID_);
         }
-        bool add_client(int UID,int sender_UID);
-        bool delete_client(int UID,int sender_UID);
-        void group_spk(std::string message);
-        bool is_manager_(int UID);
-        bool modify_group_name(int renmaer_UID,std::string new_group_name);
-        std::string get_group_info();
-        std::string show_member();
-        
+
+        int getUID() const { return UID; }
+        int get_manager_UID() const { return manager_UID_; }
+        std::string get_group_name() const { return group_name_; }
+
+        std::string get_group_info();   // 展示用：群名:群UID
 };

@@ -6,7 +6,6 @@
 #include "social_module.h"
 #include "repository_hub.h"
 #include "group.h"
-#include "group_manager.h"
 
 class client_session{
 private:

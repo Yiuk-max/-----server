@@ -129,29 +129,149 @@ server/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/build
 .PHONY : server/fast
 
-src/logic/UID_allocator.o: src/logic/UID_allocator.cpp.o
-.PHONY : src/logic/UID_allocator.o
+src/db/mysql/mysql_conn_pool.o: src/db/mysql/mysql_conn_pool.cpp.o
+.PHONY : src/db/mysql/mysql_conn_pool.o
 
 # target to build an object file
-src/logic/UID_allocator.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/logic/UID_allocator.cpp.o
-.PHONY : src/logic/UID_allocator.cpp.o
+src/db/mysql/mysql_conn_pool.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/mysql/mysql_conn_pool.cpp.o
+.PHONY : src/db/mysql/mysql_conn_pool.cpp.o
 
-src/logic/UID_allocator.i: src/logic/UID_allocator.cpp.i
-.PHONY : src/logic/UID_allocator.i
+src/db/mysql/mysql_conn_pool.i: src/db/mysql/mysql_conn_pool.cpp.i
+.PHONY : src/db/mysql/mysql_conn_pool.i
 
 # target to preprocess a source file
-src/logic/UID_allocator.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/logic/UID_allocator.cpp.i
-.PHONY : src/logic/UID_allocator.cpp.i
+src/db/mysql/mysql_conn_pool.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/mysql/mysql_conn_pool.cpp.i
+.PHONY : src/db/mysql/mysql_conn_pool.cpp.i
 
-src/logic/UID_allocator.s: src/logic/UID_allocator.cpp.s
-.PHONY : src/logic/UID_allocator.s
+src/db/mysql/mysql_conn_pool.s: src/db/mysql/mysql_conn_pool.cpp.s
+.PHONY : src/db/mysql/mysql_conn_pool.s
 
 # target to generate assembly for a file
-src/logic/UID_allocator.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/logic/UID_allocator.cpp.s
-.PHONY : src/logic/UID_allocator.cpp.s
+src/db/mysql/mysql_conn_pool.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/mysql/mysql_conn_pool.cpp.s
+.PHONY : src/db/mysql/mysql_conn_pool.cpp.s
+
+src/db/repo/account_repo.o: src/db/repo/account_repo.cpp.o
+.PHONY : src/db/repo/account_repo.o
+
+# target to build an object file
+src/db/repo/account_repo.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo/account_repo.cpp.o
+.PHONY : src/db/repo/account_repo.cpp.o
+
+src/db/repo/account_repo.i: src/db/repo/account_repo.cpp.i
+.PHONY : src/db/repo/account_repo.i
+
+# target to preprocess a source file
+src/db/repo/account_repo.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo/account_repo.cpp.i
+.PHONY : src/db/repo/account_repo.cpp.i
+
+src/db/repo/account_repo.s: src/db/repo/account_repo.cpp.s
+.PHONY : src/db/repo/account_repo.s
+
+# target to generate assembly for a file
+src/db/repo/account_repo.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo/account_repo.cpp.s
+.PHONY : src/db/repo/account_repo.cpp.s
+
+src/db/repo/friend_repo.o: src/db/repo/friend_repo.cpp.o
+.PHONY : src/db/repo/friend_repo.o
+
+# target to build an object file
+src/db/repo/friend_repo.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo/friend_repo.cpp.o
+.PHONY : src/db/repo/friend_repo.cpp.o
+
+src/db/repo/friend_repo.i: src/db/repo/friend_repo.cpp.i
+.PHONY : src/db/repo/friend_repo.i
+
+# target to preprocess a source file
+src/db/repo/friend_repo.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo/friend_repo.cpp.i
+.PHONY : src/db/repo/friend_repo.cpp.i
+
+src/db/repo/friend_repo.s: src/db/repo/friend_repo.cpp.s
+.PHONY : src/db/repo/friend_repo.s
+
+# target to generate assembly for a file
+src/db/repo/friend_repo.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo/friend_repo.cpp.s
+.PHONY : src/db/repo/friend_repo.cpp.s
+
+src/db/repo/group_repo.o: src/db/repo/group_repo.cpp.o
+.PHONY : src/db/repo/group_repo.o
+
+# target to build an object file
+src/db/repo/group_repo.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo/group_repo.cpp.o
+.PHONY : src/db/repo/group_repo.cpp.o
+
+src/db/repo/group_repo.i: src/db/repo/group_repo.cpp.i
+.PHONY : src/db/repo/group_repo.i
+
+# target to preprocess a source file
+src/db/repo/group_repo.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo/group_repo.cpp.i
+.PHONY : src/db/repo/group_repo.cpp.i
+
+src/db/repo/group_repo.s: src/db/repo/group_repo.cpp.s
+.PHONY : src/db/repo/group_repo.s
+
+# target to generate assembly for a file
+src/db/repo/group_repo.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo/group_repo.cpp.s
+.PHONY : src/db/repo/group_repo.cpp.s
+
+src/db/repo/message_repo.o: src/db/repo/message_repo.cpp.o
+.PHONY : src/db/repo/message_repo.o
+
+# target to build an object file
+src/db/repo/message_repo.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo/message_repo.cpp.o
+.PHONY : src/db/repo/message_repo.cpp.o
+
+src/db/repo/message_repo.i: src/db/repo/message_repo.cpp.i
+.PHONY : src/db/repo/message_repo.i
+
+# target to preprocess a source file
+src/db/repo/message_repo.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo/message_repo.cpp.i
+.PHONY : src/db/repo/message_repo.cpp.i
+
+src/db/repo/message_repo.s: src/db/repo/message_repo.cpp.s
+.PHONY : src/db/repo/message_repo.s
+
+# target to generate assembly for a file
+src/db/repo/message_repo.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo/message_repo.cpp.s
+.PHONY : src/db/repo/message_repo.cpp.s
+
+src/db/repo_interface/repository_hub.o: src/db/repo_interface/repository_hub.cpp.o
+.PHONY : src/db/repo_interface/repository_hub.o
+
+# target to build an object file
+src/db/repo_interface/repository_hub.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo_interface/repository_hub.cpp.o
+.PHONY : src/db/repo_interface/repository_hub.cpp.o
+
+src/db/repo_interface/repository_hub.i: src/db/repo_interface/repository_hub.cpp.i
+.PHONY : src/db/repo_interface/repository_hub.i
+
+# target to preprocess a source file
+src/db/repo_interface/repository_hub.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo_interface/repository_hub.cpp.i
+.PHONY : src/db/repo_interface/repository_hub.cpp.i
+
+src/db/repo_interface/repository_hub.s: src/db/repo_interface/repository_hub.cpp.s
+.PHONY : src/db/repo_interface/repository_hub.s
+
+# target to generate assembly for a file
+src/db/repo_interface/repository_hub.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo_interface/repository_hub.cpp.s
+.PHONY : src/db/repo_interface/repository_hub.cpp.s
 
 src/logic/account.o: src/logic/account.cpp.o
 .PHONY : src/logic/account.o
@@ -177,30 +297,6 @@ src/logic/account.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/logic/account.cpp.s
 .PHONY : src/logic/account.cpp.s
 
-src/logic/account_manager.o: src/logic/account_manager.cpp.o
-.PHONY : src/logic/account_manager.o
-
-# target to build an object file
-src/logic/account_manager.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/logic/account_manager.cpp.o
-.PHONY : src/logic/account_manager.cpp.o
-
-src/logic/account_manager.i: src/logic/account_manager.cpp.i
-.PHONY : src/logic/account_manager.i
-
-# target to preprocess a source file
-src/logic/account_manager.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/logic/account_manager.cpp.i
-.PHONY : src/logic/account_manager.cpp.i
-
-src/logic/account_manager.s: src/logic/account_manager.cpp.s
-.PHONY : src/logic/account_manager.s
-
-# target to generate assembly for a file
-src/logic/account_manager.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/logic/account_manager.cpp.s
-.PHONY : src/logic/account_manager.cpp.s
-
 src/logic/group.o: src/logic/group.cpp.o
 .PHONY : src/logic/group.o
 
@@ -225,30 +321,6 @@ src/logic/group.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/logic/group.cpp.s
 .PHONY : src/logic/group.cpp.s
 
-src/logic/group_manager.o: src/logic/group_manager.cpp.o
-.PHONY : src/logic/group_manager.o
-
-# target to build an object file
-src/logic/group_manager.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/logic/group_manager.cpp.o
-.PHONY : src/logic/group_manager.cpp.o
-
-src/logic/group_manager.i: src/logic/group_manager.cpp.i
-.PHONY : src/logic/group_manager.i
-
-# target to preprocess a source file
-src/logic/group_manager.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/logic/group_manager.cpp.i
-.PHONY : src/logic/group_manager.cpp.i
-
-src/logic/group_manager.s: src/logic/group_manager.cpp.s
-.PHONY : src/logic/group_manager.s
-
-# target to generate assembly for a file
-src/logic/group_manager.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/logic/group_manager.cpp.s
-.PHONY : src/logic/group_manager.cpp.s
-
 src/logic/social_module.o: src/logic/social_module.cpp.o
 .PHONY : src/logic/social_module.o
 
@@ -272,30 +344,6 @@ src/logic/social_module.s: src/logic/social_module.cpp.s
 src/logic/social_module.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/logic/social_module.cpp.s
 .PHONY : src/logic/social_module.cpp.s
-
-src/logic/social_module_manager.o: src/logic/social_module_manager.cpp.o
-.PHONY : src/logic/social_module_manager.o
-
-# target to build an object file
-src/logic/social_module_manager.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/logic/social_module_manager.cpp.o
-.PHONY : src/logic/social_module_manager.cpp.o
-
-src/logic/social_module_manager.i: src/logic/social_module_manager.cpp.i
-.PHONY : src/logic/social_module_manager.i
-
-# target to preprocess a source file
-src/logic/social_module_manager.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/logic/social_module_manager.cpp.i
-.PHONY : src/logic/social_module_manager.cpp.i
-
-src/logic/social_module_manager.s: src/logic/social_module_manager.cpp.s
-.PHONY : src/logic/social_module_manager.s
-
-# target to generate assembly for a file
-src/logic/social_module_manager.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/logic/social_module_manager.cpp.s
-.PHONY : src/logic/social_module_manager.cpp.s
 
 src/main.o: src/main.cpp.o
 .PHONY : src/main.o
@@ -344,6 +392,30 @@ src/net_core/client_session.s: src/net_core/client_session.cpp.s
 src/net_core/client_session.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core/client_session.cpp.s
 .PHONY : src/net_core/client_session.cpp.s
+
+src/net_core/connection.o: src/net_core/connection.cpp.o
+.PHONY : src/net_core/connection.o
+
+# target to build an object file
+src/net_core/connection.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core/connection.cpp.o
+.PHONY : src/net_core/connection.cpp.o
+
+src/net_core/connection.i: src/net_core/connection.cpp.i
+.PHONY : src/net_core/connection.i
+
+# target to preprocess a source file
+src/net_core/connection.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core/connection.cpp.i
+.PHONY : src/net_core/connection.cpp.i
+
+src/net_core/connection.s: src/net_core/connection.cpp.s
+.PHONY : src/net_core/connection.s
+
+# target to generate assembly for a file
+src/net_core/connection.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core/connection.cpp.s
+.PHONY : src/net_core/connection.cpp.s
 
 src/net_core/epoller.o: src/net_core/epoller.cpp.o
 .PHONY : src/net_core/epoller.o
@@ -441,6 +513,30 @@ src/net_core/receiver_sender.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.s
 .PHONY : src/net_core/receiver_sender.cpp.s
 
+src/net_core/server_config.o: src/net_core/server_config.cpp.o
+.PHONY : src/net_core/server_config.o
+
+# target to build an object file
+src/net_core/server_config.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core/server_config.cpp.o
+.PHONY : src/net_core/server_config.cpp.o
+
+src/net_core/server_config.i: src/net_core/server_config.cpp.i
+.PHONY : src/net_core/server_config.i
+
+# target to preprocess a source file
+src/net_core/server_config.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core/server_config.cpp.i
+.PHONY : src/net_core/server_config.cpp.i
+
+src/net_core/server_config.s: src/net_core/server_config.cpp.s
+.PHONY : src/net_core/server_config.s
+
+# target to generate assembly for a file
+src/net_core/server_config.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core/server_config.cpp.s
+.PHONY : src/net_core/server_config.cpp.s
+
 src/net_core/session_manager.o: src/net_core/session_manager.cpp.o
 .PHONY : src/net_core/session_manager.o
 
@@ -498,33 +594,42 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... server"
-	@echo "... src/logic/UID_allocator.o"
-	@echo "... src/logic/UID_allocator.i"
-	@echo "... src/logic/UID_allocator.s"
+	@echo "... src/db/mysql/mysql_conn_pool.o"
+	@echo "... src/db/mysql/mysql_conn_pool.i"
+	@echo "... src/db/mysql/mysql_conn_pool.s"
+	@echo "... src/db/repo/account_repo.o"
+	@echo "... src/db/repo/account_repo.i"
+	@echo "... src/db/repo/account_repo.s"
+	@echo "... src/db/repo/friend_repo.o"
+	@echo "... src/db/repo/friend_repo.i"
+	@echo "... src/db/repo/friend_repo.s"
+	@echo "... src/db/repo/group_repo.o"
+	@echo "... src/db/repo/group_repo.i"
+	@echo "... src/db/repo/group_repo.s"
+	@echo "... src/db/repo/message_repo.o"
+	@echo "... src/db/repo/message_repo.i"
+	@echo "... src/db/repo/message_repo.s"
+	@echo "... src/db/repo_interface/repository_hub.o"
+	@echo "... src/db/repo_interface/repository_hub.i"
+	@echo "... src/db/repo_interface/repository_hub.s"
 	@echo "... src/logic/account.o"
 	@echo "... src/logic/account.i"
 	@echo "... src/logic/account.s"
-	@echo "... src/logic/account_manager.o"
-	@echo "... src/logic/account_manager.i"
-	@echo "... src/logic/account_manager.s"
 	@echo "... src/logic/group.o"
 	@echo "... src/logic/group.i"
 	@echo "... src/logic/group.s"
-	@echo "... src/logic/group_manager.o"
-	@echo "... src/logic/group_manager.i"
-	@echo "... src/logic/group_manager.s"
 	@echo "... src/logic/social_module.o"
 	@echo "... src/logic/social_module.i"
 	@echo "... src/logic/social_module.s"
-	@echo "... src/logic/social_module_manager.o"
-	@echo "... src/logic/social_module_manager.i"
-	@echo "... src/logic/social_module_manager.s"
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
 	@echo "... src/net_core/client_session.o"
 	@echo "... src/net_core/client_session.i"
 	@echo "... src/net_core/client_session.s"
+	@echo "... src/net_core/connection.o"
+	@echo "... src/net_core/connection.i"
+	@echo "... src/net_core/connection.s"
 	@echo "... src/net_core/epoller.o"
 	@echo "... src/net_core/epoller.i"
 	@echo "... src/net_core/epoller.s"
@@ -537,6 +642,9 @@ help:
 	@echo "... src/net_core/receiver_sender.o"
 	@echo "... src/net_core/receiver_sender.i"
 	@echo "... src/net_core/receiver_sender.s"
+	@echo "... src/net_core/server_config.o"
+	@echo "... src/net_core/server_config.i"
+	@echo "... src/net_core/server_config.s"
 	@echo "... src/net_core/session_manager.o"
 	@echo "... src/net_core/session_manager.i"
 	@echo "... src/net_core/session_manager.s"

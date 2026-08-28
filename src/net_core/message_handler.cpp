@@ -76,6 +76,30 @@ void Group_handler::handle_message(const json& message,client_session& session,s
         session.modify_group_name(group_UID, new_name);
         return;
     }
+    else if(type == "send_join_group"){
+        int group_UID = message["group_UID"];
+        session.send_join_group(group_UID);
+        return;
+    }
+    else if(type == "handle_join_request"){
+        int group_UID = message["group_UID"];
+        int requester_UID = message["requester_UID"];
+        bool accept = message["accept"];
+        session.handle_join_request(group_UID, requester_UID, accept);
+        return;
+    }
+    else if(type == "modify_member_role"){
+        int group_UID = message["group_UID"];
+        int target_UID = message["target_UID"];
+        bool promote = message["promote"];
+        session.modify_member_role(group_UID, target_UID, promote);
+        return;
+    }
+    else if(type == "show_group_members"){
+        int group_UID = message["group_UID"];
+        session.show_group_members(group_UID);
+        return;
+    }
 }
 void Base_handler::handle_message(const json& message,client_session& session,std::string &file_data){
     std::string type = message["type"];
