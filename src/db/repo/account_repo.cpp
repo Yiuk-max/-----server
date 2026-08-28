@@ -70,8 +70,8 @@ std::string parse_theme(const std::string& settings_json) {
 } // namespace
 
 // 注册：INSERT Account，取数据库自动分配的 UID
-std::shared_ptr<account> account_repo::register_account(const std::string& name,
-                                                        const std::string& password) {
+std::shared_ptr<account> account_repo::register_account(const std::string& name,const std::string& password) 
+{
     ConnGuard guard;
     if (!guard) {
         std::cerr << "[account_repo] register: no DB connection." << std::endl;

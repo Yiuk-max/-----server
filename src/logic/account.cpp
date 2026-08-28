@@ -58,7 +58,7 @@ int account::getUID() const {
     return base_info.UID;
 }
 
-void account::setName(const std::string& name){
+void account::setName(const std::string& name){//已失效，需要由仓储层在 update_account() 时直接修改数据库，成功后再回写本对象
     base_info.name = name;
 }
 std::string account::get_string_UID(){

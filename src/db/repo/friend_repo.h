@@ -2,7 +2,7 @@
 // ============================================================
 // 好友仓储 —— 真实的 MySQL 实现（repo 层，唯一允许 SQL 的目录）
 // 定位：实现 repo_interface 层 I_friend_repo 声明的接口，
-//       真正访问 friend_relation / friend_request 两张表，
+//       真正访问 friend_relation / relation_apply 两张表，
 //       完成好友关系与好友申请的增删改查。
 // 约束：
 //   - 本文件只是实现，不修改 repo_interface 的接口契约。
@@ -31,7 +31,7 @@ public:
     // 设置某用户对某好友的备注名
     bool set_remark(int uid, int friend_uid, const std::string& remark) override;
 
-    // ==================== friend_request 好友申请 ====================
+    // ==================== relation_apply 好友申请（apply_type=1） ====================
 
     // 发送好友申请（sender -> receiver），status 默认 0（等待）
     bool send_friend_request(int sender_uid, int receiver_uid,

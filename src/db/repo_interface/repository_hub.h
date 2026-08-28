@@ -2,6 +2,8 @@
 #include <memory>
 #include "account_repository.h"
 #include "friend_repository.h"
+#include "group_repository.h"
+#include "message_repository.h"
 
 // ============================================================
 // RepositoryHub：仓储门面（Facade / 组合根）

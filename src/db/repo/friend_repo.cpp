@@ -177,7 +177,7 @@ bool friend_repo::set_remark(int uid, int friend_uid, const std::string& remark)
     }
 }
 
-// 发送好友申请：INSERT friend_request，status 默认 0（等待）
+// 发送好友申请：INSERT relation_apply（apply_type=1, group_UID=0），status 默认 0（等待）
 bool friend_repo::send_friend_request(int sender_uid, int receiver_uid,
                                       const std::string& message) {
     ConnGuard guard;
@@ -188,22 +188,22 @@ bool friend_repo::send_friend_request(int sender_uid, int receiver_uid,
     try {
         std::unique_ptr<sql::PreparedStatement> pstmt(
             guard.get()->prepareStatement(
-                "INSERT INTO friend_request (sender_UID, receiver_UID, message, status) "
-                "VALUES (?, ?, ?, 0)"));
+                "INSERT INTO relation_apply (apply_type, sender_UID, receiver_UID, group_UID, message, status) "
+                "VALUES (1, ?, ?, 0, ?, 0)"));
         pstmt->setInt(1, sender_uid);
         pstmt->setInt(2, receiver_uid);
         pstmt->setString(3, message);
         pstmt->execute();
         return true;
     } catch (const sql::SQLException& e) {
-        // 唯一约束 uk_sender_receiver_status：同对用户已存在"等待中"申请时失败
+        // 唯一约束 uk_apply：同对用户已存在"等待中"申请时失败
         std::cerr << "[friend_repo] send_friend_request failed: " << e.what()
                   << " (ERRNO=" << e.getErrorCode() << ")" << std::endl;
         return false;
     }
 }
 
-// 查询发给 user_uid 且 status=0 的等待中申请，输出 (sender_UID, message) 列表
+// 查询发给 user_uid 且 status=0 的好友申请（apply_type=1），输出 (sender_UID, message) 列表
 bool friend_repo::get_friend_requests(int user_uid,
                                       std::vector<std::tuple<int, std::string>>& out) {
     ConnGuard guard;
@@ -214,8 +214,8 @@ bool friend_repo::get_friend_requests(int user_uid,
     try {
         std::unique_ptr<sql::PreparedStatement> pstmt(
             guard.get()->prepareStatement(
-                "SELECT sender_UID, message FROM friend_request "
-                "WHERE receiver_UID = ? AND status = 0 ORDER BY create_time ASC"));
+                "SELECT sender_UID, message FROM relation_apply "
+                "WHERE apply_type = 1 AND receiver_UID = ? AND status = 0 ORDER BY create_time ASC"));
         pstmt->setInt(1, user_uid);
         std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
         while (rs->next()) {
@@ -232,7 +232,7 @@ bool friend_repo::get_friend_requests(int user_uid,
     }
 }
 
-// 处理申请：accept=true 置 status=1（同意）/ false 置 status=2（拒绝）
+// 处理好友申请：accept=true 置 status=1（同意）/ false 置 status=2（拒绝）
 bool friend_repo::handle_friend_request(int sender_uid, int receiver_uid, bool accept) {
     ConnGuard guard;
     if (!guard) {
@@ -242,8 +242,8 @@ bool friend_repo::handle_friend_request(int sender_uid, int receiver_uid, bool a
     try {
         std::unique_ptr<sql::PreparedStatement> pstmt(
             guard.get()->prepareStatement(
-                "UPDATE friend_request SET status = ? "
-                "WHERE sender_UID = ? AND receiver_UID = ? AND status = 0"));
+                "UPDATE relation_apply SET status = ? "
+                "WHERE apply_type = 1 AND sender_UID = ? AND receiver_UID = ? AND status = 0"));
         pstmt->setInt(1, accept ? 1 : 2);
         pstmt->setInt(2, sender_uid);
         pstmt->setInt(3, receiver_uid);

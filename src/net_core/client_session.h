@@ -44,22 +44,26 @@ public:
     void on_message(const std::string& json_data, std::string file_data);
     //===============业务逻辑===============
     void show_chatlist();                                                   //展示聊天对象（好友、群聊）   
-
+    //聊天
     void private_chat(int target_UID,std::string message);                  //私聊    
     void group_chat(int target_UID,std::string message);                    //群聊——发言
-
+    //好友相关
     void send_friend_request(int target_UID,std::string apply_message);     //添加好友(通过social_manager_)
     void set_friend_remark(int friend_UID,std::string remark);              //给好友设置备注名
     void handle_friend_request(int sender_UID,bool accept);                 //处理好友申请(同意/拒绝)
     void remove_friend(int friend_UID);                                     //删除好友
     void show_friend_requests();                                            //查看待处理的好友申请
     void change_my_name(std::string new_name);                              //修改自己的昵称
-            
-    void create_group(std::string group_name);                              //创建群聊
-    void delete_group(int group_UID);                                       //删除群聊
-    void group_add_client(int target_group_UID,int target_user_UID);        //群聊——添加群成员
-    void group_delete_client(int target_group_UID,int target_user_UID);     //群聊——踢出群成员
-    void modify_group_name(int group_UID,std::string new_name);             //群聊——改名
+    //群聊相关        
+    void create_group(std::string group_name);                                  //创建群聊
+    void delete_group(int group_UID);                                           //删除群聊
+    void group_add_client(int target_group_UID,int target_user_UID);            //群聊——添加群成员
+    void group_delete_client(int target_group_UID,int target_user_UID);         //群聊——踢出群成员
+    void modify_group_name(int group_UID,std::string new_name);                 //群聊——改名
+    void send_join_group(int group_UID);                                        //申请加入群聊
+    void handle_join_request(int group_UID,int requester_UID,bool accept);      //处理群聊加入申请（同意/拒绝）
+    void modify_member_role(int group_UID,int target_UID,bool promote);         //修改群成员身份（提升/降级）
+    void show_group_members(int group_UID);                                     //查看群成员
 
     //===============发送===============
 

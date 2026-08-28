@@ -51,7 +51,7 @@ void social_module::exit_friend_group(int group_UID){
     Group_manager::get_instance().remove_group_member(group_UID,user_UID_,user_UID_);
 }
 
-// 发送好友申请：落库（friend_request, status=0）+ 通知接收方
+// 发送好友申请：落库（relation_apply, apply_type=1, status=0）+ 通知接收方
 void social_module::send_friend_request(int receiver_UID, std::string &apply_message){
     auto receiver = repo_hub_->accounts()->load_account(receiver_UID);//校验被添加者是否存在
     if (!receiver) {

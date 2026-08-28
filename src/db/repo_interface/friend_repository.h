@@ -6,7 +6,7 @@
 
 // ============================================================
 // 好友仓储接口层（repo_interface）
-// 定位：只定义"好友关系(friend_relation) + 好友申请(friend_request)"
+// 定位：只定义"好友关系(friend_relation) + 关系申请(relation_apply)"
 //       两张表的增删改查契约（抽象接口 I_friend_repo），不包含任何实现。
 //
 // 分层约定：
@@ -18,7 +18,8 @@
 //
 // 表结构约定（见 sql/create_table.sql）：
 //   - friend_relation：双向同步 —— 建立/删除好友时在事务内双写 (A,B) 与 (B,A) 两行。
-//   - friend_request ：status 0=等待 1=同意 2=拒绝；同意后由业务层负责落好友关系。
+//   - relation_apply ：申请表，apply_type=1 好友申请 / 2 群聊申请；
+//     status 0=等待 1=同意 2=拒绝；好友申请同意后由业务层负责落好友关系。
 // ============================================================
 class I_friend_repo {
 public:
@@ -43,7 +44,7 @@ public:
     // 设置某用户对某好友的备注名（UPDATE remark_name WHERE UID=? AND friend_UID=?）。
     virtual bool set_remark(int uid, int friend_uid, const std::string& remark) = 0;
 
-    // ==================== friend_request 好友申请（增删改查） ====================
+    // ==================== relation_apply 好友申请（apply_type=1） ====================
 
     // 发送好友申请（sender -> receiver），status 默认 0（等待）。
     // 若同对用户已存在"等待中"申请（唯一约束），返回 false。

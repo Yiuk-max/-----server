@@ -1,5 +1,5 @@
-数据库设计（已修正版，对应 sql/create_table.sql）
-数据库：MySQL 5.7+ / 8.0
+数据库设计（对应 sql/create_table.sql，与线上 chat_server 库结构一致）
+数据库：MySQL 8.0（当前库 collate 为 utf8mb4_0900_ai_ci）
 字符集：utf8mb4（必须，否则中文/emoji 会乱码或插入失败）
 本项目数据库专用账户，name: chat_server,password:Chat_123!
 
@@ -18,10 +18,10 @@
 主键 UID；唯一键 uk_nickname(nickname)
 外键：无
 
-修正点：
+说明：
 - nickname 加 UNIQUE（支持后续按用户名检索/登录）
-- 补 settings JSON 列（承载 account.h 中的账号设置字段）
-- 修正原 birthday 拼写，字段补 NOT NULL / 可空约束
+- settings 为 JSON 列（承载 account.h 中的账号设置字段，应用层序列化）
+- birthday 允许 NULL
 
 ============================================================
 2. friend_relation 表（好友关系，双向同步）
@@ -33,7 +33,8 @@
 | create_time | datetime        | 默认 CURRENT_TIMESTAMP       |
 ------------------------------------------------------------
 联合主键 (UID, friend_UID)
-外键：UID->Account(UID)，friend_UID->Account(UID)，均 ON DELETE CASCADE
+外键：fk_fr_uid(UID->Account.UID)，fk_fr_friend(friend_UID->Account.UID)，
+      均 ON DELETE CASCADE
 
 双向同步设计：
 - 逻辑上 A、B 互为好友后需存 (A,B) 与 (B,A) 两行
@@ -49,24 +50,34 @@ DB 事务双写参考：
     COMMIT;
 
 ============================================================
-3. friend_request 表（好友申请）
+3. relation_apply 表（关系申请表，原 friend_request 更名扩展）
 ------------------------------------------------------------
 | 字段         | 类型            | 说明                         |
 | id           | int unsigned   | 自增主键                     |
-| sender_UID   | bigint unsigned| 发送方                       |
-| receiver_UID | bigint unsigned| 接收方                       |
+| apply_type   | tinyint        | 申请类型: 1=好友申请 2=群聊申请|
+| sender_UID   | bigint unsigned| 申请人                       |
+| receiver_UID | bigint unsigned| 接收方(好友=对方;群聊=群主/管理员)|
+| group_UID    | bigint unsigned| 群聊申请的目标群(好友申请为0)  |
 | message      | varchar(255)   | 申请附加留言，可空             |
 | status       | tinyint        | 0等待 1同意 2拒绝             |
 | create_time  | datetime       | 默认 CURRENT_TIMESTAMP       |
 ------------------------------------------------------------
 主键 id
-唯一键 uk_sender_receiver_status(sender_UID, receiver_UID, status)
-外键：sender_UID->Account(UID)，receiver_UID->Account(UID)，
-      均 ON DELETE CASCADE
+唯一键 uk_apply(apply_type, sender_UID, receiver_UID, group_UID, status)
+外键：fk_ra_sender(sender_UID->Account.UID)，
+      fk_ra_receiver(receiver_UID->Account.UID)，均 ON DELETE CASCADE
 
-修正点：
-- 加唯一约束，防止同一对用户重复产生多条"等待中"记录
+设计说明（一张表承载两类申请）：
+- apply_type=1 好友申请：sender_UID 向 receiver_UID 申请，group_UID=0
+- apply_type=2 群聊申请：sender_UID 申请加入 group_UID 群，receiver_UID=群主/管理员
+- 唯一约束 uk_apply 防重复"等待中"记录：
+      好友申请按 (1, A, B, 0, 0) 防同一对用户重复申请
+      群聊申请按 (2, A, 群主, 群, 0) 防同一人重复申请同一群
 - status 语义：0=等待；1=同意(处理完删除)；2=拒绝(处理完删除)
+- 群聊申请流程：send_join_group 落申请(status=0) → handle_join_request 处理
+  （同意则更新状态并拉人入群，拒绝仅更新状态）
+- 注意：改名/重建唯一约束时须先删外键再删索引（旧索引被外键复用，
+  直接 DROP INDEX 会报 ERROR 1553: needed in a foreign key constraint）
 
 ============================================================
 4. Group 表（群组）
@@ -78,7 +89,7 @@ DB 事务双写参考：
 | create_time | datetime        | 默认 CURRENT_TIMESTAMP       |
 ------------------------------------------------------------
 主键 group_UID
-外键：owner_UID->Account(UID)，ON DELETE CASCADE
+外键：fk_group_owner(owner_UID->Account.UID)，ON DELETE CASCADE
 
 ============================================================
 5. Groupmember 表（群成员）
@@ -86,19 +97,22 @@ DB 事务双写参考：
 | 字段        | 类型             | 说明                         |
 | group_UID   | bigint unsigned | 所属群（主键1）               |
 | member_UID  | bigint unsigned | 成员（主键2）                 |
+| name        | varchar(64)     | 群内名字(群名片)，默认取用户昵称 |
 | role        | enum            | 'owner'群主 / 'member'普通   |
 | join_time   | datetime        | 默认 CURRENT_TIMESTAMP       |
 ------------------------------------------------------------
-联合主键 (group_UID, member_UID)   ← 关键修正
-外键：group_UID->Group(group_UID)，member_UID->Account(UID)，
-      均 ON DELETE CASCADE
+联合主键 (group_UID, member_UID)
+外键：fk_gm_group(group_UID->Group.group_UID)，
+      fk_gm_member(member_UID->Account.UID)，均 ON DELETE CASCADE
 
-修正点（最重要）：
-- 原设计"group_UID 主键"会导致每群只能存一个成员（错误）
-- 改为联合主键 (group_UID, member_UID)，一个用户可加入多个群
+说明：
+- 联合主键 (group_UID, member_UID)，一个用户可加入多个群
+- name 为成员在群内的名字（群名片）：入群时由 repo 层 JOIN Account
+  默认填入用户昵称（见 repo/group_repo.cpp），之后可单独修改，不影响全局昵称
+- role：'owner'=群主(创建者) / 'member'=普通成员（支持后续扩展 'admin'）
 
 ============================================================
-6. message 表（聊天记录，新增）
+6. message 表（聊天记录）
 ------------------------------------------------------------
 | 字段          | 类型             | 说明                          |
 | id            | bigint unsigned | 自增主键(保持发送顺序)          |
@@ -113,8 +127,7 @@ DB 事务双写参考：
   idx_private(sender_UID, receiver_UID, id)  私聊会话查询
   idx_group(receiver_UID, id)                群聊历史
   idx_sender(sender_UID)
-外键：(可选，若按发送者/接收者级联) sender_UID->Account(UID)；
-      本版为提升并发写入性能暂不强制外键，由应用层保证引用完整性
+外键：无（本版为提升并发写入性能暂不强制外键，由应用层保证引用完整性）
 
 设计要点：
 - 私聊只写一条 (sender, receiver)，查询两人会话：
@@ -167,4 +180,3 @@ UID 分配与重启重定位（重要）
 
 注意：配置文件 configure.json 为相对路径，须复制到运行目录（build/）才能生效，
 否则会使用上述默认值（可能连不上你本地的库或连到你预期的库）。
-

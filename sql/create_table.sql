@@ -1,29 +1,28 @@
 -- ============================================================
--- 聊天服务器 数据库建表脚本
--- 数据库：MySQL 5.7+ / 8.0
+-- 聊天服务器 数据库建表脚本（以当前数据库实际结构为准）
+-- 数据库：MySQL 8.0（当前库 collate 为 utf8mb4_0900_ai_ci）
 -- 字符集：utf8mb4（必须，否则中文/emoji 会乱码或插入失败）
--- 说明：本脚本在原有『数据库设计.txt』基础上修正并补全：
---    1. 修正 Groupmember 为联合主键 (group_UID, member_UID)
---    2. 补全外键约束
---    3. friend_relation 采用"双向同步"（应用层在事务内双写两行）
---    4. friend_request 加联合唯一约束，防止重复"等待中"记录
---    5. 新增聊天记录表 message（消息持久化），不补文件表
---    6. UID 采用 AUTO_INCREMENT 跟随系统分配，
---       启动时应用按 MAX(UID)/MAX(group_UID) 重新定位内存分配器（见底部说明）
+-- 本脚本与线上 chat_server 库的结构一致，包含 6 张表：
+--   Account / friend_relation / relation_apply / `Group` / Groupmember / message
+-- 说明：
+--   1. friend_relation 采用"双向同步"（应用层在事务内双写两行）
+--   2. friend_request 已更名扩展为 relation_apply（apply_type 区分好友/群聊申请），
+--      唯一约束 uk_apply 防重复"等待中"记录
+--   3. Groupmember 含 name 列（群内名字，默认取用户昵称，可修改）
+--   4. UID 采用 AUTO_INCREMENT 跟随系统分配，
+--      启动时应用按 MAX(UID)/MAX(group_UID) 重新定位内存分配器（见底部说明）
 -- ============================================================
 
 CREATE DATABASE IF NOT EXISTS chat_server
     DEFAULT CHARACTER SET utf8mb4
-    DEFAULT COLLATE utf8mb4_general_ci;
+    DEFAULT COLLATE utf8mb4_0900_ai_ci;
 
 USE chat_server;
 
 -- ------------------------------------------------------------
 -- 1. 账户表 Account
---    修正：nickname 加 UNIQUE（支持后续按用户名检索/登录）
---         字段补 NOT NULL，birthday 拼写修正并允许 NULL
---         设置字段(settings topic/theme 等)由 account 表冗余一列
---         JSON 字符串承载（应用层序列化），避免拆表
+--    nickname 加 UNIQUE（支持按用户名检索/登录）
+--    settings 用 JSON 字符串承载（应用层序列化），避免拆表
 --    UID：AUTO_INCREMENT 由系统分配，启动时按 MAX(UID) 重定位内存分配器
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS Account (
@@ -37,7 +36,7 @@ CREATE TABLE IF NOT EXISTS Account (
 
     PRIMARY KEY (UID),
     UNIQUE KEY uk_nickname (nickname)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户账户表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户账户表';
 
 -- ------------------------------------------------------------
 -- 2. 好友关系表 friend_relation
@@ -57,7 +56,7 @@ CREATE TABLE IF NOT EXISTS friend_relation (
         FOREIGN KEY (UID)        REFERENCES Account(UID) ON DELETE CASCADE,
     CONSTRAINT fk_fr_friend
         FOREIGN KEY (friend_UID) REFERENCES Account(UID) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='好友关系表(双向)';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='好友关系表(双向)';
 
 -- 关于"双向同步"的落地（详见本文件底部说明）：
 --   这里【不】使用 DB 触发器（DELIMITER 语法只能通过 mysql 命令行 source 执行，
@@ -65,32 +64,36 @@ CREATE TABLE IF NOT EXISTS friend_relation (
 --   改为在应用层 repo 实现里"双写两行"：建立好友时同时插入 (A,B) 与 (B,A)，
 --   删除时同时删除两行，并用事务保证原子性。详细写法见底部【应用层双向同步实现】。
 -- ------------------------------------------------------------
--- 3. 好友申请表 friend_request
---    修正：加 UNIQUE(sender_UID, receiver_UID, status)，
---          防止同一对用户重复产生多条"等待中"记录。
+-- 3. 关系申请表 relation_apply（原 friend_request 更名扩展）
+--    一张表承载两类申请：
+--      apply_type=1 好友申请：sender_UID 向 receiver_UID 申请（group_UID=0）
+--      apply_type=2 群聊申请：sender_UID 申请加入 group_UID 群，receiver_UID=群主/管理员
+--    唯一约束 uk_apply(apply_type, sender_UID, receiver_UID, group_UID, status)：
+--          好友申请按 (1,A,B,0,0)、群聊申请按 (2,A,群主,群,0) 各自防重复"等待中"记录。
 --    status: 0=等待  1=同意(处理完删除)  2=拒绝(处理完删除)
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS friend_request (
+CREATE TABLE IF NOT EXISTS relation_apply (
     id           INT UNSIGNED    NOT NULL AUTO_INCREMENT COMMENT '自增主键',
-    sender_UID   BIGINT UNSIGNED NOT NULL COMMENT '发送方',
-    receiver_UID BIGINT UNSIGNED NOT NULL COMMENT '接收方',
+    apply_type   TINYINT         NOT NULL DEFAULT 1 COMMENT '申请类型: 1=好友申请 2=群聊申请',
+    sender_UID   BIGINT UNSIGNED NOT NULL COMMENT '申请人',
+    receiver_UID BIGINT UNSIGNED NOT NULL COMMENT '接收方(好友申请=对方用户;群聊申请=群主/管理员)',
+    group_UID    BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '群聊申请的目标群(好友申请为0)',
     message      VARCHAR(255)    NULL     COMMENT '申请附加留言',
     status       TINYINT         NOT NULL DEFAULT 0 COMMENT '0等待 1同意 2拒绝',
     create_time  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '申请时间',
 
     PRIMARY KEY (id),
-    UNIQUE KEY uk_sender_receiver_status (sender_UID, receiver_UID, status),
-    CONSTRAINT fk_frq_sender
+    UNIQUE KEY uk_apply (apply_type, sender_UID, receiver_UID, group_UID, status),
+    CONSTRAINT fk_ra_sender
         FOREIGN KEY (sender_UID)   REFERENCES Account(UID) ON DELETE CASCADE,
-    CONSTRAINT fk_frq_receiver
+    CONSTRAINT fk_ra_receiver
         FOREIGN KEY (receiver_UID) REFERENCES Account(UID) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='好友申请表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='关系申请表(好友/群聊申请)';
 
 -- ------------------------------------------------------------
 -- 4. 群组表 `Group`
---    修正：group_UID 与 Account.UID 可能同数值但语义不同，
---          这里群组 ID 使用独立自增计数器。
---          owner_UID 外键到 Account。
+--    group_UID 与 Account.UID 可能同数值但语义不同，群组 ID 使用独立自增计数器。
+--    owner_UID 外键到 Account。
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `Group` (
     group_UID   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '群ID(系统分配)',
@@ -102,18 +105,20 @@ CREATE TABLE IF NOT EXISTS `Group` (
     KEY idx_owner (owner_UID),
     CONSTRAINT fk_group_owner
         FOREIGN KEY (owner_UID) REFERENCES Account(UID) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群组表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='群组表';
 
 -- ------------------------------------------------------------
 -- 5. 群成员表 Groupmember
---    修正(关键)：主键改为联合主键 (group_UID, member_UID)
---                —— 原设计"group_UID主键"会导致每群只能存一个成员，错误。
---    role: 'owner'=群主(创建者) / 'member'=普通成员
---          支持后续多管理员可扩展为 'admin'
+--    主键为联合主键 (group_UID, member_UID)（一个用户可加入多个群）
+--    role: 'owner'=群主(创建者) / 'member'=普通成员（支持后续扩展 'admin'）
+--    name: 成员在群内的名字（群名片）。默认取用户昵称(Account.nickname)，
+--          由 repo 层在插入成员时 JOIN Account 填充（见 repo/group_repo.cpp），
+--          之后可单独修改，不影响全局昵称。
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS Groupmember (
     group_UID   BIGINT UNSIGNED NOT NULL COMMENT '所属群',
     member_UID  BIGINT UNSIGNED NOT NULL COMMENT '成员',
+    name        VARCHAR(64)     NOT NULL DEFAULT '' COMMENT '群内名字(默认取用户昵称,可修改)',
     role        ENUM('owner','member') NOT NULL DEFAULT 'member' COMMENT '角色',
     join_time   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '入群时间',
 
@@ -123,10 +128,10 @@ CREATE TABLE IF NOT EXISTS Groupmember (
         FOREIGN KEY (group_UID)  REFERENCES `Group`(group_UID) ON DELETE CASCADE,
     CONSTRAINT fk_gm_member
         FOREIGN KEY (member_UID) REFERENCES Account(UID)      ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群成员表(联合主键)';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='群成员表(联合主键)';
 
 -- ------------------------------------------------------------
--- 6. 聊天记录表 message（新增）
+-- 6. 聊天记录表 message
 --    需求：持久化私聊/群聊消息，用于历史记录/离线补发。
 --    设计：type=1 私聊 / type=2 群聊
 --          私聊时只写一条 (sender, receiver)，查询两人会话用
@@ -136,12 +141,12 @@ CREATE TABLE IF NOT EXISTS Groupmember (
 --    说明：不做文件表（本次需求明确"补消息不补文件"）。
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS message (
-    id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '消息自增ID(保持顺序)',
-    type       TINYINT         NOT NULL                COMMENT '1=私聊 2=群聊',
-    sender_UID BIGINT UNSIGNED NOT NULL                COMMENT '发送者',
-    receiver_UID BIGINT UNSIGNED NOT NULL              COMMENT '接收方(私聊=对方UID;群聊=group_UID)',
-    content    TEXT            NOT NULL                COMMENT '消息内容',
-    send_time  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发送时间',
+    id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '消息自增ID(保持顺序)',
+    type         TINYINT         NOT NULL                COMMENT '1=私聊 2=群聊',
+    sender_UID   BIGINT UNSIGNED NOT NULL                COMMENT '发送者',
+    receiver_UID BIGINT UNSIGNED NOT NULL                COMMENT '接收方(私聊=对方UID;群聊=group_UID)',
+    content      TEXT            NOT NULL                COMMENT '消息内容',
+    send_time    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发送时间',
 
     PRIMARY KEY (id),
     -- 私聊会话查询索引
@@ -149,7 +154,7 @@ CREATE TABLE IF NOT EXISTS message (
     -- 群聊历史索引
     KEY idx_group (receiver_UID, id),
     KEY idx_sender (sender_UID)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='聊天记录表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='聊天记录表';
 
 -- ============================================================
 -- 【应用层双向同步实现】参考（friend_relation 双写）
@@ -202,5 +207,3 @@ CREATE TABLE IF NOT EXISTS message (
 --   两者内部各自只查 account_manager 或 Group_manager，两个查找空间天然隔离，
 --   因此撞号不会造成转发歧义。持久化时同样靠 message.type 区分，安全。
 -- ============================================================
-
-
