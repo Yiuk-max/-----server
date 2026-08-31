@@ -177,6 +177,31 @@ bool friend_repo::set_remark(int uid, int friend_uid, const std::string& remark)
     }
 }
 
+// 查询某用户对某好友的备注名；未设置或不存在时返回空串
+std::string friend_repo::get_remark(int uid, int friend_uid) {
+    ConnGuard guard;
+    if (!guard) {
+        std::cerr << "[friend_repo] get_remark: no DB connection." << std::endl;
+        return "";
+    }
+    try {
+        std::unique_ptr<sql::PreparedStatement> pstmt(
+            guard.get()->prepareStatement(
+                "SELECT remark_name FROM friend_relation WHERE UID = ? AND friend_UID = ?"));
+        pstmt->setInt(1, uid);
+        pstmt->setInt(2, friend_uid);
+        std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
+        if (rs->next() && !rs->isNull("remark_name")) {
+            return rs->getString("remark_name");
+        }
+        return "";
+    } catch (const sql::SQLException& e) {
+        std::cerr << "[friend_repo] get_remark failed: " << e.what()
+                  << " (ERRNO=" << e.getErrorCode() << ")" << std::endl;
+        return "";
+    }
+}
+
 // 发送好友申请：INSERT relation_apply（apply_type=1, group_UID=0），status 默认 0（等待）
 bool friend_repo::send_friend_request(int sender_uid, int receiver_uid,
                                       const std::string& message) {

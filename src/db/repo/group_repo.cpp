@@ -179,7 +179,7 @@ std::vector<int> group_repo::get_group_members(int group_uid) {
         pstmt->setInt(1, group_uid);
         std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
         while (rs->next()) {
-            members.push_back(rs->getInt("member_uid"));
+            members.push_back(rs->getInt("member_UID"));
         }
         return members;
     } catch (const sql::SQLException& e) {
@@ -483,6 +483,32 @@ bool group_repo::modify_member_role(int group_uid, int requester_uid, int target
         return pstmt->executeUpdate() > 0;
     } catch (const sql::SQLException& e) {
         std::cerr << "[group_repo] modify_member_role failed: " << e.what()
+                  << " (ERRNO=" << e.getErrorCode() << ")" << std::endl;
+        return false;
+    }
+}
+
+bool group_repo::show_group_requests(int group_uid, std::vector<std::tuple<int, std::string>>& out_requests) {
+    ConnGuard guard;
+    if (!guard) {
+        std::cerr << "[group_repo] show_group_requests: no DB connection." << std::endl;
+        return false;
+    }
+    try {
+        std::unique_ptr<sql::PreparedStatement> pstmt(
+            guard.get()->prepareStatement(
+                "SELECT sender_UID, message FROM relation_apply "
+                "WHERE apply_type = 2 AND group_UID = ? AND status = 0"));
+        pstmt->setInt(1, group_uid);
+        std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
+        while (rs->next()) {
+            int sender_uid = rs->getInt("sender_UID");
+            std::string message = rs->getString("message");
+            out_requests.emplace_back(sender_uid, message);
+        }
+        return true;
+    } catch (const sql::SQLException& e) {
+        std::cerr << "[group_repo] show_group_requests failed: " << e.what()
                   << " (ERRNO=" << e.getErrorCode() << ")" << std::endl;
         return false;
     }

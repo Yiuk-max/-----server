@@ -109,7 +109,7 @@ std::shared_ptr<account> account_repo::register_account(const std::string& name,
         acc->set_settings_json(settings);
         return acc;
     } catch (const sql::SQLException& e) {
-        // 常见失败原因：nickname 违反唯一约束（uk_nickname），已存在同名账户
+        // 常见失败原因：DB 不可用等（昵称/密码允许重复，不再因重名失败）
         std::cerr << "[account_repo] register failed: " << e.what()
                   << " (ERRNO=" << e.getErrorCode() << ")" << std::endl;
         return nullptr;
@@ -190,7 +190,7 @@ bool account_repo::update_account(const std::shared_ptr<account>& acc) {
         pstmt->setInt(5, acc->getUID());
         return pstmt->executeUpdate() > 0;
     } catch (const sql::SQLException& e) {
-        // 常见失败：nickname 违反唯一约束（uk_nickname），已存在同名账户
+        // 常见失败：DB 不可用等（昵称允许重复，不再因重名失败）
         std::cerr << "[account_repo] update failed: " << e.what()
                   << " (ERRNO=" << e.getErrorCode() << ")" << std::endl;
         return false;

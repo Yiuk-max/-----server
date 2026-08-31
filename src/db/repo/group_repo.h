@@ -31,4 +31,6 @@ public:
 
     bool modify_member_role(int group_uid, int requester_uid, int target_uid, bool promote) override;
 
+    bool show_group_requests(int group_uid, std::vector<std::tuple<int, std::string>>& out_requests) override;
+
 };

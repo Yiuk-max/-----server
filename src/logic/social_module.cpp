@@ -29,16 +29,29 @@ void social_module::add_friend(int friend_UID){
 }
 
 // 删除好友：事务内双删落库 + 更新本地列表 + 通知对方（若在线）
-void social_module::remove_friend(int friend_UID){
+bool social_module::remove_friend(int friend_UID){
     if (!repo_hub_->friends()->remove_friend(user_UID_, friend_UID)) {
         NoticeService::get_instance().send_to_user(user_UID_, "Failed to remove friend.\n", "system");
-        return;
+        return false;
     }
     friend_relations.erase(std::remove(friend_relations.begin(), friend_relations.end(), friend_UID), friend_relations.end());
     if (NoticeService::get_instance().is_online(friend_UID)) {
         std::string notify = "You have been removed from [" + name_ + "]'s friend list.\n";
         NoticeService::get_instance().send_to_user(friend_UID, notify, "system");
     }
+    return true;
+}
+
+// 仅把好友加入内存列表（不写库、不发通知），用于对方同意加好友后同步其会话
+void social_module::add_friend_to_list(int friend_UID){
+    if (std::find(friend_relations.begin(), friend_relations.end(), friend_UID) == friend_relations.end()) {
+        friend_relations.push_back(friend_UID);
+    }
+}
+
+// 仅从内存列表移除好友（不写库、不发通知），用于被对方删除后同步其会话
+void social_module::remove_friend_from_list(int friend_UID){
+    friend_relations.erase(std::remove(friend_relations.begin(), friend_relations.end(), friend_UID), friend_relations.end());
 }
 
 void social_module::create_friend_group(std::string group_name, int& out_group_uid){
@@ -59,6 +72,13 @@ void social_module::exit_friend_group(int group_UID){
     friend_groups.erase(std::remove(friend_groups.begin(), friend_groups.end(), group_UID), friend_groups.end());
 }
 
+// 仅把群加入内存列表（不写库），用于被拉入群/申请通过后同步其会话
+void social_module::add_group_to_list(int group_UID){
+    if (std::find(friend_groups.begin(), friend_groups.end(), group_UID) == friend_groups.end()) {
+        friend_groups.push_back(group_UID);
+    }
+}
+
 // 发送好友申请：落库（relation_apply, apply_type=1, status=0）+ 通知接收方
 void social_module::send_friend_request(int receiver_UID, std::string &apply_message){
     auto receiver = repo_hub_->accounts()->load_account(receiver_UID);//校验被添加者是否存在
@@ -72,15 +92,15 @@ void social_module::send_friend_request(int receiver_UID, std::string &apply_mes
     }
     auto sender = repo_hub_->accounts()->load_account(user_UID_);
     std::string sender_name = sender ? sender->getName() : std::to_string(user_UID_);
-    std::string notify = "[" + sender_name + "] wants to be friend with you!\n" + apply_message;
+    std::string notify = "[" + sender_name + "] wants to be friend with you!\n" + "apply_message: " + apply_message;
     NoticeService::get_instance().send_to_user(receiver_UID, notify, "system");
 }
 
 // 处理好友申请：更新申请状态（1同意/2拒绝）；同意则建立双向好友关系
-void social_module::handle_friend_request(int sender_UID, bool accept){
+bool social_module::handle_friend_request(int sender_UID, bool accept){
     if (!repo_hub_->friends()->handle_friend_request(sender_UID, user_UID_, accept)) {
         NoticeService::get_instance().send_to_user(user_UID_, "Failed to handle friend request (no pending request found).\n", "system");
-        return;
+        return false;
     }
     if (accept) {
         add_friend(sender_UID); // 建立双向好友关系并通知对方
@@ -88,6 +108,7 @@ void social_module::handle_friend_request(int sender_UID, bool accept){
         std::string notify = name_ + " rejected your friend request.\n";
         NoticeService::get_instance().send_to_user(sender_UID, notify, "system");
     }
+    return true;
 }
 
 // 查看发给自己的、等待处理的好友申请
@@ -115,7 +136,10 @@ std::string social_module::show_friends(){
     for(int UID:friend_relations){
         auto acc = repo_hub_->accounts()->load_account(UID);
         if (acc) {
-            chat_list += acc->get_info() + "\n";
+            // 若对该好友设置了备注名，则展示备注名；否则展示昵称
+            std::string remark = repo_hub_->friends()->get_remark(user_UID_, UID);
+            std::string display_name = remark.empty() ? acc->getName() : remark;
+            chat_list += display_name + ":" + acc->get_string_UID() + "\n";
         }
     }
     for(int UID:friend_groups){
@@ -128,6 +152,6 @@ std::string social_module::show_friends(){
 }
 
 // 同意好友申请（兼容旧接口，转发到 handle_friend_request）
-void social_module::accept_friend_request(int sender_UID){
-    handle_friend_request(sender_UID, true);
+bool social_module::accept_friend_request(int sender_UID){
+    return handle_friend_request(sender_UID, true);
 }

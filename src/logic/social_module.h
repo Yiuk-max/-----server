@@ -34,13 +34,19 @@ private:
 public:
     social_module(int UID, std::shared_ptr<RepositoryHub> hub);   // 构造注入 RepositoryHub（由 client_session 传入）
     void add_friend(int friend_UID);
-    void accept_friend_request(int sender_UID);
-    void remove_friend(int friend_UID);
+    bool accept_friend_request(int sender_UID);
+    bool remove_friend(int friend_UID);
+
+    // 仅更新内存中的好友列表（供对方在线时同步使用；不写库、不发通知）
+    void add_friend_to_list(int friend_UID);
+    void remove_friend_from_list(int friend_UID);
 
     void create_friend_group(std::string group_name, int& out_group_uid);
     void exit_friend_group(int group_UID);
+    // 仅更新内存中的群列表（供被拉入群/申请通过后同步；不写库）
+    void add_group_to_list(int group_UID);
     void send_friend_request(int receiver_UID, std::string &apply_message);
-    void handle_friend_request(int sender_UID, bool accept);
+    bool handle_friend_request(int sender_UID, bool accept);
     std::string show_friend_requests();
     std::string show_friends();
 };

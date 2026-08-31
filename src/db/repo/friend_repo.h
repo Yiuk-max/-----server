@@ -31,6 +31,9 @@ public:
     // 设置某用户对某好友的备注名
     bool set_remark(int uid, int friend_uid, const std::string& remark) override;
 
+    // 查询某用户对某好友的备注名（未设置/不存在返回空串）
+    std::string get_remark(int uid, int friend_uid) override;
+
     // ==================== relation_apply 好友申请（apply_type=1） ====================
 
     // 发送好友申请（sender -> receiver），status 默认 0（等待）

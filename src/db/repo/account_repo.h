@@ -13,7 +13,7 @@
 class account_repo : public I_account_repo {
 public:
     // 注册：INSERT Account，返回携带数据库分配 UID 的新账户对象；
-    // 失败（如 nickname 重名 / DB 不可用）返回 nullptr。
+    // 昵称/密码允许重复；失败（DB 不可用等）返回 nullptr。
     std::shared_ptr<account> register_account(const std::string& name,
                                               const std::string& password) override;
 

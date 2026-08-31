@@ -51,6 +51,8 @@ public:
     void set_friend_remark(int friend_UID,std::string remark);              //给好友设置备注名
     void handle_friend_request(int sender_UID,bool accept);                 //处理好友申请(同意/拒绝)
     void remove_friend(int friend_UID);                                     //删除好友
+    void add_friend_to_list(int friend_UID);                                //同步更新内存好友列表（对方同意加好友后调用）
+    void remove_friend_from_list(int friend_UID);                           //同步更新内存好友列表（被对方删除后调用）
     void show_friend_requests();                                            //查看待处理的好友申请
     void change_my_name(std::string new_name);                              //修改自己的昵称
     //群聊相关        
@@ -61,7 +63,9 @@ public:
     void modify_group_name(int group_UID,std::string new_name);                 //群聊——改名
     void send_join_group(int group_UID);                                        //申请加入群聊
     void handle_join_request(int group_UID,int requester_UID,bool accept);      //处理群聊加入申请（同意/拒绝）
+    void add_group_to_list(int group_UID);                                      //同步更新内存群列表（被拉入群/申请通过后调用）
     void modify_member_role(int group_UID,int target_UID,bool promote);         //修改群成员身份（提升/降级）
+    void show_group_requests(int group_UID);                                                //查看群聊待处理的入群申请 todo
     void show_group_members(int group_UID);                                     //查看群成员
 
     //===============发送===============

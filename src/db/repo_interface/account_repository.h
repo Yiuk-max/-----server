@@ -25,7 +25,7 @@ public:
     virtual ~I_account_repo() = default;
 
     // 注册：新建账户，由数据库 AUTO_INCREMENT 分配 UID 并落库，返回带 UID 的账户对象。
-    // 成功返回账户对象；失败（如 nickname 重名 / DB 不可用）返回 nullptr。
+    // 昵称/密码允许重复（唯一标识为 UID）；失败（DB 不可用等）返回 nullptr。
     virtual std::shared_ptr<account> register_account(const std::string& name,
                                                       const std::string& password) = 0;
 
@@ -37,7 +37,7 @@ public:
     virtual std::shared_ptr<account> load_account(int uid) = 0;
 
     // 修改：更新账户个人数据（改名 / 改设置等）。
-    // 成功返回 true；失败（如 nickname 违反唯一约束 / 账户不存在 / DB 不可用）返回 false。
+    // 成功返回 true；失败（账户不存在 / DB 不可用等）返回 false。
     virtual bool update_account(const std::shared_ptr<account>& acc) = 0;
 };
 

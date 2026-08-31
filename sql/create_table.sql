@@ -21,7 +21,8 @@ USE chat_server;
 
 -- ------------------------------------------------------------
 -- 1. 账户表 Account
---    nickname 加 UNIQUE（支持按用户名检索/登录）
+--    nickname 不设唯一约束（登录/加好友/发消息均按 UID 定位，昵称允许重复；
+--    密码也允许重复）
 --    settings 用 JSON 字符串承载（应用层序列化），避免拆表
 --    UID：AUTO_INCREMENT 由系统分配，启动时按 MAX(UID) 重定位内存分配器
 -- ------------------------------------------------------------
@@ -34,8 +35,7 @@ CREATE TABLE IF NOT EXISTS Account (
     create_time DATETIME           NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '注册时间',
     birthday    DATE               NULL                    COMMENT '生日(可空)',
 
-    PRIMARY KEY (UID),
-    UNIQUE KEY uk_nickname (nickname)
+    PRIMARY KEY (UID)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户账户表';
 
 -- ------------------------------------------------------------

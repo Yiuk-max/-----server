@@ -55,6 +55,7 @@ void client_session::init_(){
     handlers_["send_join_group"]        = std::make_unique<Group_handler>();// 申请加入群聊
     handlers_["handle_join_request"]    = std::make_unique<Group_handler>();// 处理入群申请
     handlers_["modify_member_role"]     = std::make_unique<Group_handler>();// 修改成员身份
+    handlers_["show_group_requests"]    = std::make_unique<Group_handler>();// 查看待处理入群申请
     handlers_["show_group_members"]     = std::make_unique<Group_handler>();// 查看群成员
     //文件相关
     handlers_["download_file"]          = std::make_unique<File_handler>();
@@ -105,8 +106,8 @@ void client_session::register_user(std::string username,std::string password){
     //   client_session -> repo_hub_->accounts() -> I_account_repo 契约 -> account_repo (repo 层 MySQL 实现)
     auto new_account = repo_hub_->accounts()->register_account(username, password);
     if (!new_account) {
-        // 失败：nickname 重名 / DB 不可用等
-        std::string fail = "Registration failed (invalid username/password or account already exists).\n";
+        // 失败：DB 不可用等（昵称/密码允许重复，不再因重名失败）
+        std::string fail = "Registration failed (database unavailable).\n";
         package_message(fail,"system");
         return;
     }
@@ -160,6 +161,8 @@ void client_session::login(int UID,std::string password){
     }
     std::string success = "Login successful. Welcome, " + account->getName() + "!\n";
     package_message(success,"system");
+    show_friend_requests(); // 登录后自动查看待处理的好友申请
+    // 登录后自动查看待处理的群聊入群申请（若有权限）todo
 }
 // 被顶下线：通知 + 立即发送后关闭本连接；sub_reactor 会收到断开事件后回收 connection 与会话
 void client_session::kick_offline(){
@@ -253,7 +256,14 @@ void client_session::private_chat(int target_UID, std::string message) {
     // 2. 检查目标用户是否在线
     if(!target_UID_is_online(target_UID)){return;}
 
-    // 3. 构造带发送者名字的消息并发送给目标用户
+    // 3. 检查目标用户是否是自己的好友
+    if (!repo_hub_->friends()->is_friend(current_account_->getUID(), target_UID)) {
+        std::string fail = "UID [" + std::to_string(target_UID) + "] is not your friend. You can only send private messages to friends.\n";
+        package_message(fail, "system");
+        return;
+    }
+
+    // 4. 构造带发送者名字的消息并发送给目标用户
     auto target_session = session_manager::get_instance().find_session(target_UID);
     if (!target_session) {
         package_message("Target user session not found.\n", "system");
@@ -309,7 +319,7 @@ void client_session::change_my_name(std::string new_name){
         package_message(success, "system");
     } else {
         current_account_->setName(old_name); // 失败回滚内存中的昵称，保持与库一致
-        std::string fail = "Failed to update name (nickname may already exist).\n";
+        std::string fail = "Failed to update name (database unavailable).\n";
         package_message(fail, "system");
     }
 }
@@ -320,7 +330,14 @@ void client_session::handle_friend_request(int sender_UID, bool accept){
         return;
     }
     if (social_manager_) {
-        social_manager_->handle_friend_request(sender_UID, accept);
+        bool handled = social_manager_->handle_friend_request(sender_UID, accept);
+        // 同意后双方都应在好友列表看到对方：同步更新申请人（若在线）的内存好友列表
+        if (handled && accept) {
+            auto sender_session = session_manager::get_instance().find_session(sender_UID);
+            if (sender_session) {
+                sender_session->add_friend_to_list(current_account_->getUID());
+            }
+        }
     }
 }
 // 删除好友
@@ -330,7 +347,26 @@ void client_session::remove_friend(int friend_UID){
         return;
     }
     if (social_manager_) {
-        social_manager_->remove_friend(friend_UID);
+        bool removed = social_manager_->remove_friend(friend_UID);
+        // 被删除方（若在线）也应同步更新内存好友列表，避免其仍看到已删除的好友
+        if (removed) {
+            auto target_session = session_manager::get_instance().find_session(friend_UID);
+            if (target_session) {
+                target_session->remove_friend_from_list(current_account_->getUID());
+            }
+        }
+    }
+}
+// 同步更新内存好友列表（由对方同意加好友后调用）
+void client_session::add_friend_to_list(int friend_UID){
+    if (social_manager_) {
+        social_manager_->add_friend_to_list(friend_UID);
+    }
+}
+// 同步更新内存好友列表（被对方删除后调用）
+void client_session::remove_friend_from_list(int friend_UID){
+    if (social_manager_) {
+        social_manager_->remove_friend_from_list(friend_UID);
     }
 }
 // 查看待处理的好友申请
@@ -374,6 +410,13 @@ void client_session::group_add_client(int target_group_UID,int target_user_UID){
     }
     std::string success = "Member [" + std::to_string(target_user_UID) + "] added to group [" + std::to_string(target_group_UID) + "] successfully.\n";
     package_message(success,"system");
+    // 被拉入的成员若在线，同步其内存群列表并通知已入群
+    auto new_member_session = session_manager::get_instance().find_session(target_user_UID);
+    if (new_member_session) {
+        new_member_session->add_group_to_list(target_group_UID);
+        new_member_session->package_message(
+            "You have been added to group [" + std::to_string(target_group_UID) + "].\n", "system");
+    }
 }
 void client_session::group_delete_client(int target_group_UID,int target_user_UID){
     if(!target_UID_is_exit(target_group_UID) || !target_UID_is_exit(target_user_UID)){
@@ -423,6 +466,16 @@ void client_session::send_join_group(int group_UID){
     }
     std::string success = "Join request sent to group [" + std::to_string(group_UID) + "] successfully.\n";
     package_message(success,"system");
+    // 通知群主/管理员（若在线）提醒处理入群申请
+    auto grp = repo_hub_->groups()->load_group(group_UID);
+    if (grp) {
+        int owner_UID = grp->get_manager_UID();
+        auto owner_session = session_manager::get_instance().find_session(owner_UID);
+        if (owner_session) {
+            std::string notice = "User [" + std::to_string(current_account_->getUID()) + "] has requested to join your group [" + std::to_string(group_UID) + "]. Please handle the request.\n";
+            owner_session->package_message(notice, "system");
+        }
+    }
 }
 // 处理入群申请：requester_UID 为申请人，本会话为群主；同意则拉人入群
 void client_session::handle_join_request(int group_UID,int requester_UID,bool accept){
@@ -436,6 +489,24 @@ void client_session::handle_join_request(int group_UID,int requester_UID,bool ac
     }
     std::string result = accept ? "Join request accepted.\n" : "Join request rejected.\n";
     package_message(result, "system");
+    // 同步申请人（若在线）：同意则更新其内存群列表并通知已入群；拒绝则通知被拒
+    auto requester_session = session_manager::get_instance().find_session(requester_UID);
+    if (requester_session) {
+        if (accept) {
+            requester_session->add_group_to_list(group_UID);
+            requester_session->package_message(
+                "You have been added to group [" + std::to_string(group_UID) + "].\n", "system");
+        } else {
+            requester_session->package_message(
+                "Your join request for group [" + std::to_string(group_UID) + "] was rejected.\n", "system");
+        }
+    }
+}
+// 同步更新内存群列表（被拉入群/申请通过后调用）
+void client_session::add_group_to_list(int group_UID){
+    if (social_manager_) {
+        social_manager_->add_group_to_list(group_UID);
+    }
 }
 // 修改群成员身份：promote=true 提升为群主 / false 降回普通成员
 void client_session::modify_member_role(int group_UID,int target_UID,bool promote){
@@ -449,6 +520,30 @@ void client_session::modify_member_role(int group_UID,int target_UID,bool promot
     }
     std::string success = "Role of UID [" + std::to_string(target_UID) + "] updated successfully.\n";
     package_message(success,"system");
+}
+// 查看群聊待处理的入群申请：仅群主可查看
+void client_session::show_group_requests(int group_UID){
+    if (!current_account_) {
+        package_message("You must be logged in to view group join requests.\n", "system");
+        return;
+    }
+    std::vector<std::tuple<int, std::string>> requests;
+    if (!repo_hub_->groups()->show_group_requests(group_UID, requests)) {
+        package_message("Failed to retrieve group join requests.\n", "system");
+        return;
+    }
+    if (requests.empty()) {
+        package_message("No pending join requests for group [" + std::to_string(group_UID) + "].\n", "system");
+        return;
+    }
+    std::string result = "Pending join requests for group [" + std::to_string(group_UID) + "]:\n";
+    for (const auto& req : requests) {
+        int requester_UID;
+        std::string apply_message;
+        std::tie(requester_UID, apply_message) = req;
+        result += "Requester UID: " + std::to_string(requester_UID) + ", Message: " + apply_message + "\n";
+    }
+    package_message(result, "system");
 }
 // 查看群成员（含群内名字）
 void client_session::show_group_members(int group_UID){

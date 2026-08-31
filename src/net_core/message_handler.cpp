@@ -95,6 +95,11 @@ void Group_handler::handle_message(const json& message,client_session& session,s
         session.modify_member_role(group_UID, target_UID, promote);
         return;
     }
+    else if(type == "show_group_requests"){
+        int group_UID = message["group_UID"];
+        session.show_group_requests(group_UID);
+        return;
+    }
     else if(type == "show_group_members"){
         int group_UID = message["group_UID"];
         session.show_group_members(group_UID);

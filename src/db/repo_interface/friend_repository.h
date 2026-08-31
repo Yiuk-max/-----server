@@ -44,6 +44,9 @@ public:
     // 设置某用户对某好友的备注名（UPDATE remark_name WHERE UID=? AND friend_UID=?）。
     virtual bool set_remark(int uid, int friend_uid, const std::string& remark) = 0;
 
+    // 查询某用户对某好友设置的备注名；未设置/不存在时返回空串。
+    virtual std::string get_remark(int uid, int friend_uid) = 0;
+
     // ==================== relation_apply 好友申请（apply_type=1） ====================
 
     // 发送好友申请（sender -> receiver），status 默认 0（等待）。

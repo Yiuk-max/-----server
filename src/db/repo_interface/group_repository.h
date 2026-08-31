@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <string>
+#include <tuple>
 #include <vector>
 #include "group.h"
 //创建群聊、删除群聊、群聊改名、群聊删除成员
@@ -43,5 +44,8 @@ public:
 
     virtual bool modify_member_role(int group_uid, int requester_uid, int target_uid, bool promote) = 0;
 
+    // 查看群聊待处理的入群申请（apply_type=2, status=0），
+    // out 输出 (sender_UID, message) 列表；成功返回 true。
+    virtual bool show_group_requests(int group_uid, std::vector<std::tuple<int, std::string>>& out_requests) = 0;
 
 };
