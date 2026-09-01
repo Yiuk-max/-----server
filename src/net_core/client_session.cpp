@@ -5,6 +5,7 @@
 #include "session_manager.h"
 #include "social_module.h"
 #include "notice_service.h"
+#include "group_manager.h"
 #include <ctime>
 #include <cstdio>
 
@@ -238,7 +239,8 @@ void client_session::group_chat(int target_UID,std::string message){
         return;
     }
     // 校验群存在
-    if (!repo_hub_->groups()->load_group(target_UID)) {
+    auto grp = group_manager::get_instance().get(target_UID);
+    if (!grp) {
         std::string fail = "Group [" + std::to_string(target_UID) + "] does not exist.\n";
         package_message(fail, "system");
         return;
@@ -453,6 +455,13 @@ void client_session::group_delete_client(int target_group_UID,int target_user_UI
     }
     std::string success = "Member [" + std::to_string(target_user_UID) + "] removed from group [" + std::to_string(target_group_UID) + "] successfully.\n";
     package_message(success,"system");
+    // 被踢成员若在线，同步其内存群列表并通知
+    auto target_session = session_manager::get_instance().find_session(target_user_UID);
+    if (target_session) {
+        target_session->remove_group_from_list(target_group_UID);
+        target_session->package_message(
+            "You have been removed from group [" + std::to_string(target_group_UID) + "].\n", "system");
+    }
 }
 void client_session::delete_group(int group_UID){
     if(!target_UID_is_exit(group_UID)){
@@ -466,6 +475,8 @@ void client_session::delete_group(int group_UID){
     if (social_manager_) {
         social_manager_->exit_friend_group(group_UID);
     }
+    // 群已被删除，从内存管理器中强制移除（不论是否还有人持有）
+    group_manager::get_instance().remove_group(group_UID);
     package_message("Group deleted successfully.\n", "system");
 }
 void client_session::modify_group_name(int group_UID,std::string new_name){
@@ -491,8 +502,8 @@ void client_session::send_join_group(int group_UID){
     }
     std::string success = "Join request sent to group [" + std::to_string(group_UID) + "] successfully.\n";
     package_message(success,"system");
-    // 通知群主/管理员（若在线）提醒处理入群申请
-    auto grp = repo_hub_->groups()->load_group(group_UID);
+    // 通知群主/管理员（若在线）提醒处理入群申请（get 内部已做内存优先 + DB 兜底）
+    auto grp = group_manager::get_instance().get(group_UID);
     if (grp) {
         int owner_UID = grp->get_manager_UID();
         auto owner_session = session_manager::get_instance().find_session(owner_UID);
@@ -531,6 +542,12 @@ void client_session::handle_join_request(int group_UID,int requester_UID,bool ac
 void client_session::add_group_to_list(int group_UID){
     if (social_manager_) {
         social_manager_->add_group_to_list(group_UID);
+    }
+}
+// 同步更新内存群列表（被踢出群后调用）
+void client_session::remove_group_from_list(int group_UID){
+    if (social_manager_) {
+        social_manager_->remove_group_from_list(group_UID);
     }
 }
 // 修改群成员身份：promote=true 提升为群主 / false 降回普通成员
@@ -692,8 +709,8 @@ bool client_session::target_UID_is_exit(int target_UID){
     if (repo_hub_->accounts()->load_account(target_UID)) {
         return true;
     }
-    // 校验群聊UID是否存在（群聊仓储接口查询）
-    if (repo_hub_->groups()->load_group(target_UID)) {
+    // 校验群聊UID是否存在（get 内部已做内存优先 + DB 兜底）
+    if (group_manager::get_instance().get(target_UID)) {
         return true;
     }
     std::string fail = "UID [" + std::to_string(target_UID) + "] does not exist.\n";

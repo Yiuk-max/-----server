@@ -1,6 +1,7 @@
 #include "social_module.h"
 #include "notice_service.h"
 #include "group.h"
+#include "group_manager.h"
 #include <algorithm>
 #include <tuple>
 
@@ -13,6 +14,15 @@ social_module::social_module(int UID, std::shared_ptr<RepositoryHub> hub)
     // 登录时从数据库加载好友列表与群列表，之后 show_friends() 直接读内存
     friend_relations = repo_hub_->friends()->get_friend_list(UID);
     friend_groups = repo_hub_->groups()->get_user_groups(UID);
+
+    // 注入群聊仓储，并尝试加载该用户的所有群聊（已加载跳过，未加载加载）
+    group_manager::get_instance().set_group_repo(repo_hub_->groups());
+    group_manager::get_instance().load_groups_for_user(friend_groups);
+}
+
+social_module::~social_module() {
+    // 用户下线/会话销毁：释放其持有的群聊内存引用（引用归零时自动卸载）
+    group_manager::get_instance().unload_groups_for_user(friend_groups);
 }
 
 // 建立双向好友关系：事务内双写落库 + 更新本地列表 + 通知对方
@@ -64,18 +74,33 @@ void social_module::create_friend_group(std::string group_name, int& out_group_u
     // 把新建群加入当前用户的群组列表，这样 /show 才能展示出自己的群
     if (out_group_uid >= 0) {
         friend_groups.push_back(out_group_uid);
+        group_manager::get_instance().load(out_group_uid); // 加载进内存并持有
     }
 }
 void social_module::exit_friend_group(int group_UID){
     // 退群：本人作为 requester 将自己移出（群主踢人由 group_delete_client 走 remove_group_member）
     repo_hub_->groups()->remove_group_member(group_UID, user_UID_, user_UID_);
-    friend_groups.erase(std::remove(friend_groups.begin(), friend_groups.end(), group_UID), friend_groups.end());
+    auto new_end = std::remove(friend_groups.begin(), friend_groups.end(), group_UID);
+    if (new_end != friend_groups.end()) {
+        friend_groups.erase(new_end, friend_groups.end());
+        group_manager::get_instance().unload(group_UID); // 确实持有该群时才释放内存引用
+    }
 }
 
 // 仅把群加入内存列表（不写库），用于被拉入群/申请通过后同步其会话
 void social_module::add_group_to_list(int group_UID){
     if (std::find(friend_groups.begin(), friend_groups.end(), group_UID) == friend_groups.end()) {
         friend_groups.push_back(group_UID);
+        group_manager::get_instance().load(group_UID); // 新加入时才加载进内存并持有
+    }
+}
+
+// 仅从内存列表移除群（不写库），用于被踢出群后同步其会话
+void social_module::remove_group_from_list(int group_UID){
+    auto new_end = std::remove(friend_groups.begin(), friend_groups.end(), group_UID);
+    if (new_end != friend_groups.end()) {
+        friend_groups.erase(new_end, friend_groups.end());
+        group_manager::get_instance().unload(group_UID); // 释放内存引用
     }
 }
 
@@ -143,7 +168,8 @@ std::string social_module::show_friends(){
         }
     }
     for(int UID:friend_groups){
-        auto grp = repo_hub_->groups()->load_group(UID);
+        // 群聊信息优先从内存管理器取（get 内部已含 DB 兜底）
+        auto grp = group_manager::get_instance().get(UID);
         if (grp) {
             chat_list += grp->get_group_info() + "\n";
         }

@@ -67,6 +67,7 @@ public:
     void send_join_group(int group_UID);                                        //申请加入群聊
     void handle_join_request(int group_UID,int requester_UID,bool accept);      //处理群聊加入申请（同意/拒绝）
     void add_group_to_list(int group_UID);                                      //同步更新内存群列表（被拉入群/申请通过后调用）
+    void remove_group_from_list(int group_UID);                                 //同步更新内存群列表（被踢出群后调用）
     void modify_member_role(int group_UID,int target_UID,bool promote);         //修改群成员身份（提升/降级）
     void show_group_requests(int group_UID);                                                //查看群聊待处理的入群申请 todo
     void show_group_members(int group_UID);                                     //查看群成员
