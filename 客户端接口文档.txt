@@ -109,7 +109,7 @@
     "message": "你好呀！"
 }
 ```
-*   *注意*：服务器会校验目标 UID 是否存在、在线且是否为好友，收到后以 `[发送者名字]: 内容` 的格式转发给目标，转发的 JSON 中会附带数据库消息 ID `message_id`；同时给发送者回一条 `system` 提示 `Message sent. Message ID: <id>.`，用于后续删除。
+*   *注意*：服务器会校验目标 UID 是否存在、是否为好友（**不再要求在线**）。对方在线时实时转发；对方离线时消息落库，待其上线后经离线消息推送。转发的 JSON 中会附带 `message_id`；发送者会收到 `system` 提示 `Message sent. Message ID: <id>.`，用于后续删除。
 
 ### 5. 群聊 (group_chat)
 *   **用途**：向指定群发消息，群内所有在线成员会收到以 `Group_Chat` 类型转发的消息。
@@ -121,7 +121,7 @@
     "message": "大家好！"
 }
 ```
-*   *注意*：转发的 `Group_Chat` JSON 中会附带数据库消息 ID `message_id`；同时给发送者回一条 `system` 提示 `Message sent. Message ID: <id>.`，用于后续删除。
+*   *注意*：转发的 `Group_Chat` JSON 中会附带数据库消息 ID `message_id` 和 `group_UID`（所属群 UID）；同时给发送者回一条 `system` 提示 `Message sent. Message ID: <id>.`，用于后续删除。
 
 ### 6. 创建群聊 (create_group)
 *   **用途**：新建群，创建者自动成为群主（管理员），并加入自己的好友/群组列表。
@@ -413,11 +413,11 @@
 | `system`              | 通用系统提示、登录/注册结果、错误提示等              | `Login successful. Welcome, 张三!` 等                  |
 | `private_chat`        | 收到私聊消息                                         | `[张三]: 你好呀！`                                     |
 | `Group_Chat`          | 收到群聊消息（注意大小写 `Group_Chat`）              | 群内消息内容                                            |
-| `delete_message`      | 消息被删除通知                                       | `content` 为空，通过 `message_id` 定位要移除的消息      |
+| `delete_message`      | 消息被删除通知                                       | `content` 为空，通过 `message_id` 定位要移除的消息（群聊消息还会带 `group_UID`） |
 | `file_chunk`          | 服务器发送文件块（下载响应）                         | JSON 中包含 `file_id/filename/total_size/chunk_index/...` 元信息，文件数据在帧尾 |
 | `heartbeat_ack`       | 服务器对心跳包的应答（`content` 为 `pong`）          | `pong`                                                  |
 
-> 说明：`private_chat` / `Group_Chat`（含离线消息推送）的 JSON 中会额外携带 `message_id` 字段，表示该消息在数据库中的唯一 ID，可用于 `delete_message`。
+> 说明：`private_chat` / `Group_Chat`（含离线消息推送）的 JSON 中会额外携带 `message_id` 字段，表示该消息在数据库中的唯一 ID，可用于 `delete_message`；`Group_Chat` 还会额外携带 `group_UID` 字段（所属群 UID），便于客户端按群归类。
 
 ### 常见系统提示文本
 | 触发场景                 | content 内容（示例）                                          |
@@ -435,7 +435,6 @@
 | **消息为空**（私聊）     | `Message cannot be empty.`                                    |
 | **未登录发私聊**         | `You must be logged in to send private messages.`             |
 | **目标 UID 不存在**      | `UID [<UID>] does not exist.`                                 |
-| **目标不在线**           | `User [<UID>] is not online.`                                 |
 | **修改昵称成功**         | `Name updated successfully. Your new name is [<新昵称>].`      |
 | **修改昵称失败（空）**   | `Failed to update name (database unavailable).`               |
 | **私聊发送成功（回传消息ID）** | `Message sent. Message ID: <id>.`                           |

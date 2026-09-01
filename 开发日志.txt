@@ -442,3 +442,10 @@ interface 层怎么还留着account的空占位实现，看着只做了数据库
   show_friends/group_chat/send_join_group/target_UID_is_exit 均优先 group_manager.get。
 - group_delete_client 踢人时同步被踢者内存群列表并通知。
 - 本次同步更新：客户端接口文档.txt / 项目说明文档.md / 数据库设计.txt。
+
+2026-09-01 修复：私聊支持离线消息（不再要求对方在线）
+- private_chat 原来在 store_message 之前就校验 target_UID_is_online，导致发给离线用户的私聊被
+  "User is not online." 直接拒绝、消息不进库，离线消息机制无法覆盖私聊。
+- 调整：删除在线校验，先 store_message 落库（无论对方是否在线）；对方在线则实时转发，离线则留在
+  DB 待其上线时由 get_offline_messages 补发；发送者回执携带 message_id。
+- 群聊 Group_Chat 转发 JSON 补 group_UID 字段（实时/离线/删除通知均携带），便于客户端按群归类。

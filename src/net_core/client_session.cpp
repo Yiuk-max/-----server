@@ -251,7 +251,7 @@ void client_session::group_chat(int target_UID,std::string message){
     auto members = repo_hub_->groups()->get_group_members(target_UID);
     std::string formatted_msg = "[" + current_account_->getName() + "]: " + message;
     if (msg_id > 0) {
-        NoticeService::get_instance().send_to_users_with_id(members, formatted_msg, "Group_Chat", msg_id);
+        NoticeService::get_instance().send_to_users_with_id(members, formatted_msg, "Group_Chat", msg_id, target_UID);
         // 告知发送者消息 id，便于 3 分钟内删除
         package_message("Message sent. Message ID: " + std::to_string(msg_id) + ".\n", "system");
     } else {
@@ -269,34 +269,35 @@ void client_session::private_chat(int target_UID, std::string message) {
         return;
     }
 
-    // 1. 检查目标账号是否存在
+    // 1. 检查目标账号是否存在（不要求在线，离线也允许发送并落库）
     if(!target_UID_is_exit(target_UID)){return;}
 
-    // 2. 检查目标用户是否在线
-    if(!target_UID_is_online(target_UID)){return;}
-
-    // 3. 检查目标用户是否是自己的好友
+    // 2. 检查目标用户是否是自己的好友
     if (!repo_hub_->friends()->is_friend(current_account_->getUID(), target_UID)) {
         std::string fail = "UID [" + std::to_string(target_UID) + "] is not your friend. You can only send private messages to friends.\n";
         package_message(fail, "system");
         return;
     }
 
-    // 4. 构造带发送者名字的消息并发送给目标用户
-    auto target_session = session_manager::get_instance().find_session(target_UID);
-    if (!target_session) {
-        package_message("Target user session not found.\n", "system");
-        return;
-    }
-    // 先存储消息，取回数据库分配的 message_id
+    // 3. 先落库（无论对方是否在线；离线消息由对方上线时离线拉取）
     int msg_id = repo_hub_->messages()->store_message(current_account_->getUID(), target_UID, message, false);
     std::string formatted_msg = "[" + current_account_->getName() + "]: " + message;
+
+    // 4. 对方在线则实时转发，否则留在 DB 等其上线离线拉取
+    auto target_session = session_manager::get_instance().find_session(target_UID);
+    if (target_session) {
+        if (msg_id > 0) {
+            target_session->package_chat_message(formatted_msg, "private_chat", msg_id);
+        } else {
+            target_session->package_message(formatted_msg, "private_chat");
+        }
+    }
+
+    // 5. 回执给发送者（含 message_id，便于 3 分钟内删除）
     if (msg_id > 0) {
-        target_session->package_chat_message(formatted_msg, "private_chat", msg_id);
-        // 告知发送者消息 id，便于 3 分钟内删除
         package_message("Message sent. Message ID: " + std::to_string(msg_id) + ".\n", "system");
     } else {
-        target_session->package_message(formatted_msg, "private_chat");
+        package_message("Failed to store message (database unavailable).\n", "system");
     }
 }
 
@@ -614,9 +615,9 @@ void client_session::package_message(const std::string& message,std::string type
     }
 }
 
-void client_session::package_chat_message(const std::string& message, std::string type, int message_id){
+void client_session::package_chat_message(const std::string& message, std::string type, int message_id, int group_uid){
     if (auto c = conn_.lock()) {
-        c->package_chat_message(message, type, message_id);
+        c->package_chat_message(message, type, message_id, group_uid);
     }
 }
 
@@ -664,12 +665,12 @@ void client_session::delete_message(int message_id){
     std::string success = "Message [" + std::to_string(message_id) + "] deleted.\n";
     package_message(success, "system");
 
-    // 通知在线且会收到该消息的人
+    // 通知在线且会收到该消息的人（群聊删除时携带 group_UID）
     if (msg.is_group) {
         auto members = repo_hub_->groups()->get_group_members(msg.receiver_UID);
         for (int uid : members) {
             if (uid == current_account_->getUID()) continue; // 跳过删除者自己
-            NoticeService::get_instance().send_to_user_with_id(uid, "", "delete_message", message_id);
+            NoticeService::get_instance().send_to_user_with_id(uid, "", "delete_message", message_id, msg.receiver_UID);
         }
     } else {
         NoticeService::get_instance().send_to_user_with_id(msg.receiver_UID, "", "delete_message", message_id);
@@ -699,7 +700,9 @@ void client_session::send_offline_messages(const std::string& since_time){
         }
         std::string formatted = "[" + sender_name + "]: " + m.content;
         std::string type = m.is_group ? "Group_Chat" : "private_chat";
-        package_chat_message(formatted, type, m.message_id);
+        // 群聊离线消息携带 group_UID，便于客户端归类
+        int group_uid = m.is_group ? m.receiver_UID : 0;
+        package_chat_message(formatted, type, m.message_id, group_uid);
     }
 }
 

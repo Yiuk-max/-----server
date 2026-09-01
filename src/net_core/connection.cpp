@@ -96,11 +96,14 @@ void connection::package_message(const std::string& message, const std::string& 
     send_json_packet(msg_json);
 }
 
-void connection::package_chat_message(const std::string& message, const std::string& type, int message_id) {
+void connection::package_chat_message(const std::string& message, const std::string& type, int message_id, int group_uid) {
     json msg_json;
     msg_json["type"]        = type;
     msg_json["content"]     = message;
     msg_json["message_id"]  = message_id;
+    if (group_uid > 0) {
+        msg_json["group_UID"] = group_uid; // 群聊消息携带群 UID，便于客户端归类
+    }
     send_json_packet(msg_json);
 }
 

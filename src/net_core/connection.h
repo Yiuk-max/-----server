@@ -49,7 +49,7 @@ public:
 
     // ---------- 供 client_session / 业务层调用 ----------
     void package_message(const std::string& message, const std::string& type); // 打包+入发送缓冲
-    void package_chat_message(const std::string& message, const std::string& type, int message_id); // 打包聊天消息（带数据库 message_id）
+    void package_chat_message(const std::string& message, const std::string& type, int message_id, int group_uid = 0); // 打包聊天消息（带数据库 message_id；群聊携带 group_UID）
     void send_file(const std::string& file_name);            // 下载文件（sender_）
     void upload_file(const json& meta, const std::string& data); // 上传文件（receiver_）
     bool has_session() const { return session_ != nullptr; }

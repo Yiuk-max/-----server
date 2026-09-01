@@ -75,6 +75,6 @@ public:
     //===============发送===============
 
     void package_message(const std::string& message,std::string type);      //打包信息并等待处理
-    void package_chat_message(const std::string& message,std::string type,int message_id); //打包聊天消息（带数据库 message_id）
+    void package_chat_message(const std::string& message,std::string type,int message_id,int group_uid = 0); //打包聊天消息（带数据库 message_id；群聊携带 group_UID）
 
 };
