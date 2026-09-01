@@ -389,3 +389,56 @@ interface 层怎么还留着account的空占位实现，看着只做了数据库
     - Groupmember 表加 name 列（群内名字/群名片，默认取用户昵称，可单独修改）
 - 客户端接口文档.txt 补充 4 个新消息类型（第 23~26 节）及群聊相关返回提示。
 - 项目说明文档.md 更新：删除模块说明、I_group_repo 接口清单、消息类型列表、已实现功能。
+
+=====================================================================================
+2026-09-01 修复：好友/群聊相关一致性 + 入群申请通知闭环
+- 修复好友申请同意后只有同意方能在好友列表看到对方：同意后同步更新申请方（若在线）的内存好友列表；
+  删除好友同理同步被删方（新增 social_module::add/remove_friend_to_list，client_session 侧同步）。
+- 修复群聊无法发言：group_repo::get_group_members 读取列名 member_uid → member_UID（Connector 列名大小写敏感）。
+- 入群申请闭环：
+    - send_join_group 后通知在线群主；
+    - handle_join_request 同意后通知申请人并同步其内存群列表（add_group_to_list），拒绝也通知；
+    - group_add_client 直接拉人时同步通知被拉入成员；
+    - 补 show_group_requests 进 I_group_repo 接口并接通消息分发。
+- 好友备注展示：I_friend_repo 新增 get_remark，show_friends 展示时优先显示备注名，否则昵称。
+
+2026-09-01 功能：昵称/密码允许重复（取消昵称唯一约束）
+- 登录/加好友/发消息均按 UID 定位，昵称不再唯一（密码本就允许重复）。
+- sql/create_table.sql 删除 Account.uk_nickname；新增迁移脚本 sql/allow_duplicate_nickname.sql
+  （ALTER TABLE Account DROP INDEX uk_nickname，需有 ALTER 权限账号执行）。
+- 同步更新 register_user / change_name 失败提示及 account_repo 注释。
+
+2026-09-01 功能：消息仓储完整实现（message_repo）
+- 补齐 I_message_repo / message_repo（此前为空占位）：
+    - store_message：INSERT 并取 LAST_INSERT_ID 返回 message_id
+    - delete_message：按 id 删除
+    - delete_expired_messages：删除超过 7 天消息（暂未接入）
+    - get_message：按 id 查单条
+    - get_offline_messages：按 since_time 查离线（私聊 + 所在群群聊，排除自己发的）
+    - get_chat_history：两人私聊历史（暂未接入）
+- RepositoryHub 补 message_repo 成员与 messages() 访问器。
+
+2026-09-01 功能：消息落库 + message_id + 删除/离线消息
+- 私聊/群聊发送前先 store_message 落库，转发 JSON 携带 message_id；
+  发送者收到 system 提示 "Message sent. Message ID: <id>."。
+- 新增 connection::package_chat_message / client_session::package_chat_message /
+  NoticeService::send_to_user(s)_with_id（带 message_id 的打包/广播）。
+- 删除消息 delete_message：仅发送者本人、发送后 3 分钟内；删除后通知在线接收方
+  （私聊通知对方；群聊通知除自己外的在线成员，type=delete_message）。
+- 离线消息：登录后自动拉取一次（按上次登录时间）+ 手动 refresh_offline_messages；
+  离线消息以 private_chat/Group_Chat 推送并带 message_id。
+- 超时删除（delete_expired_messages）与聊天历史（get_chat_history）暂不接入。
+
+2026-09-01 功能：群聊人数展示 + group_manager 生命周期缓存
+- group 增加 member_count_：load_group 统计 Groupmember 数量，create_group 置 1；
+  get_group_info 展示为 "群名(人数):群UID"。
+- 新增 net_core/group_manager.h/.cpp（单例，shared_mutex）：
+    - load/unload：引用计数管理；unload 计数归零才真正卸载
+    - get：内存优先，未命中自动查库返回（不缓存、不改计数）
+    - find_group：纯内存判断
+    - load_groups_for_user/unload_groups_for_user：用户上线/下线批量加/减计数
+    - remove_group：删群时强制移除
+- social_module 构造时 load 用户群聊、析构时 unload；create/入群/退群/被踢同步维护计数；
+  show_friends/group_chat/send_join_group/target_UID_is_exit 均优先 group_manager.get。
+- group_delete_client 踢人时同步被踢者内存群列表并通知。
+- 本次同步更新：客户端接口文档.txt / 项目说明文档.md / 数据库设计.txt。

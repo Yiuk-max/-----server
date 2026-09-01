@@ -9,17 +9,18 @@
 | 字段        | 类型             | 说明                         |
 | UID         | bigint unsigned | 主键，系统自增分配            |
 | password    | varchar(128)    | 密码（建议存 hash）           |
-| nickname    | varchar(64)     | 昵称，UNIQUE 唯一            |
+| nickname    | varchar(64)     | 昵称（允许重复）             |
 | settings    | json            | 可空，账号设置(主题/语言/通知开关)|
 | language    | varchar(16)     | 默认 'Chinese'               |
 | create_time | datetime        | 默认 CURRENT_TIMESTAMP       |
 | birthday    | date            | 可空                          |
 ------------------------------------------------------------
-主键 UID；唯一键 uk_nickname(nickname)
+主键 UID
 外键：无
 
 说明：
-- nickname 加 UNIQUE（支持后续按用户名检索/登录）
+- nickname 不再唯一：登录/加好友/发消息均按 UID 定位，昵称、密码都允许重复
+- 旧库需执行 sql/allow_duplicate_nickname.sql（ALTER TABLE Account DROP INDEX uk_nickname）
 - settings 为 JSON 列（承载 account.h 中的账号设置字段，应用层序列化）
 - birthday 允许 NULL
 
@@ -91,6 +92,10 @@ DB 事务双写参考：
 主键 group_UID
 外键：fk_group_owner(owner_UID->Account.UID)，ON DELETE CASCADE
 
+说明：
+- 群人数不单独存列：load_group 时用 SELECT COUNT(*) FROM Groupmember WHERE group_UID=? 统计，
+  展示聊天列表时格式为 群名(人数):群UID（对应 group::member_count_，仅展示用）
+
 ============================================================
 5. Groupmember 表（群成员）
 ------------------------------------------------------------
@@ -133,6 +138,10 @@ DB 事务双写参考：
 - 私聊只写一条 (sender, receiver)，查询两人会话：
       WHERE ((sender=:me AND receiver=:other) OR (sender=:other AND receiver=:me))
 - 群聊写一条 (sender, receiver=group_UID)
+- 离线消息：按 send_time 查询（send_time > 用户上次登录时间），私聊 receiver=本人，
+      群聊 receiver 在本人已加入的群中；由应用层 get_offline_messages 实现
+- 删除消息：仅发送者本人、发送后 3 分钟内可删（应用层校验，非 DB 约束）；
+      删除超时清理（超过 7 天）已实现 delete_expired_messages 但暂未接入
 - 注：按需求"补消息不补文件"，未做文件表
 
 ============================================================

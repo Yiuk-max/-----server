@@ -44,8 +44,8 @@ cd build
 server/
 ├── src/
 │   ├── main.cpp            # 入口：socket、主从 Reactor、线程池、初始化 MySQL 连接池
-│   ├── net_core/           # 网络核心层：epoller / client_session / message_handler / notice_service / receiver_sender / session_manager / server_config
-│   ├── logic/              # 业务逻辑层：account / group / social_module / UID 分配器等
+│   ├── net_core/           # 网络核心层：epoller / client_session / message_handler / notice_service / group_manager / receiver_sender / session_manager / server_config
+│   ├── logic/              # 业务逻辑层：account / group / social_module
 │   ├── db/                 # 数据库分层：mysql(连接池) / repo_interface(接口契约) / repo(MySQL 实现)
 │   └── utils/              # 线程池
 ├── include/total.h         # 基础设施公共头（不再是"万能头"）

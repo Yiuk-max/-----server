@@ -56,6 +56,9 @@
 | `handle_join_request` | 群组     | 处理入群申请（同意/拒绝）              |
 | `modify_member_role`  | 群组     | 修改群成员身份（提升/降级）            |
 | `show_group_members`  | 群组     | 查看群成员（含群内名字）               |
+| `show_group_requests` | 群组     | 查看群聊待处理的入群申请（仅群主）     |
+| `delete_message`      | 消息     | 删除消息（仅发送者本人、发送后 3 分钟内） |
+| `refresh_offline_messages` | 消息 | 手动刷新离线消息（自上次登录时间之后） |
 | `upload_file`         | 文件     | 上传文件（分块）                       |
 | `download_file`       | 文件     | 下载文件                               |
 
@@ -106,7 +109,7 @@
     "message": "你好呀！"
 }
 ```
-*   *注意*：服务器会校验目标 UID 是否存在及是否在线，收到后以 `[发送者名字]: 内容` 的格式转发给目标。
+*   *注意*：服务器会校验目标 UID 是否存在、在线且是否为好友，收到后以 `[发送者名字]: 内容` 的格式转发给目标，转发的 JSON 中会附带数据库消息 ID `message_id`；同时给发送者回一条 `system` 提示 `Message sent. Message ID: <id>.`，用于后续删除。
 
 ### 5. 群聊 (group_chat)
 *   **用途**：向指定群发消息，群内所有在线成员会收到以 `Group_Chat` 类型转发的消息。
@@ -118,6 +121,7 @@
     "message": "大家好！"
 }
 ```
+*   *注意*：转发的 `Group_Chat` JSON 中会附带数据库消息 ID `message_id`；同时给发送者回一条 `system` 提示 `Message sent. Message ID: <id>.`，用于后续删除。
 
 ### 6. 创建群聊 (create_group)
 *   **用途**：新建群，创建者自动成为群主（管理员），并加入自己的好友/群组列表。
@@ -262,7 +266,7 @@
     "new_name": "新昵称"
 }
 ```
-*   *注意*：昵称全局唯一（`uk_nickname`），新昵称为空或与现有用户重名时返回失败提示；成功后返回包含新昵称的系统提示。
+*   *注意*：昵称允许重复（唯一标识为 UID）；仅当新昵称为空时返回失败提示，成功后返回包含新昵称的系统提示。
 
 ### 18. 发送好友申请 (add_friend)
 *   **用途**：向指定 UID 发送好友申请（存于 `relation_apply`，apply_type=1，status=0 等待）。
@@ -362,6 +366,38 @@
 }
 ```
 
+### 27. 查看待处理入群申请 (show_group_requests)
+*   **用途**：群主查看指定群等待处理（status=0）的入群申请。
+*   **JSON 结构**：
+```json
+{
+    "type": "show_group_requests",
+    "group_UID": 2001
+}
+```
+*   *注意*：仅群主可查看；返回每行 `Requester UID: <申请人UID>, Message: <留言>`。
+
+### 28. 删除消息 (delete_message)
+*   **用途**：删除自己发送的消息。仅发送者本人、且发送后 3 分钟内可删；删除成功后服务器会通知在线的接收方。
+*   **JSON 结构**：
+```json
+{
+    "type": "delete_message",
+    "message_id": 123
+}
+```
+*   *注意*：`message_id` 来自发送私聊/群聊时服务器返回的 `system` 提示或转发消息中的 `message_id` 字段。
+
+### 29. 手动刷新离线消息 (refresh_offline_messages)
+*   **用途**：手动拉取自上次登录时间之后、发给自己的离线消息（私聊 + 所在群群聊）。
+*   **JSON 结构**：
+```json
+{
+    "type": "refresh_offline_messages"
+}
+```
+*   *注意*：登录成功后服务器也会自动拉取一次离线消息；离线消息同样以 `private_chat` / `Group_Chat` 类型推送，并附带 `message_id`。
+
 五、服务器返回格式（Server -> Client）
 --------------------------------------
 服务器返回的数据同样封装为二进制帧结构。其 JSON 部分包含 `type` 和 `content` 字段：
@@ -377,8 +413,11 @@
 | `system`              | 通用系统提示、登录/注册结果、错误提示等              | `Login successful. Welcome, 张三!` 等                  |
 | `private_chat`        | 收到私聊消息                                         | `[张三]: 你好呀！`                                     |
 | `Group_Chat`          | 收到群聊消息（注意大小写 `Group_Chat`）              | 群内消息内容                                            |
+| `delete_message`      | 消息被删除通知                                       | `content` 为空，通过 `message_id` 定位要移除的消息      |
 | `file_chunk`          | 服务器发送文件块（下载响应）                         | JSON 中包含 `file_id/filename/total_size/chunk_index/...` 元信息，文件数据在帧尾 |
 | `heartbeat_ack`       | 服务器对心跳包的应答（`content` 为 `pong`）          | `pong`                                                  |
+
+> 说明：`private_chat` / `Group_Chat`（含离线消息推送）的 JSON 中会额外携带 `message_id` 字段，表示该消息在数据库中的唯一 ID，可用于 `delete_message`。
 
 ### 常见系统提示文本
 | 触发场景                 | content 内容（示例）                                          |
@@ -398,7 +437,15 @@
 | **目标 UID 不存在**      | `UID [<UID>] does not exist.`                                 |
 | **目标不在线**           | `User [<UID>] is not online.`                                 |
 | **修改昵称成功**         | `Name updated successfully. Your new name is [<新昵称>].`      |
-| **修改昵称失败（重名/空）** | `Failed to update name (nickname may already exist).`         |
+| **修改昵称失败（空）**   | `Failed to update name (database unavailable).`               |
+| **私聊发送成功（回传消息ID）** | `Message sent. Message ID: <id>.`                           |
+| **删除消息成功**         | `Message [<id>] deleted.`                                     |
+| **删除消息失败（不存在）** | `Message [<id>] does not exist.`                             |
+| **删除消息失败（非本人）** | `You can only delete your own messages.`                      |
+| **删除消息失败（超时）** | `Messages can only be deleted within 3 minutes of sending.`   |
+| **刷新离线消息完成**     | `Offline messages refreshed.`                                 |
+| **被拉入群通知**         | `You have been added to group [<群UID>].`                     |
+| **被踢出群通知**         | `You have been removed from group [<群UID>].`                 |
 | **设置备注成功**         | `Remark for UID [<UID>] updated successfully.`                |
 | **设置备注失败（非好友）** | `UID [<UID>] is not your friend.`                             |
 | **群名称为空**           | `The group name can't be empty`                               |
@@ -425,14 +472,14 @@
 六、聊天列表返回格式（show）
 ----------------------------
 `show` 请求的返回同样以 `system` 类型、`content` 纯文本形式返回。格式为**每行一条记录**，行内格式为 `名称:UID`：
-*   好友记录：`<用户名>:<6位补齐的UID>`，例如 `张三:001001`
-*   群组记录：`<群名>:<6位补齐的UID>`，例如 `我的新群聊:002001`
+*   好友记录：`<用户名>:<6位补齐的UID>`，例如 `张三:001001`；若设置了备注名则显示备注名。
+*   群组记录：`<群名>(人数):<6位补齐的UID>`，例如 `我的新群聊(3):002001`。
 
 示例：
 ```
 张三:001001
 李四:001002
-我的新群聊:002001
+我的新群聊(3):002001
 ```
 
 七、完整交互流程示例
