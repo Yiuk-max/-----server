@@ -14,6 +14,15 @@ void Chat_handler::handle_message(const json& message,client_session& session,st
         session.group_chat(target_UID, msg);
         return;
     }
+    else if(type == "delete_message"){
+        int message_id = message["message_id"];
+        session.delete_message(message_id);
+        return;
+    }
+    else if(type == "refresh_offline_messages"){
+        session.refresh_offline_messages();
+        return;
+    }
     else if(type == "add_friend"){
         int target_UID = message["target_UID"];
         std::string apply_message = message["apply_message"];

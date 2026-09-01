@@ -23,6 +23,10 @@ public:
     // 向多个用户 UID 广播同一条消息（忽略不在线的用户）
     void send_to_users(const std::vector<int>& uid_list, const std::string& message, const std::string& type);
 
+    // 同上，但发送的聊天消息会带上数据库 message_id（供客户端定位/删除）
+    void send_to_user_with_id(int uid, const std::string& message, const std::string& type, int message_id);
+    void send_to_users_with_id(const std::vector<int>& uid_list, const std::string& message, const std::string& type, int message_id);
+
     // 查询某 UID 当前是否在线
     bool is_online(int uid);
 

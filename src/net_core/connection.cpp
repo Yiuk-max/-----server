@@ -73,11 +73,8 @@ Standard_Message connection::next_frame() {
 }
 
 // ---------- 供 client_session / 业务层调用 ----------
-void connection::package_message(const std::string& message, const std::string& type) {
+void connection::send_json_packet(const json& msg_json) {
     // 统一协议: |4字节总长度|4字节JSON长度|JSON|file|
-    json msg_json;
-    msg_json["type"]    = type;
-    msg_json["content"] = message;
     std::string json_str = msg_json.dump();
 
     uint32_t json_len  = htonl(json_str.size());
@@ -90,6 +87,21 @@ void connection::package_message(const std::string& message, const std::string& 
     packet += json_str;
 
     sender_->add_to_out_buffer(packet);
+}
+
+void connection::package_message(const std::string& message, const std::string& type) {
+    json msg_json;
+    msg_json["type"]    = type;
+    msg_json["content"] = message;
+    send_json_packet(msg_json);
+}
+
+void connection::package_chat_message(const std::string& message, const std::string& type, int message_id) {
+    json msg_json;
+    msg_json["type"]        = type;
+    msg_json["content"]     = message;
+    msg_json["message_id"]  = message_id;
+    send_json_packet(msg_json);
 }
 
 void connection::send_file(const std::string& file_name) {

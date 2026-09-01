@@ -64,6 +64,7 @@ std::shared_ptr<group> group_repo::create_group(int owner_uid, const std::string
         member_pstmt->execute();
         
         auto grp = std::make_shared<group>(owner_uid, group_name, group_id);
+        grp->set_member_count(1); // 刚建群只有群主一人
         return grp;
     } catch (const sql::SQLException& e) {
         std::cerr << "[group_repo] create_group failed: " << e.what()
@@ -157,6 +158,17 @@ std::shared_ptr<group> group_repo::load_group(int group_uid) {
         auto grp = std::make_shared<group>(rs->getInt("owner_UID"),
                                            rs->getString("name"),
                                            rs->getInt("group_UID"));
+        // 统计当前群成员数量，填入内存对象
+        {
+            std::unique_ptr<sql::PreparedStatement> cnt_pstmt(
+                guard.get()->prepareStatement(
+                    "SELECT COUNT(*) FROM Groupmember WHERE group_UID = ?"));
+            cnt_pstmt->setInt(1, group_uid);
+            std::unique_ptr<sql::ResultSet> cnt_rs(cnt_pstmt->executeQuery());
+            if (cnt_rs->next()) {
+                grp->set_member_count(cnt_rs->getInt(1));
+            }
+        }
         return grp;
     } catch (const sql::SQLException& e) {
         std::cerr << "[group_repo] load_group failed: " << e.what()

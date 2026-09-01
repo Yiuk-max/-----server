@@ -6,6 +6,7 @@
 #include "social_module.h"
 #include "notice_service.h"
 #include <ctime>
+#include <cstdio>
 
 
 extern bool running;
@@ -33,6 +34,8 @@ void client_session::init_(){
     //初始化消息处理器，后续可以根据需要添加更多类型的消息处理器
     handlers_["private_chat"]           = std::make_unique<Chat_handler>();// 聊天消息.私聊
     handlers_["group_chat"]             = std::make_unique<Chat_handler>();// 聊天消息.群聊
+    handlers_["delete_message"]         = std::make_unique<Chat_handler>();// 删除消息
+    handlers_["refresh_offline_messages"] = std::make_unique<Chat_handler>();// 手动刷新离线消息
     handlers_["add_friend"]             = std::make_unique<Chat_handler>();// 好友申请
     handlers_["set_friend_remark"]      = std::make_unique<Chat_handler>();// 给好友设置备注名
     handlers_["accept_friend"]          = std::make_unique<Chat_handler>();// 同意好友申请
@@ -131,16 +134,8 @@ void client_session::login(int UID,std::string password){
     }
     current_account_ = account;//init 账户
 
-    // 更新"上次登录时间"（存入 Account.settings JSON），登录时更新一次并落库
-    {
-        char time_buf[32];
-        std::time_t now = std::time(nullptr);
-        std::tm tmv{};
-        localtime_r(&now, &tmv);
-        std::strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", &tmv);
-        account->set_last_login_time(time_buf);
-        repo_hub_->accounts()->update_account(account);
-    }
+    // 记录上一次登录时间（用于查询离线消息：自上次登录之后未收到的消息）
+    std::string last_login_time = account->get_last_login_time();
 
     social_manager_ = std::make_shared<social_module>(UID, repo_hub_);//init 社交模块（登录时创建，随会话生命周期持有）
 
@@ -163,6 +158,20 @@ void client_session::login(int UID,std::string password){
     package_message(success,"system");
     show_friend_requests(); // 登录后自动查看待处理的好友申请
     // 登录后自动查看待处理的群聊入群申请（若有权限）todo
+
+    // 登录后自动获取一次离线消息（自上次登录时间之后）
+    send_offline_messages(last_login_time);
+
+    // 更新"上次登录时间"（存入 Account.settings JSON），供下次登录查询离线消息
+    {
+        char time_buf[32];
+        std::time_t now = std::time(nullptr);
+        std::tm tmv{};
+        localtime_r(&now, &tmv);
+        std::strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", &tmv);
+        account->set_last_login_time(time_buf);
+        repo_hub_->accounts()->update_account(account);
+    }
 }
 // 被顶下线：通知 + 立即发送后关闭本连接；sub_reactor 会收到断开事件后回收 connection 与会话
 void client_session::kick_offline(){
@@ -234,10 +243,18 @@ void client_session::group_chat(int target_UID,std::string message){
         package_message(fail, "system");
         return;
     }
-    // 从数据库拉取群成员列表，经全局通知服务广播（自动忽略不在线成员）
+    // 先存储消息，取回数据库分配的 message_id
+    int msg_id = repo_hub_->messages()->store_message(current_account_->getUID(), target_UID, message, true);
+    // 从数据库拉取群成员列表，经全局通知服务广播（自动忽略不在线成员），并携带 message_id
     auto members = repo_hub_->groups()->get_group_members(target_UID);
     std::string formatted_msg = "[" + current_account_->getName() + "]: " + message;
-    NoticeService::get_instance().send_to_users(members, formatted_msg, "Group_Chat");
+    if (msg_id > 0) {
+        NoticeService::get_instance().send_to_users_with_id(members, formatted_msg, "Group_Chat", msg_id);
+        // 告知发送者消息 id，便于 3 分钟内删除
+        package_message("Message sent. Message ID: " + std::to_string(msg_id) + ".\n", "system");
+    } else {
+        NoticeService::get_instance().send_to_users(members, formatted_msg, "Group_Chat");
+    }
 }
 
 void client_session::private_chat(int target_UID, std::string message) {
@@ -269,8 +286,16 @@ void client_session::private_chat(int target_UID, std::string message) {
         package_message("Target user session not found.\n", "system");
         return;
     }
+    // 先存储消息，取回数据库分配的 message_id
+    int msg_id = repo_hub_->messages()->store_message(current_account_->getUID(), target_UID, message, false);
     std::string formatted_msg = "[" + current_account_->getName() + "]: " + message;
-    target_session->package_message(formatted_msg, "private_chat");
+    if (msg_id > 0) {
+        target_session->package_chat_message(formatted_msg, "private_chat", msg_id);
+        // 告知发送者消息 id，便于 3 分钟内删除
+        package_message("Message sent. Message ID: " + std::to_string(msg_id) + ".\n", "system");
+    } else {
+        target_session->package_message(formatted_msg, "private_chat");
+    }
 }
 
 void client_session::send_friend_request(int target_UID, std::string apply_message){
@@ -569,6 +594,95 @@ void client_session::package_message(const std::string& message,std::string type
     // 方案 3b 重拆：打包序列化在 connection，会话只做转发（conn_ 为弱引用，连接存活则发送成功）
     if (auto c = conn_.lock()) {
         c->package_message(message, type);
+    }
+}
+
+void client_session::package_chat_message(const std::string& message, std::string type, int message_id){
+    if (auto c = conn_.lock()) {
+        c->package_chat_message(message, type, message_id);
+    }
+}
+
+// 解析 MySQL DATETIME "YYYY-MM-DD HH:MM:SS" 为 time_t；失败返回 0
+static std::time_t parse_datetime(const std::string& s) {
+    std::tm tmv{};
+    if (s.size() < 19) return 0;
+    if (std::sscanf(s.c_str(), "%d-%d-%d %d:%d:%d",
+                    &tmv.tm_year, &tmv.tm_mon, &tmv.tm_mday,
+                    &tmv.tm_hour, &tmv.tm_min, &tmv.tm_sec) != 6) {
+        return 0;
+    }
+    tmv.tm_year -= 1900;
+    tmv.tm_mon  -= 1;
+    return std::mktime(&tmv);
+}
+
+// 删除消息：仅发送者本人可在发送后 3 分钟内删除；删除后通知在线接收方
+void client_session::delete_message(int message_id){
+    if (!current_account_) {
+        package_message("You must be logged in to delete messages.\n", "system");
+        return;
+    }
+    message msg;
+    if (!repo_hub_->messages()->get_message(message_id, msg)) {
+        std::string fail = "Message [" + std::to_string(message_id) + "] does not exist.\n";
+        package_message(fail, "system");
+        return;
+    }
+    if (msg.sender_UID != current_account_->getUID()) {
+        package_message("You can only delete your own messages.\n", "system");
+        return;
+    }
+    std::time_t send_t = parse_datetime(msg.timestamp);
+    std::time_t now = std::time(nullptr);
+    if (send_t == 0 || now - send_t > 180) {
+        package_message("Messages can only be deleted within 3 minutes of sending.\n", "system");
+        return;
+    }
+    if (!repo_hub_->messages()->delete_message(message_id)) {
+        std::string fail = "Failed to delete message [" + std::to_string(message_id) + "].\n";
+        package_message(fail, "system");
+        return;
+    }
+    std::string success = "Message [" + std::to_string(message_id) + "] deleted.\n";
+    package_message(success, "system");
+
+    // 通知在线且会收到该消息的人
+    if (msg.is_group) {
+        auto members = repo_hub_->groups()->get_group_members(msg.receiver_UID);
+        for (int uid : members) {
+            if (uid == current_account_->getUID()) continue; // 跳过删除者自己
+            NoticeService::get_instance().send_to_user_with_id(uid, "", "delete_message", message_id);
+        }
+    } else {
+        NoticeService::get_instance().send_to_user_with_id(msg.receiver_UID, "", "delete_message", message_id);
+    }
+}
+
+// 手动刷新离线消息（自本次登录时间之后）
+void client_session::refresh_offline_messages(){
+    if (!current_account_) {
+        package_message("You must be logged in to refresh offline messages.\n", "system");
+        return;
+    }
+    send_offline_messages(current_account_->get_last_login_time());
+    package_message("Offline messages refreshed.\n", "system");
+}
+
+// 查询并推送自 since_time 之后的离线消息（私聊/群聊）
+void client_session::send_offline_messages(const std::string& since_time){
+    if (!current_account_) return;
+    int uid = current_account_->getUID();
+    auto msgs = repo_hub_->messages()->get_offline_messages(uid, since_time);
+    for (const auto& m : msgs) {
+        std::string sender_name = std::to_string(m.sender_UID);
+        auto sender = repo_hub_->accounts()->load_account(m.sender_UID);
+        if (sender) {
+            sender_name = sender->getName();
+        }
+        std::string formatted = "[" + sender_name + "]: " + m.content;
+        std::string type = m.is_group ? "Group_Chat" : "private_chat";
+        package_chat_message(formatted, type, m.message_id);
     }
 }
 

@@ -140,22 +140,9 @@ UID 分配与重启重定位（重要）
 ------------------------------------------------------------
 现 C++ 侧用内存单例 UID_allocator 自增分配 UID/group_id。
 引入 MySQL 后：
-
-【方案A - 推荐，改造成本低】
-  Account.UID 与 Group.group_UID 已设为 AUTO_INCREMENT，
-  应用启动时(连上DB后、开始 accept 前)执行：
-      SELECT COALESCE(MAX(UID),0)+1       FROM Account;  -- 回填 uid 分配起点
-      SELECT COALESCE(MAX(group_UID),0)+1 FROM `Group`;  -- 回填 group 分配起点
-  用结果重定位 UID_allocator::current_uid / current_group_id，
-  之后仍用内存分配器快速分配，避免每次落库取 MAX 的性能开销。
-
-【方案B - 彻底弃用内存分配器】
+【彻底弃用内存分配器】
   插入前直接让 DB 生成 AUTO_INCREMENT 主键，再经 LAST_INSERT_ID() 取回。
   每注册/建群一次 DB round trip。
-
-建议：注册/登录/建群为低频操作，方案B最简单可靠；
-      若想保持现有分配器设计，则用方案A在启动时重定位。
-
 ============================================================
 关于"用户 UID 与群 group_UID 共用同一套编号空间"
 ------------------------------------------------------------

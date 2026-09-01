@@ -36,14 +36,16 @@ public:
     std::shared_ptr<I_group_repo> groups() const { return group_repo_; }
     // 允许运行时替换实现（便于测试注入 mock / 未来切换数据源），业务层默认无需调用
     void set_group_repo(std::shared_ptr<I_group_repo> repo) { group_repo_ = std::move(repo); }
-    // ---- 未来仓储（接口定义就绪后在此扩展，方法同账户）----    
-    // std::shared_ptr<I_message_repo> messages() const { return message_repo_; }
-    // void set_message_repo(std::shared_ptr<I_message_repo> repo) { message_repo_ = std::move(repo); }
+
+    // 消息仓储（接口），默认已装配 repo 层真实 MySQL 实现（见 repository_hub.cpp）
+    std::shared_ptr<I_message_repo> messages() const { return message_repo_; }
+    // 允许运行时替换实现（便于测试注入 mock / 未来切换数据源），业务层默认无需调用
+    void set_message_repo(std::shared_ptr<I_message_repo> repo) { message_repo_ = std::move(repo); }
 
 private:
     std::shared_ptr<I_account_repo> account_repo_;          // 账户仓储（构造时装配真实 MySQL 实现）
     std::shared_ptr<I_friend_repo>  friend_repo_;           // 好友仓储（构造时装配真实 MySQL 实现）
-    std::shared_ptr<I_group_repo>    group_repo_;
-    // std::shared_ptr<I_message_repo>  message_repo_;
+    std::shared_ptr<I_group_repo>    group_repo_;           // 群聊仓储（构造时装配真实 MySQL 实现）
+    std::shared_ptr<I_message_repo>  message_repo_;         // 消息仓储（构造时装配真实 MySQL 实现）
 };
 

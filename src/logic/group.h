@@ -18,12 +18,13 @@ class group{
         std::string group_name_;    // name：群名称
         int UID;                    // group_UID：群唯一标识（系统自增分配）
         std::string str_UID;        // 补零字符串形式，便于展示
+        int member_count_;            // 群成员数量（仅展示用，非实时统计）
 
     public:
-        group() : manager_UID_(-1), UID(-1) {}
+        group() : manager_UID_(-1), UID(-1), member_count_(0) {}
         // 由 repo 层创建：从数据库读取/写入的群数据填充本对象
         group(int manager, std::string name, int UID_)
-            : manager_UID_(manager), group_name_(name), UID(UID_) {
+            : manager_UID_(manager), group_name_(name), UID(UID_), member_count_(0) {
             // UID 由数据库 AUTO_INCREMENT 分配，这里只做展示用补零，不再依赖内存分配器
             str_UID = std::to_string(UID_);
         }
@@ -31,6 +32,8 @@ class group{
         int getUID() const { return UID; }
         int get_manager_UID() const { return manager_UID_; }
         std::string get_group_name() const { return group_name_; }
-
-        std::string get_group_info();   // 展示用：群名:群UID
+        int get_member_count() const { return member_count_; }
+        void set_member_count(int n) { member_count_ = n; }   // 由 repo 在 load_group/create_group 时填入
+        void add_member_count() { member_count_ ++; }
+        std::string get_group_info();   // 展示用：群名(人数):群UID
 };

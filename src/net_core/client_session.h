@@ -15,6 +15,7 @@ private:
     std::shared_ptr<account> current_account_;                  // 当前用户的账户信息（会话模块，登录时经 repo 加载）
     std::shared_ptr<social_module> social_manager_;             // 自己的社交关系模块（登录时创建，随会话生命周期）
     std::shared_ptr<RepositoryHub> repo_hub_ = std::make_shared<RepositoryHub>(); // 仓储门面（构造时装配真实 MySQL repo，业务层经 accounts() 调用）
+    void send_offline_messages(const std::string& since_time);  // 查询并推送自 since_time 之后的离线消息
     //===============收发模块（方案 3b 重拆：connection 彻底独立，此处仅存弱引用回指）===============
 public:
     std::weak_ptr<connection> conn_;                            // 非拥有弱引用回指 connection；生命周期由 sub_reactor 持有
@@ -46,6 +47,8 @@ public:
     //聊天
     void private_chat(int target_UID,std::string message);                  //私聊    
     void group_chat(int target_UID,std::string message);                    //群聊——发言
+    void delete_message(int message_id);                                    //删除消息（仅限发送后3分钟内，通知在线接收方）
+    void refresh_offline_messages();                                        //手动刷新离线消息
     //好友相关
     void send_friend_request(int target_UID,std::string apply_message);     //添加好友(通过social_manager_)
     void set_friend_remark(int friend_UID,std::string remark);              //给好友设置备注名
@@ -71,5 +74,6 @@ public:
     //===============发送===============
 
     void package_message(const std::string& message,std::string type);      //打包信息并等待处理
+    void package_chat_message(const std::string& message,std::string type,int message_id); //打包聊天消息（带数据库 message_id）
 
 };
