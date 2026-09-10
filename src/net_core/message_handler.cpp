@@ -150,15 +150,14 @@ void Base_handler::handle_message(const json& message,client_session& session,st
 void File_handler::handle_message(const json& message,client_session& session,std::string &file_data){
     std::string type = message["type"];
     if(type == "upload_file") {
-        // 这里的content是文件数据，实际应用中可能还需要文件路径等信息
-        std::string file_data = message["file_data"];
-        json meta = message["meta"]; // 包含文件名、大小等元信息
-        session.conn().upload_file(meta, file_data);
+        // 文件二进制内容由传输层切帧后通过 file_data 参数传入。
+        json meta = message["meta"];
+        session.upload_file(meta, file_data);
         return;
     }
      else if(type == "download_file"){
         std::string file_name = message["file_name"];
-        session.conn().send_file(file_name);
+        session.download_file(file_name);
         return;
     }
 }

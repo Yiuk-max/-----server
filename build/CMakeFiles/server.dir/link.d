@@ -6,6 +6,7 @@ server: \
   CMakeFiles/server.dir/src/net_core/client_session.cpp.o \
   CMakeFiles/server.dir/src/net_core/connection.cpp.o \
   CMakeFiles/server.dir/src/net_core/epoller.cpp.o \
+  CMakeFiles/server.dir/src/net_core/group_manager.cpp.o \
   CMakeFiles/server.dir/src/net_core/message_handler.cpp.o \
   CMakeFiles/server.dir/src/net_core/notice_service.cpp.o \
   CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o \
@@ -68,6 +69,8 @@ CMakeFiles/server.dir/src/net_core/client_session.cpp.o:
 CMakeFiles/server.dir/src/net_core/connection.cpp.o:
 
 CMakeFiles/server.dir/src/net_core/epoller.cpp.o:
+
+CMakeFiles/server.dir/src/net_core/group_manager.cpp.o:
 
 CMakeFiles/server.dir/src/net_core/message_handler.cpp.o:
 

@@ -18,7 +18,10 @@ class session_manager{
             static session_manager instance;
             return instance;
         }
-        void add_session(int UID, std::shared_ptr<client_session> session);
-        void remove_session(int UID);
+        // 在线表只保存已经登录的 UID。替换时返回旧会话，调用方在锁外执行顶号。
+        std::shared_ptr<client_session> replace_online(
+            int UID, std::shared_ptr<client_session> session);
+        // 仅当 UID 仍指向 expected 时删除，避免旧连接的迟到断线清掉新登录。
+        void remove_online_if_same(int UID, const client_session* expected);
         std::shared_ptr<client_session> find_session(int UID);
 };

@@ -33,22 +33,34 @@ void main_reactor::add_connect()
 }
 void sub_reactor::add_connect(int new_client_fd)
 {
-    struct epoll_event event;
     fcntl(new_client_fd, F_SETFL, O_NONBLOCK);
-    event.events = EPOLLIN | EPOLLET;
-    event.data.fd = new_client_fd;
-    epoll_ctl(epoller_fd_, EPOLL_CTL_ADD, new_client_fd, &event);
 
-    // 方案 3b 重拆：创建独立的 connection（纯网络收发），并为其创建并绑定业务会话。
     auto conn = std::make_shared<connection>(epoller_fd_, new_client_fd);
     auto session = std::make_shared<client_session>();
-    session->set_connection(conn);         // 会话用弱引用回指 connection
-    conn->attach_session(session);         // connection 持有会话（决定其生命周期）
-    {
-        std::lock_guard<std::mutex> lock(client_mutex);
-        set_connection(new_client_fd, conn);
-        session_manager::get_instance().add_session(new_client_fd, session);
+    session->set_transport(conn);           // 会话只依赖抽象传输端口
+    conn->attach_session(session);          // connection 持有会话（决定其生命周期）
+
+    std::weak_ptr<sub_reactor> weak_self = shared_from_this();
+    conn->set_close_callback([weak_self](int fd) {
+        if (auto self = weak_self.lock()) {
+            self->remove_client(fd);
+        }
+    });
+
+    // 必须先入 map 再注册 epoll：ET 模式下若数据在 epoll_ctl(ADD) 后、入 map 前到达，
+    // 事件会先触发但 get_connection(fd) 返回空，边沿被丢弃导致首包无响应。
+    set_connection(new_client_fd, conn);
+
+    struct epoll_event event{};
+    event.events = EPOLLIN | EPOLLRDHUP | EPOLLET;
+    event.data.fd = new_client_fd;
+    if (epoll_ctl(epoller_fd_, EPOLL_CTL_ADD, new_client_fd, &event) == -1) {
+        erase_connection(new_client_fd);
+        conn->set_close_callback({});
+        conn->close(CloseMode::immediate);
+        return;
     }
+    // 未登录连接不进入全局 session_manager；登录成功后才按 UID 登记。
 }
 void main_reactor::loop()
 {
@@ -89,10 +101,21 @@ void sub_reactor::pool_add_task(std::string received_data, int fd)
 }
 void sub_reactor::remove_client(int fd)
 {
+    std::shared_ptr<connection> conn;
+    {
+        std::lock_guard<std::mutex> lock(client_mutex);
+        auto it = connections_by_fd.find(fd);
+        if (it == connections_by_fd.end()) {
+            return;
+        }
+        conn = it->second;
+        connections_by_fd.erase(it);
+    }
+
     epoll_ctl(epoller_fd_, EPOLL_CTL_DEL, fd, nullptr);
-    std::lock_guard<std::mutex> lock(client_mutex);
-    erase_connection(fd);
-    session_manager::get_instance().remove_session(fd);
+    // 先清掉回调再关闭，避免 remove_client -> close -> callback -> remove_client 重入。
+    conn->set_close_callback({});
+    conn->close(CloseMode::immediate);
 }
 std::string sub_reactor::read_data(bool &disconnected, int &fd)
 {
@@ -139,11 +162,19 @@ void sub_reactor::loop()
             auto conn = get_connection(fd);
             if (!conn)
                 continue; // 连接可能已经被关闭了
+            if (events[i].events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
+                remove_client(fd);
+                continue;
+            }
             // ===================处理EPOLLOUT事件====================
             if (events[i].events & EPOLLOUT)
             {
                 conn->handle_write();
-                continue; // 处理完写事件后继续下一轮循环
+                // handle_write 可能触发关闭并移除本连接；重新确认，避免用已关闭
+                // （可能被新连接复用的）fd 继续读，也避免漏掉同事件的 EPOLLIN。
+                conn = get_connection(fd);
+                if (!conn)
+                    continue;
             }
             //===============================================
             if (!(events[i].events & EPOLLIN))

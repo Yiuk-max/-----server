@@ -15,12 +15,12 @@ void sender::add_to_out_buffer(const std::string &message)
         epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, client_fd_, &event);
     }
 }
-void sender::send_msg()
+bool sender::send_msg()
 {
     std::lock_guard<std::mutex> lock(out_mtx);
     while (!out_buffer.empty())
     {
-        ssize_t bytes_sent = send(client_fd_, out_buffer.c_str(), out_buffer.size(), 0);
+        ssize_t bytes_sent = send(client_fd_, out_buffer.c_str(), out_buffer.size(), MSG_NOSIGNAL);
         if (bytes_sent > 0)
         {
             out_buffer.erase(0, bytes_sent); // 移除已发送的部分
@@ -32,19 +32,25 @@ void sender::send_msg()
         }
         else
         {
-            // 发生错误，可能需要关闭连接
-            // close_connection();
+            // 连接错误由 reactor 的后续事件/关闭流程统一清理。
             break;
         }
     }
     if (out_buffer.empty())
     {
         // 发送完毕，取消写事件的注册
-        struct epoll_event event;
+        struct epoll_event event{};
         event.data.fd = client_fd_;
         event.events = EPOLLIN | EPOLLET; // 只保留读事件
         epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, client_fd_, &event);
     }
+    return out_buffer.empty();
+}
+
+bool sender::empty()
+{
+    std::lock_guard<std::mutex> lock(out_mtx);
+    return out_buffer.empty();
 }
 void sender::send_file(const std::string &file_name)
 {
@@ -106,53 +112,48 @@ void sender::process_file_data(json &msg_json, std::string &data)
 Standard_Message receiver::process_recv_data(std::string raw_message)
 {
     Standard_Message result;
-    
-    // 需要包头：4字节包头总长度 + 4字节JSON长度
+    constexpr uint32_t MAX_FRAME_SIZE = 16 * 1024 * 1024;
+
+    // total_len 表示整个帧长度：8 字节包头 + JSON + 可选文件数据。
     while (in_buffer.size() >= 8)
     {
-        // 解析1：包头总长度
         uint32_t net_total_len;
-        std::memcpy(&net_total_len, in_buffer.c_str(), sizeof(net_total_len));
+        std::memcpy(&net_total_len, in_buffer.data(), sizeof(net_total_len));
         uint32_t total_len = ntohl(net_total_len);
-        
-        if (in_buffer.size() < 4 + total_len)
+
+        // 非法长度无法可靠寻找下一帧边界，清空缓冲并等待连接关闭/新数据。
+        if (total_len < 8 || total_len > MAX_FRAME_SIZE)
         {
-            // 包体未完全接收，等待更多数据
-            break;
+            in_buffer.clear();
+            return result;
         }
-        
-        // 解析2：JSON长度
+        if (in_buffer.size() < total_len)
+        {
+            return result; // 半包，等待更多数据
+        }
+
         uint32_t net_json_len;
-        std::memcpy(&net_json_len, in_buffer.c_str() + 4, sizeof(net_json_len));
+        std::memcpy(&net_json_len, in_buffer.data() + 4, sizeof(net_json_len));
         uint32_t json_len = ntohl(net_json_len);
-        
-        // 验证长度合法性
-        if (json_len > total_len - 4)
+        if (json_len > total_len - 8)
         {
-            // 数据错误，跳过这个包
-            in_buffer.erase(0, 4 + total_len);
-            break;
+            in_buffer.erase(0, total_len);
+            return result;
         }
-        
-        // 提取JSON部分
+
         result.json_part = in_buffer.substr(8, json_len);
-        
-        // 提取文件部分 (如果有)
-        uint32_t file_len = total_len - 4 - json_len;
+        uint32_t file_len = total_len - 8 - json_len;
         if (file_len > 0)
         {
             result.file_part = in_buffer.substr(8 + json_len, file_len);
         }
-        
+
         result.is_valid = true;
-        
-        // 移除已处理的部分
-        in_buffer.erase(0, 4 + total_len);
-        
+        in_buffer.erase(0, total_len);
         return result;
     }
-    
-    return result; // is_valid = false
+
+    return result;
 }
 void receiver::upload_file(const json &meta, const std::string &data)
 {

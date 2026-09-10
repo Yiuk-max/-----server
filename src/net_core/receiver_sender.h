@@ -35,7 +35,8 @@ public:
     void add_to_out_buffer(const std::string& message);
     void process_file_data(json &msg_json, std::string &data);
     void send_file(const std::string& file_name);
-    void send_msg();
+    bool send_msg();                    // 返回发送缓冲是否已清空
+    bool empty();
 };
 
 

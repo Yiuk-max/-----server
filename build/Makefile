@@ -441,6 +441,30 @@ src/net_core/epoller.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core/epoller.cpp.s
 .PHONY : src/net_core/epoller.cpp.s
 
+src/net_core/group_manager.o: src/net_core/group_manager.cpp.o
+.PHONY : src/net_core/group_manager.o
+
+# target to build an object file
+src/net_core/group_manager.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core/group_manager.cpp.o
+.PHONY : src/net_core/group_manager.cpp.o
+
+src/net_core/group_manager.i: src/net_core/group_manager.cpp.i
+.PHONY : src/net_core/group_manager.i
+
+# target to preprocess a source file
+src/net_core/group_manager.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core/group_manager.cpp.i
+.PHONY : src/net_core/group_manager.cpp.i
+
+src/net_core/group_manager.s: src/net_core/group_manager.cpp.s
+.PHONY : src/net_core/group_manager.s
+
+# target to generate assembly for a file
+src/net_core/group_manager.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core/group_manager.cpp.s
+.PHONY : src/net_core/group_manager.cpp.s
+
 src/net_core/message_handler.o: src/net_core/message_handler.cpp.o
 .PHONY : src/net_core/message_handler.o
 
@@ -633,6 +657,9 @@ help:
 	@echo "... src/net_core/epoller.o"
 	@echo "... src/net_core/epoller.i"
 	@echo "... src/net_core/epoller.s"
+	@echo "... src/net_core/group_manager.o"
+	@echo "... src/net_core/group_manager.i"
+	@echo "... src/net_core/group_manager.s"
 	@echo "... src/net_core/message_handler.o"
 	@echo "... src/net_core/message_handler.i"
 	@echo "... src/net_core/message_handler.s"

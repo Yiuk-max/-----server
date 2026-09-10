@@ -26,6 +26,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/server.dir/src/net_core/connection.cpp.o.d"
   "CMakeFiles/server.dir/src/net_core/epoller.cpp.o"
   "CMakeFiles/server.dir/src/net_core/epoller.cpp.o.d"
+  "CMakeFiles/server.dir/src/net_core/group_manager.cpp.o"
+  "CMakeFiles/server.dir/src/net_core/group_manager.cpp.o.d"
   "CMakeFiles/server.dir/src/net_core/message_handler.cpp.o"
   "CMakeFiles/server.dir/src/net_core/message_handler.cpp.o.d"
   "CMakeFiles/server.dir/src/net_core/notice_service.cpp.o"

@@ -12,23 +12,37 @@
 
 extern bool running;
 
-// 方案 3b 重拆：client_session 不再构造/持有 connection（由 sub_reactor 创建并绑定）。
-// 客户端连接在 sub_reactor::add_connect 中创建 connection 与 client_session，
-// 再通过 set_connection() 把会话和 connection 绑定起来。
+// client_session 只依赖传输端口；TCP connection（以及后续 WsSession）负责具体协议。
+void client_session::set_transport(const std::shared_ptr<IClientTransport>& transport){
+    transport_ = transport;
+}
 
-void client_session::set_connection(const std::shared_ptr<connection>& c){
-    conn_ = c;   // 存弱引用，避免与 connection 持有的 shared_ptr<client_session> 形成环
-    // 未登录时 session_key_ 以连接 fd 作为 session_manager 的 key（登录后切换为 UID）
-    if (session_key_ < 0) {
-        session_key_ = c->fd();
+void client_session::on_disconnected(){
+    int uid = -1;
+    {
+        std::lock_guard<std::mutex> lock(lifecycle_mtx_);
+        if (!online && logged_in_uid_ < 0) {
+            return;
+        }
+        online = false;
+        uid = logged_in_uid_;
+        logged_in_uid_ = -1;
+    }
+    session_manager::get_instance().remove_online_if_same(uid, this);
+    // account/social 保留到正在执行的业务任务结束并随会话析构，避免断线清理
+    // 与该任务并发 reset 同一 shared_ptr；在线表已经在上面及时移除。
+}
+
+void client_session::upload_file(const json& meta, const std::string& file_data){
+    if (auto transport = transport_.lock()) {
+        transport->accept_file_chunk(meta, file_data);
     }
 }
 
-connection& client_session::conn(){
-    // 仅在本连接的消息处理（process_incoming 任务）期间调用：此时任务持有 connection，
-    // 弱引用锁定的共享所有权必成功。
-    auto c = conn_.lock();
-    return *c;
+void client_session::download_file(const std::string& file_name){
+    if (auto transport = transport_.lock()) {
+        transport->send_file(file_name);
+    }
 }
 
 void client_session::init_(){
@@ -47,6 +61,7 @@ void client_session::init_(){
     //基本功能
     handlers_["show"]                   = std::make_unique<Base_handler>();// 展示聊天对象
     handlers_["exit"]                   = std::make_unique<Base_handler>();
+    handlers_["logout"]                 = std::make_unique<Base_handler>();// 登出账号（保留连接）
     handlers_["login"]                  = std::make_unique<Base_handler>();
     handlers_["register"]               = std::make_unique<Base_handler>();
     handlers_["change_name"]            = std::make_unique<Base_handler>();// 修改自己的昵称
@@ -70,6 +85,13 @@ void client_session::init_(){
 // 方案 3b：接收缓冲/切帧已在 connection::process_incoming 完成，
 // 这里只负责解析这一条完整 JSON 消息并按 type 策略分发到对应 handler。
 void client_session::on_message(const std::string& json_data, std::string file_data){
+    {
+        std::lock_guard<std::mutex> lock(lifecycle_mtx_);
+        if (!online) {
+            return; // 连接已退出/被顶号，不再处理接收缓冲中的后续消息
+        }
+    }
+
     json msg_json;
     try{
         msg_json = json::parse(json_data);
@@ -133,28 +155,35 @@ void client_session::login(int UID,std::string password){
         package_message(fail,"system");
         return;
     }
-    current_account_ = account;//init 账户
-
     // 记录上一次登录时间（用于查询离线消息：自上次登录之后未收到的消息）
     std::string last_login_time = account->get_last_login_time();
+    auto new_social = std::make_shared<social_module>(UID, repo_hub_);
+    auto self = shared_from_this();
 
-    social_manager_ = std::make_shared<social_module>(UID, repo_hub_);//init 社交模块（登录时创建，随会话生命周期持有）
+    std::shared_ptr<social_module> previous_social;
+    std::shared_ptr<client_session> old_session;
+    {
+        std::lock_guard<std::mutex> lock(lifecycle_mtx_);
+        // 同一连接直接切换账号时，先按对象身份移除旧 UID，避免残留两个在线映射。
+        if (logged_in_uid_ >= 0 && logged_in_uid_ != UID) {
+            session_manager::get_instance().remove_online_if_same(logged_in_uid_, this);
+        }
+        if (!online) {
+            return; // DB 查询期间连接已经断开
+        }
+        previous_social = std::move(social_manager_);
+        current_account_ = account;
+        social_manager_ = std::move(new_social);
+        logged_in_uid_ = UID;
+        // 原子替换 UID 映射；顶号通知必须在 session_manager 锁外执行。
+        old_session = session_manager::get_instance().replace_online(UID, self);
+    }
+    previous_social.reset();
 
-    // 顶掉旧登录：同一 UID 若已有在线会话，先移除其映射并关闭其连接，避免同账号多会话/残留
-    auto old_session = session_manager::get_instance().find_session(UID);
     if (old_session && old_session.get() != this) {
-        old_session->kick_offline();                       // 通知旧连接并关闭其 fd
-        session_manager::get_instance().remove_session(UID); // 移除旧会话的 UID 映射
+        old_session->kick_offline();
     }
 
-    // 切换 session_manager 的 key：从 fd 切换到 UID
-    // 先把当前 session 从 session_manager 里取出来（用旧 key）
-    auto self_session = session_manager::get_instance().find_session(session_key_);
-    session_manager::get_instance().remove_session(session_key_);
-    session_key_ = UID;
-    if (self_session) {
-        session_manager::get_instance().add_session(UID, self_session);
-    }
     std::string success = "Login successful. Welcome, " + account->getName() + "!\n";
     package_message(success,"system");
     show_friend_requests(); // 登录后自动查看待处理的好友申请
@@ -174,58 +203,47 @@ void client_session::login(int UID,std::string password){
         repo_hub_->accounts()->update_account(account);
     }
 }
-// 被顶下线：通知 + 立即发送后关闭本连接；sub_reactor 会收到断开事件后回收 connection 与会话
+// 被顶下线：通知进入发送队列，待队列清空后关闭连接。
 void client_session::kick_offline(){
-    if (auto c = conn_.lock()) {
-        // 先把提示放入发送缓冲（由 connection::package_message 打包）
-        c->package_message("Your account is logged in elsewhere, you have been kicked offline.\n", "system");
-        // 立即把缓冲真正 send 出去（非阻塞；单条小消息通常一次可发完），再关闭
-        // 否则依赖 EPOLLOUT 异步 flush，可能 close 前还没发出，导致旧客户端收不到提示
-        c->sender_obj().send_msg();
-        c->close();   // 关闭底层 fd，让 sub_reactor 通过断开事件移除本连接
+    package_message("Your account is logged in elsewhere, you have been kicked offline.\n", "system");
+    on_disconnected();
+    if (auto transport = transport_.lock()) {
+        transport->close(CloseMode::after_pending_writes);
     }
-    online = false;
 }
-// 登出：退出当前账号登录，但保留连接（区别于 exit_self 的彻底断开）
-// 之后该连接仍可继续登录其他账户或接收系统消息。
+
+// 登出当前账号但保留连接；在线表只保存 UID，因此无需恢复 fd 映射。
 void client_session::logout(){
-    // 1. 先通知客户端退出成功（同步 flush，确保真正送达）
-    if (auto c = conn_.lock()) {
-        c->package_message("Logout successful.\n", "system");
-        c->sender_obj().send_msg();
+    package_message("Logout successful.\n", "system");
+
+    int uid = -1;
+    std::shared_ptr<social_module> old_social;
+    {
+        std::lock_guard<std::mutex> lock(lifecycle_mtx_);
+        if (!online) {
+            return;
+        }
+        uid = logged_in_uid_;
+        logged_in_uid_ = -1;
+        current_account_.reset();
+        old_social = std::move(social_manager_);
     }
-    // 2. 从 session_manager 移除本次登录记录（key 为 UID）
-    if (current_account_) {
-        session_manager::get_instance().remove_session(session_key_);
-    }
-    // 3. 登出后该连接回到"未登录"态：把 key 还原为 fd（以便下次登录时以 fd 作为查找键）
-    int self_fd = -1;
-    if (auto c = conn_.lock()) {
-        self_fd = c->fd();
-    }
-    if (session_key_ != self_fd) {
-        session_key_ = self_fd;
-    }
-    // 4. 清空账号状态与社交模块，连接保持在线可用
-    current_account_.reset();
-    social_manager_.reset();
-    online = true;
+    session_manager::get_instance().remove_online_if_same(uid, this);
+    old_social.reset();
 }
+
 void client_session::exit_self(){
-    //清理资源，关闭连接
-    std::string success = "Goodbye!\n";
-    package_message(success,"system");
-    online = false;
-    // 从 session_manager 移除（如果还在的话）
-    if (current_account_) {
-        session_manager::get_instance().remove_session(session_key_);
-    }
-    // 通知 connection 关闭底层 fd；sub_reactor 会在收到关闭事件后回收该 connection
-    if (auto c = conn_.lock()) {
-        c->close();
+    package_message("Goodbye!\n", "system");
+    on_disconnected();
+    if (auto transport = transport_.lock()) {
+        transport->close(CloseMode::after_pending_writes);
     }
 }
 void client_session::show_chatlist(){
+    if (!current_account_ || !social_manager_) {
+        package_message("You must be logged in to view your chat list.\n", "system");
+        return;
+    }
     std::string chat_list = social_manager_->show_friends();//调用社交模块的查询
     package_message(chat_list,"system");
 }
@@ -600,24 +618,28 @@ void client_session::show_group_members(int group_UID){
 
 //===============析构函数===============
 client_session::~client_session(){
-    // 注意：这里不能再调用 session_manager::remove_session()。
-    // 触发本析构的常见路径是 session_manager::remove_session() 已在持有 sessions_mutex
-    // 排他锁时 erase() 使本对象引用归零、就地析构；若析构里再次 remove_session()，
-    // 会对同一把 sessions_mutex 二次排他加锁，导致 std::system_error("Resource deadlock avoided") 崩溃。
-    // 实际移除已在 logout()/exit_self()/remove_client() 等入口显式完成。
-    // connection 由 sub_reactor 独立管理其生命周期，无关本会话析构；弱引用自动失效。
+    // 在线映射由 logout()/on_disconnected()/顶号路径显式按对象身份移除。
 }
 //===============================数据处理================================
 void client_session::package_message(const std::string& message,std::string type){
-    // 方案 3b 重拆：打包序列化在 connection，会话只做转发（conn_ 为弱引用，连接存活则发送成功）
-    if (auto c = conn_.lock()) {
-        c->package_message(message, type);
+    json msg_json;
+    msg_json["type"] = std::move(type);
+    msg_json["content"] = message;
+    if (auto transport = transport_.lock()) {
+        transport->send_packet(std::move(msg_json));
     }
 }
 
 void client_session::package_chat_message(const std::string& message, std::string type, int message_id, int group_uid){
-    if (auto c = conn_.lock()) {
-        c->package_chat_message(message, type, message_id, group_uid);
+    json msg_json;
+    msg_json["type"] = std::move(type);
+    msg_json["content"] = message;
+    msg_json["message_id"] = message_id;
+    if (group_uid > 0) {
+        msg_json["group_UID"] = group_uid;
+    }
+    if (auto transport = transport_.lock()) {
+        transport->send_packet(std::move(msg_json));
     }
 }
 

@@ -1,26 +1,31 @@
 #pragma once
 #include "total.h"
 #include "account.h"
-#include "connection.h"
+#include "client_transport.h"
 #include "message_handler.h"
 #include "social_module.h"
 #include "repository_hub.h"
 #include "group.h"
 
-class client_session{
+class client_session : public std::enable_shared_from_this<client_session>{
 private:
     //===============基本信息===============
-    int session_key_;                                           // 当前在 session_manager 中的 key（未登录时为 fd，登录后为 UID）
-    bool online = true;                                         // 用户在线状态
+    int logged_in_uid_ = -1;                                    // 当前登录 UID；-1 表示未登录
+    bool online = true;                                         // 连接/用户在线状态
+    std::mutex lifecycle_mtx_;                                  // 串行化登录/登出/断线/顶号状态切换
     std::shared_ptr<account> current_account_;                  // 当前用户的账户信息（会话模块，登录时经 repo 加载）
     std::shared_ptr<social_module> social_manager_;             // 自己的社交关系模块（登录时创建，随会话生命周期）
     std::shared_ptr<RepositoryHub> repo_hub_ = std::make_shared<RepositoryHub>(); // 仓储门面（构造时装配真实 MySQL repo，业务层经 accounts() 调用）
     void send_offline_messages(const std::string& since_time);  // 查询并推送自 since_time 之后的离线消息
-    //===============收发模块（方案 3b 重拆：connection 彻底独立，此处仅存弱引用回指）===============
+    //===============传输端口===============
+    // 会话只依赖抽象传输，不感知 TCP 帧头；弱引用避免 transport -> session -> transport 成环。
+    std::weak_ptr<IClientTransport> transport_;
 public:
-    std::weak_ptr<connection> conn_;                            // 非拥有弱引用回指 connection；生命周期由 sub_reactor 持有
-    void set_connection(const std::shared_ptr<connection>& c);  // 绑定 connection（存弱引用）
-    connection& conn();                                         // 供 message_handler 访问收发模块（仅在本连接消息处理期间调用）
+    void set_transport(const std::shared_ptr<IClientTransport>& transport);
+    void on_disconnected();                                     // 连接断开后的幂等在线表/会话状态清理
+    // M0 暂保留现有 TCP 文件能力的业务入口，不改文件协议。
+    void upload_file(const json& meta, const std::string& file_data);
+    void download_file(const std::string& file_name);
     //===============消息处理模块===============
     std::unordered_map<std::string,std::unique_ptr<Message_handler>> handlers_; 
     //初始化消息处理器，后续可以根据需要添加更多类型的消息处理器
@@ -28,7 +33,7 @@ public:
     public:
     //===============构造、析构函数===============
 
-    client_session(): session_key_(-1){ init_(); };                         // 会话由 sub_reactor 创建；init_ 初始化消息处理器；-1 表示尚未绑定连接
+    client_session(){ init_(); };                                           // 会话由具体传输创建并绑定
     ~client_session();
     //===============注册、登录、退出===============
     void register_user(std::string username,std::string password);          //注册新用户，分配UID

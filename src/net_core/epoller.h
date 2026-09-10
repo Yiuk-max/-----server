@@ -40,7 +40,7 @@ private:
     // 用 shared_ptr 存 sub_reactor：线程与 dispatch 共享同一实例，杜绝"复制出另一只 epoll"的错位。
     std::vector<std::shared_ptr<sub_reactor>> sub_reactors_;
 };
-class sub_reactor : public epoller{
+class sub_reactor : public epoller, public std::enable_shared_from_this<sub_reactor>{
 public:
     sub_reactor(std::shared_ptr<ThreadPool> pool):pool_(std::move(pool)){
         events = std::vector<struct epoll_event>(1024);

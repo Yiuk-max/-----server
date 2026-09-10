@@ -21,6 +21,7 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/home/ubuntu/Desktop/server/src/net_core/client_session.cpp" "CMakeFiles/server.dir/src/net_core/client_session.cpp.o" "gcc" "CMakeFiles/server.dir/src/net_core/client_session.cpp.o.d"
   "/home/ubuntu/Desktop/server/src/net_core/connection.cpp" "CMakeFiles/server.dir/src/net_core/connection.cpp.o" "gcc" "CMakeFiles/server.dir/src/net_core/connection.cpp.o.d"
   "/home/ubuntu/Desktop/server/src/net_core/epoller.cpp" "CMakeFiles/server.dir/src/net_core/epoller.cpp.o" "gcc" "CMakeFiles/server.dir/src/net_core/epoller.cpp.o.d"
+  "/home/ubuntu/Desktop/server/src/net_core/group_manager.cpp" "CMakeFiles/server.dir/src/net_core/group_manager.cpp.o" "gcc" "CMakeFiles/server.dir/src/net_core/group_manager.cpp.o.d"
   "/home/ubuntu/Desktop/server/src/net_core/message_handler.cpp" "CMakeFiles/server.dir/src/net_core/message_handler.cpp.o" "gcc" "CMakeFiles/server.dir/src/net_core/message_handler.cpp.o.d"
   "/home/ubuntu/Desktop/server/src/net_core/notice_service.cpp" "CMakeFiles/server.dir/src/net_core/notice_service.cpp.o" "gcc" "CMakeFiles/server.dir/src/net_core/notice_service.cpp.o.d"
   "/home/ubuntu/Desktop/server/src/net_core/receiver_sender.cpp" "CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o" "gcc" "CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o.d"
