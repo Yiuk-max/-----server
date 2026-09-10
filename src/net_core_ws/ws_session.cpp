@@ -7,6 +7,7 @@
 #include <boost/asio/strand.hpp>
 
 #include "client_session.h"
+#include "server_config.h"
 #include "ws_protocol.h"
 
 namespace beast     = boost::beast;
@@ -21,6 +22,8 @@ WsSession::WsSession(tcp::socket&& socket,
                      std::size_t max_message_bytes,
                      std::size_t max_pending_bytes)
     : ws_(std::move(socket)),
+      idle_timer_(ws_.get_executor()),
+      last_active_(std::chrono::steady_clock::now()),
       business_pool_(std::move(business_pool)),
       path_(std::move(path)),
       max_message_bytes_(max_message_bytes),
@@ -40,9 +43,18 @@ std::shared_ptr<WsSession> WsSession::self() {
 void WsSession::run() {
     session_->set_transport(shared_from_this());
 
-    // 握手阶段的 HTTP 读取加超时；升级后由下面的 suggested 超时接管。
+    // HTTP 升级请求读取单独设 30s 超时（tcp_stream 定时器）。
+    // 注意：tcp_stream 的 expires_after 是整条连接的硬超时，必须在读完请求后
+    // 用 expires_never() 清除，否则连接会在 30s 后被 beast::error::timeout 掉线。
     ws_.next_layer().expires_after(std::chrono::seconds(30));
-    ws_.set_option(websocket::stream_base::timeout::suggested(beast::role_type::server));
+
+    // WebSocket 自身超时：握手/关闭握手 30s；空闲超时关闭（idle_timeout=none），
+    // 交给 M2 的 use_heartbeat 空闲检测负责，与 binary 层行为一致；不额外发 ping。
+    websocket::stream_base::timeout opt{
+        std::chrono::seconds(30),
+        websocket::stream_base::none(),
+        false};
+    ws_.set_option(opt);
     ws_.read_message_max(max_message_bytes_);
 
     auto self = shared_from_this();
@@ -51,6 +63,8 @@ void WsSession::run() {
 }
 
 void WsSession::on_http_read(beast::error_code ec, std::size_t /*bytes*/) {
+    // HTTP 请求已读完（或失败），清除 tcp_stream 的 30s 硬超时。
+    ws_.next_layer().expires_never();
     if (ec) {
         fail(ec, "http_read");
         return;
@@ -100,6 +114,7 @@ void WsSession::on_accept(beast::error_code ec) {
         return;
     }
     do_read();
+    schedule_idle_check();
 }
 
 void WsSession::do_read() {
@@ -115,6 +130,7 @@ void WsSession::on_read(beast::error_code ec, std::size_t /*bytes*/) {
         fail(ec, "read");
         return;
     }
+    touch();
 
     const bool is_text = ws_.got_text();
     std::string payload = beast::buffers_to_string(buffer_.data());
@@ -162,6 +178,36 @@ void WsSession::on_business_done() {
         return;
     }
     do_read();
+}
+
+// ---------------- 空闲超时 ----------------
+
+void WsSession::touch() {
+    last_active_ = std::chrono::steady_clock::now();
+}
+
+// 每秒检查一次，与 binary 层 sub_reactor::check_idle_connections 的节奏一致。
+// 未启用 use_heartbeat 时不启动计时器。
+void WsSession::schedule_idle_check() {
+    if (closed_ || !ServerConfig::get_instance().use_heartbeat()) {
+        return;
+    }
+    idle_timer_.expires_after(std::chrono::seconds(1));
+    auto self = shared_from_this();
+    idle_timer_.async_wait([self](beast::error_code ec) {
+        if (ec || self->closed_) {
+            return;
+        }
+        const int timeout_s = ServerConfig::get_instance().heartbeat_interval();
+        const auto idle_s = std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::steady_clock::now() - self->last_active_).count();
+        if (idle_s >= timeout_s) {
+            std::cout << "[WsSession] idle timeout, closing connection" << std::endl;
+            self->close(CloseMode::after_pending_writes);
+            return;
+        }
+        self->schedule_idle_check();
+    });
 }
 
 // ---------------- IClientTransport ----------------
@@ -297,6 +343,9 @@ void WsSession::teardown() {
     closed_ = true;
     write_queue_.clear();
     pending_bytes_ = 0;
+
+    // 取消空闲检测；其回调会因 operation_aborted 直接返回。
+    idle_timer_.cancel();
 
     if (session_) {
         session_->on_disconnected();

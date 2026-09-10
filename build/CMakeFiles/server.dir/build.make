@@ -212,10 +212,52 @@ CMakeFiles/server.dir/src/net_core/session_manager.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/net_core/session_manager.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/net_core/session_manager.cpp -o CMakeFiles/server.dir/src/net_core/session_manager.cpp.s
 
+CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.o: /home/ubuntu/Desktop/server/src/net_core_ws/ws_protocol.cpp
+CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.o -MF CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.o.d -o CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.o -c /home/ubuntu/Desktop/server/src/net_core_ws/ws_protocol.cpp
+
+CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/net_core_ws/ws_protocol.cpp > CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.i
+
+CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/net_core_ws/ws_protocol.cpp -o CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.s
+
+CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.o: /home/ubuntu/Desktop/server/src/net_core_ws/ws_server.cpp
+CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.o -MF CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.o.d -o CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.o -c /home/ubuntu/Desktop/server/src/net_core_ws/ws_server.cpp
+
+CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/net_core_ws/ws_server.cpp > CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.i
+
+CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/net_core_ws/ws_server.cpp -o CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.s
+
+CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.o: CMakeFiles/server.dir/flags.make
+CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.o: /home/ubuntu/Desktop/server/src/net_core_ws/ws_session.cpp
+CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.o -MF CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.o.d -o CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.o -c /home/ubuntu/Desktop/server/src/net_core_ws/ws_session.cpp
+
+CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ubuntu/Desktop/server/src/net_core_ws/ws_session.cpp > CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.i
+
+CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ubuntu/Desktop/server/src/net_core_ws/ws_session.cpp -o CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.s
+
 CMakeFiles/server.dir/src/logic/account.cpp.o: CMakeFiles/server.dir/flags.make
 CMakeFiles/server.dir/src/logic/account.cpp.o: /home/ubuntu/Desktop/server/src/logic/account.cpp
 CMakeFiles/server.dir/src/logic/account.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/server.dir/src/logic/account.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building CXX object CMakeFiles/server.dir/src/logic/account.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/logic/account.cpp.o -MF CMakeFiles/server.dir/src/logic/account.cpp.o.d -o CMakeFiles/server.dir/src/logic/account.cpp.o -c /home/ubuntu/Desktop/server/src/logic/account.cpp
 
 CMakeFiles/server.dir/src/logic/account.cpp.i: cmake_force
@@ -229,7 +271,7 @@ CMakeFiles/server.dir/src/logic/account.cpp.s: cmake_force
 CMakeFiles/server.dir/src/logic/group.cpp.o: CMakeFiles/server.dir/flags.make
 CMakeFiles/server.dir/src/logic/group.cpp.o: /home/ubuntu/Desktop/server/src/logic/group.cpp
 CMakeFiles/server.dir/src/logic/group.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/server.dir/src/logic/group.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/server.dir/src/logic/group.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/logic/group.cpp.o -MF CMakeFiles/server.dir/src/logic/group.cpp.o.d -o CMakeFiles/server.dir/src/logic/group.cpp.o -c /home/ubuntu/Desktop/server/src/logic/group.cpp
 
 CMakeFiles/server.dir/src/logic/group.cpp.i: cmake_force
@@ -243,7 +285,7 @@ CMakeFiles/server.dir/src/logic/group.cpp.s: cmake_force
 CMakeFiles/server.dir/src/logic/social_module.cpp.o: CMakeFiles/server.dir/flags.make
 CMakeFiles/server.dir/src/logic/social_module.cpp.o: /home/ubuntu/Desktop/server/src/logic/social_module.cpp
 CMakeFiles/server.dir/src/logic/social_module.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object CMakeFiles/server.dir/src/logic/social_module.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/server.dir/src/logic/social_module.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/logic/social_module.cpp.o -MF CMakeFiles/server.dir/src/logic/social_module.cpp.o.d -o CMakeFiles/server.dir/src/logic/social_module.cpp.o -c /home/ubuntu/Desktop/server/src/logic/social_module.cpp
 
 CMakeFiles/server.dir/src/logic/social_module.cpp.i: cmake_force
@@ -257,7 +299,7 @@ CMakeFiles/server.dir/src/logic/social_module.cpp.s: cmake_force
 CMakeFiles/server.dir/src/utils/thread_pool.cpp.o: CMakeFiles/server.dir/flags.make
 CMakeFiles/server.dir/src/utils/thread_pool.cpp.o: /home/ubuntu/Desktop/server/src/utils/thread_pool.cpp
 CMakeFiles/server.dir/src/utils/thread_pool.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building CXX object CMakeFiles/server.dir/src/utils/thread_pool.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object CMakeFiles/server.dir/src/utils/thread_pool.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/utils/thread_pool.cpp.o -MF CMakeFiles/server.dir/src/utils/thread_pool.cpp.o.d -o CMakeFiles/server.dir/src/utils/thread_pool.cpp.o -c /home/ubuntu/Desktop/server/src/utils/thread_pool.cpp
 
 CMakeFiles/server.dir/src/utils/thread_pool.cpp.i: cmake_force
@@ -271,7 +313,7 @@ CMakeFiles/server.dir/src/utils/thread_pool.cpp.s: cmake_force
 CMakeFiles/server.dir/src/db/repo/account_repo.cpp.o: CMakeFiles/server.dir/flags.make
 CMakeFiles/server.dir/src/db/repo/account_repo.cpp.o: /home/ubuntu/Desktop/server/src/db/repo/account_repo.cpp
 CMakeFiles/server.dir/src/db/repo/account_repo.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/server.dir/src/db/repo/account_repo.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building CXX object CMakeFiles/server.dir/src/db/repo/account_repo.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/db/repo/account_repo.cpp.o -MF CMakeFiles/server.dir/src/db/repo/account_repo.cpp.o.d -o CMakeFiles/server.dir/src/db/repo/account_repo.cpp.o -c /home/ubuntu/Desktop/server/src/db/repo/account_repo.cpp
 
 CMakeFiles/server.dir/src/db/repo/account_repo.cpp.i: cmake_force
@@ -285,7 +327,7 @@ CMakeFiles/server.dir/src/db/repo/account_repo.cpp.s: cmake_force
 CMakeFiles/server.dir/src/db/repo/friend_repo.cpp.o: CMakeFiles/server.dir/flags.make
 CMakeFiles/server.dir/src/db/repo/friend_repo.cpp.o: /home/ubuntu/Desktop/server/src/db/repo/friend_repo.cpp
 CMakeFiles/server.dir/src/db/repo/friend_repo.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/server.dir/src/db/repo/friend_repo.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building CXX object CMakeFiles/server.dir/src/db/repo/friend_repo.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/db/repo/friend_repo.cpp.o -MF CMakeFiles/server.dir/src/db/repo/friend_repo.cpp.o.d -o CMakeFiles/server.dir/src/db/repo/friend_repo.cpp.o -c /home/ubuntu/Desktop/server/src/db/repo/friend_repo.cpp
 
 CMakeFiles/server.dir/src/db/repo/friend_repo.cpp.i: cmake_force
@@ -299,7 +341,7 @@ CMakeFiles/server.dir/src/db/repo/friend_repo.cpp.s: cmake_force
 CMakeFiles/server.dir/src/db/repo/group_repo.cpp.o: CMakeFiles/server.dir/flags.make
 CMakeFiles/server.dir/src/db/repo/group_repo.cpp.o: /home/ubuntu/Desktop/server/src/db/repo/group_repo.cpp
 CMakeFiles/server.dir/src/db/repo/group_repo.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object CMakeFiles/server.dir/src/db/repo/group_repo.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Building CXX object CMakeFiles/server.dir/src/db/repo/group_repo.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/db/repo/group_repo.cpp.o -MF CMakeFiles/server.dir/src/db/repo/group_repo.cpp.o.d -o CMakeFiles/server.dir/src/db/repo/group_repo.cpp.o -c /home/ubuntu/Desktop/server/src/db/repo/group_repo.cpp
 
 CMakeFiles/server.dir/src/db/repo/group_repo.cpp.i: cmake_force
@@ -313,7 +355,7 @@ CMakeFiles/server.dir/src/db/repo/group_repo.cpp.s: cmake_force
 CMakeFiles/server.dir/src/db/repo/message_repo.cpp.o: CMakeFiles/server.dir/flags.make
 CMakeFiles/server.dir/src/db/repo/message_repo.cpp.o: /home/ubuntu/Desktop/server/src/db/repo/message_repo.cpp
 CMakeFiles/server.dir/src/db/repo/message_repo.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building CXX object CMakeFiles/server.dir/src/db/repo/message_repo.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Building CXX object CMakeFiles/server.dir/src/db/repo/message_repo.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/db/repo/message_repo.cpp.o -MF CMakeFiles/server.dir/src/db/repo/message_repo.cpp.o.d -o CMakeFiles/server.dir/src/db/repo/message_repo.cpp.o -c /home/ubuntu/Desktop/server/src/db/repo/message_repo.cpp
 
 CMakeFiles/server.dir/src/db/repo/message_repo.cpp.i: cmake_force
@@ -327,7 +369,7 @@ CMakeFiles/server.dir/src/db/repo/message_repo.cpp.s: cmake_force
 CMakeFiles/server.dir/src/db/repo_interface/repository_hub.cpp.o: CMakeFiles/server.dir/flags.make
 CMakeFiles/server.dir/src/db/repo_interface/repository_hub.cpp.o: /home/ubuntu/Desktop/server/src/db/repo_interface/repository_hub.cpp
 CMakeFiles/server.dir/src/db/repo_interface/repository_hub.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building CXX object CMakeFiles/server.dir/src/db/repo_interface/repository_hub.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_22) "Building CXX object CMakeFiles/server.dir/src/db/repo_interface/repository_hub.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/db/repo_interface/repository_hub.cpp.o -MF CMakeFiles/server.dir/src/db/repo_interface/repository_hub.cpp.o.d -o CMakeFiles/server.dir/src/db/repo_interface/repository_hub.cpp.o -c /home/ubuntu/Desktop/server/src/db/repo_interface/repository_hub.cpp
 
 CMakeFiles/server.dir/src/db/repo_interface/repository_hub.cpp.i: cmake_force
@@ -341,7 +383,7 @@ CMakeFiles/server.dir/src/db/repo_interface/repository_hub.cpp.s: cmake_force
 CMakeFiles/server.dir/src/db/mysql/mysql_conn_pool.cpp.o: CMakeFiles/server.dir/flags.make
 CMakeFiles/server.dir/src/db/mysql/mysql_conn_pool.cpp.o: /home/ubuntu/Desktop/server/src/db/mysql/mysql_conn_pool.cpp
 CMakeFiles/server.dir/src/db/mysql/mysql_conn_pool.cpp.o: CMakeFiles/server.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Building CXX object CMakeFiles/server.dir/src/db/mysql/mysql_conn_pool.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_23) "Building CXX object CMakeFiles/server.dir/src/db/mysql/mysql_conn_pool.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/server.dir/src/db/mysql/mysql_conn_pool.cpp.o -MF CMakeFiles/server.dir/src/db/mysql/mysql_conn_pool.cpp.o.d -o CMakeFiles/server.dir/src/db/mysql/mysql_conn_pool.cpp.o -c /home/ubuntu/Desktop/server/src/db/mysql/mysql_conn_pool.cpp
 
 CMakeFiles/server.dir/src/db/mysql/mysql_conn_pool.cpp.i: cmake_force
@@ -364,6 +406,9 @@ server_OBJECTS = \
 "CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o" \
 "CMakeFiles/server.dir/src/net_core/server_config.cpp.o" \
 "CMakeFiles/server.dir/src/net_core/session_manager.cpp.o" \
+"CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.o" \
+"CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.o" \
+"CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.o" \
 "CMakeFiles/server.dir/src/logic/account.cpp.o" \
 "CMakeFiles/server.dir/src/logic/group.cpp.o" \
 "CMakeFiles/server.dir/src/logic/social_module.cpp.o" \
@@ -388,6 +433,9 @@ server: CMakeFiles/server.dir/src/net_core/notice_service.cpp.o
 server: CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o
 server: CMakeFiles/server.dir/src/net_core/server_config.cpp.o
 server: CMakeFiles/server.dir/src/net_core/session_manager.cpp.o
+server: CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.o
+server: CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.o
+server: CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.o
 server: CMakeFiles/server.dir/src/logic/account.cpp.o
 server: CMakeFiles/server.dir/src/logic/group.cpp.o
 server: CMakeFiles/server.dir/src/logic/social_module.cpp.o
@@ -400,8 +448,9 @@ server: CMakeFiles/server.dir/src/db/repo_interface/repository_hub.cpp.o
 server: CMakeFiles/server.dir/src/db/mysql/mysql_conn_pool.cpp.o
 server: CMakeFiles/server.dir/build.make
 server: CMakeFiles/server.dir/compiler_depend.ts
+server: /usr/lib/x86_64-linux-gnu/libboost_system.so.1.83.0
 server: CMakeFiles/server.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Linking CXX executable server"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/ubuntu/Desktop/server/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_24) "Linking CXX executable server"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/server.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

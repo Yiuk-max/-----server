@@ -449,3 +449,19 @@ interface 层怎么还留着account的空占位实现，看着只做了数据库
 - 调整：删除在线校验，先 store_message 落库（无论对方是否在线）；对方在线则实时转发，离线则留在
   DB 待其上线时由 get_offline_messages 补发；发送者回执携带 message_id。
 - 群聊 Group_Chat 转发 JSON 补 group_UID 字段（实时/离线/删除通知均携带），便于客户端按群归类。
+
+2026-09-10 功能：WebSocket 网络层接入（M0/M1/M2）+ 自聊
+- M0：修复 TCP 帧 total_len 发送/解析口径相差 4 字节；修复 logout 未注册进 handlers_；
+  修复 sub_reactor::add_connect“先注册 epoll 后入 map”的 ET 首包竞态；
+  引入 net_common/client_transport.h（IClientTransport），client_session 不再依赖具体 connection。
+- M1：新增 net_core_ws（Boost.Asio + Beast）：ws_server / ws_session / ws_protocol；
+  /ws 握手与路径校验、文本帧 JSON、单连接 FIFO 发送队列与背压、消息大小限制；
+  server_config 增加 net_layer / websocket 配置；main 按 net_layer 分流启动。
+- M2：聊天与通知在 WS 上跑通（复用同一业务层，业务代码零改动）；补齐 WS 空闲超时
+  （与 binary 层 use_heartbeat 行为一致）；新增 tests/ws_chat_smoke.py 端到端脚本、
+  tests/ws_browser_test.html 浏览器测试页。修复 WS 连接建连约 30s 被 tcp_stream
+  硬超时（expires_after 未清除）掐断的问题（表现为浏览器 code=1006）。
+- 自聊：I_friend_repo 增加 ensure_self_friend；注册与登录时写入 (UID, UID)，
+  允许给自己发消息并出现在 show 列表；sql/add_self_friend.sql 回填旧账号。
+- 文档：readme / 项目说明文档 / 客户端接口文档 更新“网络层切换”与 WebSocket 接入说明；
+  WebSocket接入代码改动文档.md 记录 M0~M2 实施。

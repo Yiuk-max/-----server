@@ -585,6 +585,78 @@ src/net_core/session_manager.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core/session_manager.cpp.s
 .PHONY : src/net_core/session_manager.cpp.s
 
+src/net_core_ws/ws_protocol.o: src/net_core_ws/ws_protocol.cpp.o
+.PHONY : src/net_core_ws/ws_protocol.o
+
+# target to build an object file
+src/net_core_ws/ws_protocol.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.o
+.PHONY : src/net_core_ws/ws_protocol.cpp.o
+
+src/net_core_ws/ws_protocol.i: src/net_core_ws/ws_protocol.cpp.i
+.PHONY : src/net_core_ws/ws_protocol.i
+
+# target to preprocess a source file
+src/net_core_ws/ws_protocol.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.i
+.PHONY : src/net_core_ws/ws_protocol.cpp.i
+
+src/net_core_ws/ws_protocol.s: src/net_core_ws/ws_protocol.cpp.s
+.PHONY : src/net_core_ws/ws_protocol.s
+
+# target to generate assembly for a file
+src/net_core_ws/ws_protocol.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.s
+.PHONY : src/net_core_ws/ws_protocol.cpp.s
+
+src/net_core_ws/ws_server.o: src/net_core_ws/ws_server.cpp.o
+.PHONY : src/net_core_ws/ws_server.o
+
+# target to build an object file
+src/net_core_ws/ws_server.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.o
+.PHONY : src/net_core_ws/ws_server.cpp.o
+
+src/net_core_ws/ws_server.i: src/net_core_ws/ws_server.cpp.i
+.PHONY : src/net_core_ws/ws_server.i
+
+# target to preprocess a source file
+src/net_core_ws/ws_server.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.i
+.PHONY : src/net_core_ws/ws_server.cpp.i
+
+src/net_core_ws/ws_server.s: src/net_core_ws/ws_server.cpp.s
+.PHONY : src/net_core_ws/ws_server.s
+
+# target to generate assembly for a file
+src/net_core_ws/ws_server.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.s
+.PHONY : src/net_core_ws/ws_server.cpp.s
+
+src/net_core_ws/ws_session.o: src/net_core_ws/ws_session.cpp.o
+.PHONY : src/net_core_ws/ws_session.o
+
+# target to build an object file
+src/net_core_ws/ws_session.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.o
+.PHONY : src/net_core_ws/ws_session.cpp.o
+
+src/net_core_ws/ws_session.i: src/net_core_ws/ws_session.cpp.i
+.PHONY : src/net_core_ws/ws_session.i
+
+# target to preprocess a source file
+src/net_core_ws/ws_session.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.i
+.PHONY : src/net_core_ws/ws_session.cpp.i
+
+src/net_core_ws/ws_session.s: src/net_core_ws/ws_session.cpp.s
+.PHONY : src/net_core_ws/ws_session.s
+
+# target to generate assembly for a file
+src/net_core_ws/ws_session.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.s
+.PHONY : src/net_core_ws/ws_session.cpp.s
+
 src/utils/thread_pool.o: src/utils/thread_pool.cpp.o
 .PHONY : src/utils/thread_pool.o
 
@@ -675,6 +747,15 @@ help:
 	@echo "... src/net_core/session_manager.o"
 	@echo "... src/net_core/session_manager.i"
 	@echo "... src/net_core/session_manager.s"
+	@echo "... src/net_core_ws/ws_protocol.o"
+	@echo "... src/net_core_ws/ws_protocol.i"
+	@echo "... src/net_core_ws/ws_protocol.s"
+	@echo "... src/net_core_ws/ws_server.o"
+	@echo "... src/net_core_ws/ws_server.i"
+	@echo "... src/net_core_ws/ws_server.s"
+	@echo "... src/net_core_ws/ws_session.o"
+	@echo "... src/net_core_ws/ws_session.i"
+	@echo "... src/net_core_ws/ws_session.s"
 	@echo "... src/utils/thread_pool.o"
 	@echo "... src/utils/thread_pool.i"
 	@echo "... src/utils/thread_pool.s"

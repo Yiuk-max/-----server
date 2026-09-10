@@ -728,6 +728,8 @@ Asio IO 线程不执行 MySQL 查询。一个连接的消息不会并行业务�
 
 验收：两个 WS 客户端并发登录和互发消息；顶号通知可靠到达；慢客户端不导致无限队列。
 
+> **状态：已完成（2026-06）。** 聊天与通知链路全部复用同一套 `client_session`，无需改业务逻辑；本阶段补齐了 WS 层缺失的 `use_heartbeat` 空闲超时，并新增端到端冒烟脚本。详见第 15 节。
+
 ### M3：文件传输
 
 改动：
@@ -923,3 +925,78 @@ ctest --test-dir build --output-on-failure
 - `wss/TLS`、`Origin` 校验、token 鉴权。
 - 群广播级别的全局发送限流（当前只有单连接队列上限）。
 
+
+## 15. M2 实施记录（已完成）
+
+### 15.1 结论
+
+M2 的“聊天和通知”**不需要改动 `client_session` 及任何业务逻辑**：私聊、群聊、离线消息、好友/群通知在 M0 引入 `IClientTransport` 后已经是传输无关的，WS 会话与 TCP 连接共用同一条业务链路。因此本阶段的实质工作是：
+
+1. 补齐 WS 层唯一的行为缺口——服务端空闲超时。
+2. 用真实 MySQL + 真实服务端跑端到端聊天/通知回归。
+3. 增加可复用的冒烟脚本，作为后续 M3/M4 的回归基线。
+
+### 15.2 新增/改动文件
+
+| 文件 | 改动 |
+|---|---|
+| `src/net_core_ws/ws_session.h/.cpp` | 新增 `idle_timer_` / `last_active_` 与 `touch()` / `schedule_idle_check()`；`teardown()` 取消计时器 |
+| `tests/ws_chat_smoke.py` | 新增：标准库 WebSocket 客户端 + 注册/登录/好友/私聊/群聊/离线/顶号端到端脚本 |
+
+### 15.3 空闲超时实现
+
+与 binary 层 `sub_reactor::check_idle_connections` 对齐：
+
+- 仅当 `ServerConfig::use_heartbeat()` 为真时启动 `steady_timer`，每秒检查一次。
+- 每收到一条完整消息调用 `touch()` 刷新 `last_active_`（与 binary 在 `append_raw_data` 刷新一致）。
+- 空闲秒数达到 `heartbeat_interval` 时走 `close(after_pending_writes)`，先排空写队列再做 WebSocket close。
+- `teardown()` 取消计时器；计时器回调对 `operation_aborted`/`closed_` 直接返回，保证幂等。
+- 未启用 `use_heartbeat` 时不启动计时器，零额外开销。
+
+> 说明：应用层 `heartbeat`/`heartbeat_ack` 消息在 M1 已可用；本节补的是**服务端主动判空闲并断开**，此前 WS 层完全没有，属于两套网络层的行为不一致点。
+
+### 15.4 端到端冒烟结果
+
+环境：真实 MySQL（`chat_server`），`net_layer=websocket`，`tests/ws_chat_smoke.py`。
+
+| 步骤 | 结果 |
+|---|---|
+| 两账号注册 / WS 登录 | ✅ |
+| 好友申请通知、接受后通知申请人 | ✅ |
+| 私聊实时投递并携带 `message_id` | ✅ |
+| 建群 / 拉人通知 / 群聊广播携带 `group_UID` | ✅ |
+| 对方离线时落库，重连登录后补发离线消息 | ✅ |
+| 顶号：旧连接收到通知，新连接保持可用 | ✅ |
+| 空闲超时（`use_heartbeat=true, interval=3`） | ✅ 服务端日志 `[WsSession] idle timeout` |
+| binary 模式回归（heartbeat / login） | ✅ 无回归 |
+
+### 15.5 浏览器实测修复：tcp_stream 30s 硬超时
+
+浏览器实测时连接会在建连后约 30 秒被服务端关闭（页面收到 `code=1006`，服务端日志
+`[WsSession] read: The socket was closed due to a timeout`）。
+
+根因：`run()` 里为 HTTP 升级请求读写的超时用了 `ws_.next_layer().expires_after(30s)`。
+`tcp_stream` 的 `expires_after` 是**整条连接的硬超时**，与 WebSocket 自身的
+`stream_base::timeout`（独立 `stream_impl::timer`，`suggested(server)` 的 idle=300s）
+是两套机制；它不会因为后续读写被刷新，所以 30 秒后底层读被 `beast::error::timeout` 取消。
+
+修复（`ws_session.cpp`）：
+
+- HTTP 请求读仍设 30s `expires_after`，但在 `on_http_read` 入口立即 `expires_never()` 清除，
+  避免它变成整条连接的硬超时。
+- 不再用 `timeout::suggested(server)`（idle=300s，且会额外发 ping，语义与 binary 层不一致），
+  改为显式设置：`handshake_timeout=30s`、`idle_timeout=none()`、`keep_alive_pings=false`。
+  空闲断开统一交给 M2 的 `use_heartbeat` 检测，保持两套网络层行为一致。
+
+复现与验证：修复前两条连接（一条不发、一条每 10s 心跳）都在 `t=30.0s` 被关闭；
+修复后同样条件观测 46s 均保持连接；随后完整 M2 冒烟（含空闲超时）与 ctest 全部通过。
+
+> 附带改动：`tests/ws_browser_test.html` 在通过 HTTP 提供时自动把 Host 填成 `location.hostname`，
+> 方便宿主机直接打开测试页。
+
+### 15.6 M2 未做（留给后续）
+
+- WebSocket 文件二进制收发（M3）。
+- 群广播级别的全局发送限流；当前只有单连接 `max_pending_bytes` 上限。
+- 慢客户端的自动化压测（脚本未覆盖写队列溢出路径，靠单连接队列上限兜底）。
+- `wss/TLS`、`Origin` 校验、token 鉴权。

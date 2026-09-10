@@ -31,6 +31,10 @@ public:
     // 成功返回 true；任一行插入失败则回滚并返回 false。
     virtual bool add_friend(int uid_a, int uid_b) = 0;
 
+    // 确保用户与自己是好友（写入 (uid, uid) 一行），用于允许给自己发消息。
+    // 幂等：已存在也返回 true，不报错。
+    virtual bool ensure_self_friend(int uid) = 0;
+
     // 删除好友：事务内同时删除 (uid_a, uid_b) 与 (uid_b, uid_a) 两行。
     // 成功返回 true（若本就不存在也视为成功）。
     virtual bool remove_friend(int uid_a, int uid_b) = 0;

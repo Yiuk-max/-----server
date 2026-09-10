@@ -1956,3 +1956,982 @@ events:
         - "/usr/pkg"
         - "/opt"
 ...
+
+---
+events:
+  -
+    kind: "find_package-v1"
+    backtrace:
+      - "/usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake:141 (find_package)"
+      - "/usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake:215 (boost_find_component)"
+      - "/usr/local/share/cmake-4.3/Modules/FindBoost.cmake:610 (find_package)"
+      - "CMakeLists.txt:18 (find_package)"
+    name: "boost_headers"
+    configs:
+      -
+        filename: "boost_headers.cps"
+        kind: "cps"
+      -
+        filename: "boost_headersConfig.cmake"
+        kind: "cmake"
+      -
+        filename: "boost_headers-config.cmake"
+        kind: "cmake"
+    version_request:
+      version: "1.83.0"
+      version_complete: "1.83.0"
+      exact: true
+    settings:
+      required: "required_explicit"
+      quiet: true
+      global: false
+      policy_scope: true
+      bypass_provider: false
+      hints:
+        - "/usr/lib/x86_64-linux-gnu/cmake"
+      names:
+        - "boost_headers"
+      path_suffixes:
+        - ""
+      paths:
+        CMAKE_FIND_USE_CMAKE_PATH: true
+        CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+        CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+        CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+        CMAKE_FIND_USE_INSTALL_PREFIX: true
+        CMAKE_FIND_USE_PACKAGE_ROOT_PATH: true
+        CMAKE_FIND_USE_CMAKE_PACKAGE_REGISTRY: true
+        CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY: true
+        CMAKE_FIND_ROOT_PATH_MODE: "BOTH"
+    candidates:
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/boost_headersConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/boost_headers-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/lib/x86_64-linux-gnu/cps/boost_headers.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/lib/cps/boost_headers.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/share/cps/boost_headers.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_headersConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_headers-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_headers-1.83.0/boost_headersConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+    found:
+      path: "/usr/lib/x86_64-linux-gnu/cmake/boost_headers-1.83.0/boost_headers-config.cmake"
+      mode: "config"
+      version: "1.83.0"
+    search_context:
+      ENV{PATH}:
+        - "/home/ubuntu/.npm-global/bin"
+        - "/home/ubuntu/.npm-global/bin"
+        - "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand"
+        - "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli"
+        - "/home/ubuntu/.vscode-server/cli/servers/Stable-645f29cc3176500b4b5762ba887cf2a7f0ffdf2c/server/bin/remote-cli"
+        - "/home/ubuntu/.npm-global/bin"
+        - "/usr/local/sbin"
+        - "/usr/local/bin"
+        - "/usr/sbin"
+        - "/usr/bin"
+        - "/sbin"
+        - "/bin"
+        - "/usr/games"
+        - "/usr/local/games"
+        - "/snap/bin"
+      CMAKE_INSTALL_PREFIX: "/usr/local"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "/usr/local"
+        - "/usr"
+        - "/"
+        - "/usr/local"
+        - "/usr/local"
+        - "/usr/X11R6"
+        - "/usr/pkg"
+        - "/opt"
+  -
+    kind: "find_package-v1"
+    backtrace:
+      - "/usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake:141 (find_package)"
+      - "/usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake:262 (boost_find_component)"
+      - "/usr/local/share/cmake-4.3/Modules/FindBoost.cmake:610 (find_package)"
+      - "CMakeLists.txt:18 (find_package)"
+    name: "boost_system"
+    configs:
+      -
+        filename: "boost_system.cps"
+        kind: "cps"
+      -
+        filename: "boost_systemConfig.cmake"
+        kind: "cmake"
+      -
+        filename: "boost_system-config.cmake"
+        kind: "cmake"
+    version_request:
+      version: "1.83.0"
+      version_complete: "1.83.0"
+      exact: true
+    settings:
+      required: "required_explicit"
+      quiet: true
+      global: false
+      policy_scope: true
+      bypass_provider: false
+      hints:
+        - "/usr/lib/x86_64-linux-gnu/cmake"
+      names:
+        - "boost_system"
+      path_suffixes:
+        - ""
+      paths:
+        CMAKE_FIND_USE_CMAKE_PATH: true
+        CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+        CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+        CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+        CMAKE_FIND_USE_INSTALL_PREFIX: true
+        CMAKE_FIND_USE_PACKAGE_ROOT_PATH: true
+        CMAKE_FIND_USE_CMAKE_PACKAGE_REGISTRY: true
+        CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY: true
+        CMAKE_FIND_ROOT_PATH_MODE: "BOTH"
+    candidates:
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/boost_systemConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/boost_system-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/lib/x86_64-linux-gnu/cps/boost_system.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/lib/cps/boost_system.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/share/cps/boost_system.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_systemConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_system-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_system-1.83.0/boost_systemConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+    found:
+      path: "/usr/lib/x86_64-linux-gnu/cmake/boost_system-1.83.0/boost_system-config.cmake"
+      mode: "config"
+      version: "1.83.0"
+    search_context:
+      ENV{PATH}:
+        - "/home/ubuntu/.npm-global/bin"
+        - "/home/ubuntu/.npm-global/bin"
+        - "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand"
+        - "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli"
+        - "/home/ubuntu/.vscode-server/cli/servers/Stable-645f29cc3176500b4b5762ba887cf2a7f0ffdf2c/server/bin/remote-cli"
+        - "/home/ubuntu/.npm-global/bin"
+        - "/usr/local/sbin"
+        - "/usr/local/bin"
+        - "/usr/sbin"
+        - "/usr/bin"
+        - "/sbin"
+        - "/bin"
+        - "/usr/games"
+        - "/usr/local/games"
+        - "/snap/bin"
+      CMAKE_INSTALL_PREFIX: "/usr/local"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "/usr/local"
+        - "/usr"
+        - "/"
+        - "/usr/local"
+        - "/usr/local"
+        - "/usr/X11R6"
+        - "/usr/pkg"
+        - "/opt"
+  -
+    kind: "find_package-v1"
+    backtrace:
+      - "/usr/local/share/cmake-4.3/Modules/FindBoost.cmake:610 (find_package)"
+      - "CMakeLists.txt:18 (find_package)"
+    name: "Boost"
+    components:
+      -
+        name: "system"
+        required: true
+        found: true
+    configs:
+      -
+        filename: "Boost.cps"
+        kind: "cps"
+      -
+        filename: "boost.cps"
+        kind: "cps"
+      -
+        filename: "BoostConfig.cmake"
+        kind: "cmake"
+      -
+        filename: "boost-config.cmake"
+        kind: "cmake"
+    version_request:
+      version: "1.74"
+      version_complete: "1.74"
+      exact: false
+    settings:
+      required: "optional"
+      quiet: true
+      global: false
+      policy_scope: true
+      bypass_provider: false
+      names:
+        - "Boost"
+      path_suffixes:
+        - ""
+      paths:
+        CMAKE_FIND_USE_CMAKE_PATH: true
+        CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+        CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+        CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+        CMAKE_FIND_USE_INSTALL_PREFIX: true
+        CMAKE_FIND_USE_PACKAGE_ROOT_PATH: true
+        CMAKE_FIND_USE_CMAKE_PACKAGE_REGISTRY: true
+        CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY: true
+        CMAKE_FIND_ROOT_PATH_MODE: "BOTH"
+    candidates:
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/lib/x86_64-linux-gnu/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/lib/x86_64-linux-gnu/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/lib/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/lib/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/share/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/Desktop/server/build/CMakeFiles/pkgRedirects/share/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.npm-global/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.npm-global/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.npm-global/lib/x86_64-linux-gnu/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.npm-global/lib/x86_64-linux-gnu/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.npm-global/lib/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.npm-global/lib/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.npm-global/share/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.npm-global/share/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand/lib/x86_64-linux-gnu/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand/lib/x86_64-linux-gnu/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand/lib/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand/lib/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand/share/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand/share/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli/lib/x86_64-linux-gnu/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli/lib/x86_64-linux-gnu/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli/lib/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli/lib/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli/share/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli/share/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/cli/servers/Stable-645f29cc3176500b4b5762ba887cf2a7f0ffdf2c/server/bin/remote-cli/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/cli/servers/Stable-645f29cc3176500b4b5762ba887cf2a7f0ffdf2c/server/bin/remote-cli/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/cli/servers/Stable-645f29cc3176500b4b5762ba887cf2a7f0ffdf2c/server/bin/remote-cli/lib/x86_64-linux-gnu/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/cli/servers/Stable-645f29cc3176500b4b5762ba887cf2a7f0ffdf2c/server/bin/remote-cli/lib/x86_64-linux-gnu/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/cli/servers/Stable-645f29cc3176500b4b5762ba887cf2a7f0ffdf2c/server/bin/remote-cli/lib/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/cli/servers/Stable-645f29cc3176500b4b5762ba887cf2a7f0ffdf2c/server/bin/remote-cli/lib/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/cli/servers/Stable-645f29cc3176500b4b5762ba887cf2a7f0ffdf2c/server/bin/remote-cli/share/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/home/ubuntu/.vscode-server/cli/servers/Stable-645f29cc3176500b4b5762ba887cf2a7f0ffdf2c/server/bin/remote-cli/share/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/local/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/local/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/local/lib/x86_64-linux-gnu/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/local/lib/x86_64-linux-gnu/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/local/lib/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/local/lib/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/local/share/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/local/share/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/share/cps/Boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/share/cps/boost.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_wserialization-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_wserialization-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_wave-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_wave-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_url-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_url-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_unit_test_framework-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_unit_test_framework-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_type_erasure-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_type_erasure-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_timer-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_timer-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_thread-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_thread-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_test_exec_monitor-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_test_exec_monitor-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_system-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_system-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_stacktrace_noop-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_stacktrace_noop-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_stacktrace_basic-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_stacktrace_basic-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_stacktrace_backtrace-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_stacktrace_backtrace-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_stacktrace_addr2line-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_stacktrace_addr2line-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_serialization-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_serialization-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_regex-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_regex-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_random-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_random-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_python-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_python-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_program_options-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_program_options-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_prg_exec_monitor-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_prg_exec_monitor-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_numpy-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_numpy-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_nowide-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_nowide-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_mpi_python-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_mpi_python-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_mpi-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_mpi-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_math_tr1l-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_math_tr1l-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_math_tr1f-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_math_tr1f-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_math_tr1-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_math_tr1-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_math_c99l-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_math_c99l-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_math_c99f-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_math_c99f-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_math_c99-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_math_c99-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_log_setup-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_log_setup-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_log-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_log-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_locale-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_locale-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_json-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_json-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_iostreams-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_iostreams-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_headers-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_headers-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_graph_parallel-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_graph_parallel-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_graph-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_graph-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_filesystem-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_filesystem-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_fiber-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_fiber-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_exception-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_exception-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_date_time-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_date_time-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_coroutine-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_coroutine-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_context-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_context-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_container-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_container-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_chrono-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_chrono-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_atomic-1.83.0/BoostConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/lib/x86_64-linux-gnu/cmake/boost_atomic-1.83.0/boost-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+    found:
+      path: "/usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake"
+      mode: "config"
+      version: "1.83.0"
+    search_context:
+      ENV{PATH}:
+        - "/home/ubuntu/.npm-global/bin"
+        - "/home/ubuntu/.npm-global/bin"
+        - "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand"
+        - "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli"
+        - "/home/ubuntu/.vscode-server/cli/servers/Stable-645f29cc3176500b4b5762ba887cf2a7f0ffdf2c/server/bin/remote-cli"
+        - "/home/ubuntu/.npm-global/bin"
+        - "/usr/local/sbin"
+        - "/usr/local/bin"
+        - "/usr/sbin"
+        - "/usr/bin"
+        - "/sbin"
+        - "/bin"
+        - "/usr/games"
+        - "/usr/local/games"
+        - "/snap/bin"
+      CMAKE_INSTALL_PREFIX: "/usr/local"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "/usr/local"
+        - "/usr"
+        - "/"
+        - "/usr/local"
+        - "/usr/local"
+        - "/usr/X11R6"
+        - "/usr/pkg"
+        - "/opt"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "/usr/local/share/cmake-4.3/Modules/FindBoost.cmake:538 (find_path)"
+      - "/usr/local/share/cmake-4.3/Modules/FindBoost.cmake:643 (_boost_set_legacy_variables_from_config)"
+      - "CMakeLists.txt:18 (find_package)"
+    mode: "path"
+    variable: "Boost_INCLUDE_DIR"
+    description: "Path to a file."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "boost/version.hpp"
+      - "boost/config.hpp"
+    candidate_directories:
+      - "/usr/include/"
+    found: "/usr/include/"
+    search_context:
+      ENV{PATH}:
+        - "/home/ubuntu/.npm-global/bin"
+        - "/home/ubuntu/.npm-global/bin"
+        - "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand"
+        - "/home/ubuntu/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli"
+        - "/home/ubuntu/.vscode-server/cli/servers/Stable-645f29cc3176500b4b5762ba887cf2a7f0ffdf2c/server/bin/remote-cli"
+        - "/home/ubuntu/.npm-global/bin"
+        - "/usr/local/sbin"
+        - "/usr/local/bin"
+        - "/usr/sbin"
+        - "/usr/bin"
+        - "/sbin"
+        - "/bin"
+        - "/usr/games"
+        - "/usr/local/games"
+        - "/snap/bin"
+      CMAKE_INSTALL_PREFIX: "/usr/local"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "/usr/local"
+        - "/usr"
+        - "/"
+        - "/usr/local"
+        - "/usr/local"
+        - "/usr/X11R6"
+        - "/usr/pkg"
+        - "/opt"
+      CMAKE_SYSTEM_INCLUDE_PATH:
+        - "/usr/include/X11"
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-4.3/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/local/share/cmake-4.3/Modules/CheckCSourceCompiles.cmake:103 (cmake_check_source_compiles)"
+      - "/usr/local/share/cmake-4.3/Modules/FindThreads.cmake:160 (check_c_source_compiles)"
+      - "/usr/local/share/cmake-4.3/Modules/FindThreads.cmake:226 (_threads_check_libc)"
+      - "CMakeLists.txt:19 (find_package)"
+    checks:
+      - "Performing Test CMAKE_HAVE_LIBC_PTHREAD"
+    directories:
+      source: "/home/ubuntu/Desktop/server/build/CMakeFiles/CMakeScratch/TryCompile-THUpGo"
+      binary: "/home/ubuntu/Desktop/server/build/CMakeFiles/CMakeScratch/TryCompile-THUpGo"
+    cmakeVariables:
+      CMAKE_CXX_STDLIB_MODULES_JSON: ""
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+    buildResult:
+      variable: "CMAKE_HAVE_LIBC_PTHREAD"
+      cached: true
+      stdout: |
+        Change Dir: '/home/ubuntu/Desktop/server/build/CMakeFiles/CMakeScratch/TryCompile-THUpGo'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_45dc4/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_45dc4.dir/build.make CMakeFiles/cmTC_45dc4.dir/build
+        gmake[1]: 进入目录“/home/ubuntu/Desktop/server/build/CMakeFiles/CMakeScratch/TryCompile-THUpGo”
+        Building C object CMakeFiles/cmTC_45dc4.dir/src.c.o
+        /usr/bin/cc -DCMAKE_HAVE_LIBC_PTHREAD   -o CMakeFiles/cmTC_45dc4.dir/src.c.o -c /home/ubuntu/Desktop/server/build/CMakeFiles/CMakeScratch/TryCompile-THUpGo/src.c
+        Linking C executable cmTC_45dc4
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_45dc4.dir/link.txt --verbose=1
+        /usr/bin/cc CMakeFiles/cmTC_45dc4.dir/src.c.o -o cmTC_45dc4
+        gmake[1]: 离开目录“/home/ubuntu/Desktop/server/build/CMakeFiles/CMakeScratch/TryCompile-THUpGo”
+        
+      exitCode: 0
+...

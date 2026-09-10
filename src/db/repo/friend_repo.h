@@ -19,6 +19,9 @@ public:
     // 建立好友：事务内双写 (uid_a, uid_b) 与 (uid_b, uid_a)
     bool add_friend(int uid_a, int uid_b) override;
 
+    // 确保用户与自己是好友（写入 (uid, uid)），幂等
+    bool ensure_self_friend(int uid) override;
+
     // 删除好友：事务内同时删除 (uid_a, uid_b) 与 (uid_b, uid_a)
     bool remove_friend(int uid_a, int uid_b) override;
 

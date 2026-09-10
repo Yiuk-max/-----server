@@ -2,6 +2,7 @@
 
 基于 epoll + 主从 Reactor 多线程模型的 TCP 聊天服务器，支持注册/登录、私聊、群聊、好友系统、文件传输。
 另提供平行的 **Boost.Asio + Beast WebSocket 网络层**，由 `configure.json` 的 `net_layer` 在启动时二选一，两种模式复用同一套业务层。
+WebSocket 模式目前已支持注册/登录、私聊、群聊、好友、离线消息、心跳等全部即时通讯业务，**文件传输暂未支持**（后续版本）。
 
 ## 快速开始
 
@@ -37,10 +38,63 @@ cd build
 
 未读到配置文件时使用默认值（连接信息见《数据库设计.txt》），可能连不上你的数据库。
 
+## 网络层切换（binary / websocket）
+
+`net_layer` 在启动时读取，改完需要重启；**两种模式只能同时跑一个，都占用 8080 端口**。
+
+编辑运行目录下的 `configure.json`（通常是 `build/configure.json`）：
+
+- **用 WebSocket**：设置 `"net_layer": "websocket"`，浏览器 / WebSocket 客户端连 `ws://<host>:8080/ws`。
+- **切回 TCP 老模式**：把 `net_layer` 改成 `"binary"`（或直接删掉该字段，默认就是 `binary`）再启动，用原来的 TCP 客户端连 `:8080`。
+
+> 切错协议会立刻连不上，这是预期的：websocket 模式只接受 WS 握手（错误路径返回 404，非升级请求返回 426）；
+> binary 模式只认自定义帧。`use_heartbeat` / `heartbeat_interval` 对两种模式都生效。
+
+启动后日志会明确打印当前网络层，例如：
+
+```
+[ServerConfig] net_layer=websocket, use_heartbeat=false, heartbeat_interval=60s, ws_path=/ws, ws_io_threads=4, db_conn_count=4
+[ws] WebSocket server listening on port 8080, path /ws, io_threads 4
+```
+
+### 浏览器快速测试
+
+仓库自带一个纯 HTML 测试页 `tests/ws_browser_test.html`，无需构建：
+
+```bash
+# 方式一：直接双击/在浏览器打开该文件（file:// 下 ws:// 可用）
+# 方式二：从虚拟机提供给宿主机/局域网
+python3 -m http.server 8000 --directory tests
+#  然后在宿主机浏览器打开 http://<虚拟机IP>:8000/ws_browser_test.html
+```
+
+页面里 Host 填服务端地址、Port `8080`、Path `/ws`，点「连接」即可注册/登录/私聊。
+
+## 测试
+
+可选单元测试（不需要 MySQL）：
+
+```bash
+cmake -S . -B build -DSERVER_BUILD_TESTS=ON
+cmake --build build -j8
+ctest --test-dir build --output-on-failure
+```
+
+端到端冒烟（需要 MySQL，且服务端已以 `net_layer=websocket` 启动）：
+
+```bash
+python3 tests/ws_chat_smoke.py 127.0.0.1 8080 /ws
+# 额外验证空闲超时（服务端需 use_heartbeat=true 且 heartbeat_interval<=N）
+python3 tests/ws_chat_smoke.py 127.0.0.1 8080 /ws --idle-seconds=3
+```
+
+冒烟脚本覆盖：注册/登录、好友申请与接受、私聊、建群/拉人/群聊、离线消息、顶号、空闲超时。
+
 ## 文档
 
 - **[项目说明文档.md](项目说明文档.md)** —— 技术栈、目录结构、架构与工作流程、核心模块说明、常见问题。
 - **[客户端接口文档.txt](客户端接口文档.txt)** —— 前后端 JSON / 帧协议接口规范（建议客户端开发者先读此文档）。
+- **[WebSocket接入代码改动文档.md](WebSocket接入代码改动文档.md)** —— WebSocket 接入方案与 M0~M2 实施记录。
 - **[数据库设计.txt](数据库设计.txt)** —— 数据库表结构、UID 分配与连接池接入说明。
 - **[开发日志.txt](开发日志.txt)** —— 待办清单与开发日志（含历次架构重构与问题修复记录）。
 
@@ -57,8 +111,10 @@ server/
 │   ├── db/                 # 数据库分层：mysql(连接池) / repo_interface(接口契约) / repo(MySQL 实现)
 │   └── utils/              # 线程池
 ├── include/total.h         # 基础设施公共头（不再是"万能头"）
-├── configure.json          # 运行配置（心跳 / 数据库连接池）
+├── configure.json          # 运行配置（网络层 / 心跳 / WebSocket / 数据库连接池）
 ├── sql/create_table.sql    # 数据库建表脚本
+├── sql/add_self_friend.sql # 给已有账号补齐"自己是自己的好友"（自聊）
+├── tests/                  # 可选单元测试 + 端到端冒烟脚本 + 浏览器测试页
 └── build/                  # 构建输出
 ```
 

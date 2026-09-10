@@ -507,3 +507,24 @@
     2. 数据库连接池：`database` 下的 `host/port/user/password/dbname/db_conn_count`
        （`db_conn_count` 为连接池上限，默认 4）。
 - 未读到配置文件时会使用默认值（见 readme.md / 数据库设计.txt），可能导致无法连接你的数据库。
+十、WebSocket 接入方式（可选）
+-----------------------------------------------
+服务端支持两种网络层，由 `configure.json` 的 `net_layer` 在启动时二选一，
+两种模式都监听同一端口 `8080`，同一时刻只启用一种：
+
+*   `"net_layer": "binary"`（默认）：即本文档第一~九节描述的 TCP + 二进制帧协议。
+*   `"net_layer": "websocket"`：使用 WebSocket，地址为 `ws://<host>:8080/ws`。
+
+WebSocket 模式下的约定：
+1.  **握手**：路径必须是 `/ws`（允许带 query）。错误路径返回 `404`，非 Upgrade 请求返回 `426`。
+2.  **普通业务消息**：使用 **文本帧（text）**，payload 即完整 JSON，字段与本文档完全一致
+    （如 `{"type":"login","UID":1001,"password":"123456"}`）。
+3.  **消息类型与返回**：第 3~6 节的 type、字段、system 提示文本全部复用，无需为 WS 改动业务 JSON。
+4.  **心跳**：同样发送 `{"type":"heartbeat"}`，服务端回 `heartbeat_ack`（content 为 `pong`）。
+    当 `use_heartbeat=true` 时，服务端也会像 TCP 模式一样在空闲超过 `heartbeat_interval` 秒后主动断开。
+5.  **服务器主动推送**：使用文本帧，客户端按 `type` 处理（与 TCP 模式一致）。
+6.  **文件传输**：WebSocket 模式暂不支持上传/下载（返回“暂不支持”系统提示），后续版本再开放。
+7.  **大小限制**：单条消息默认上限 1 MiB，可在 `configure.json` 的 `websocket.max_message_bytes` 调整；
+    单连接待发送队列上限默认 8 MiB（`websocket.max_pending_bytes`）。
+
+选择建议：浏览器/移动端用 WebSocket；现有桌面 TCP 客户端继续用 binary。切换后需重启服务端。

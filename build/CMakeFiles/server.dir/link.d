@@ -12,6 +12,9 @@ server: \
   CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o \
   CMakeFiles/server.dir/src/net_core/server_config.cpp.o \
   CMakeFiles/server.dir/src/net_core/session_manager.cpp.o \
+  CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.o \
+  CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.o \
+  CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.o \
   CMakeFiles/server.dir/src/logic/account.cpp.o \
   CMakeFiles/server.dir/src/logic/group.cpp.o \
   CMakeFiles/server.dir/src/logic/social_module.cpp.o \
@@ -23,6 +26,7 @@ server: \
   CMakeFiles/server.dir/src/db/repo_interface/repository_hub.cpp.o \
   CMakeFiles/server.dir/src/db/mysql/mysql_conn_pool.cpp.o \
   /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libmysqlcppconn.so \
+  /usr/lib/x86_64-linux-gnu/libboost_system.so.1.83.0 \
   /usr/lib/gcc/x86_64-linux-gnu/13/libstdc++.so \
   /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libm.so \
   /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libm.so \
@@ -82,6 +86,12 @@ CMakeFiles/server.dir/src/net_core/server_config.cpp.o:
 
 CMakeFiles/server.dir/src/net_core/session_manager.cpp.o:
 
+CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.o:
+
+CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.o:
+
+CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.o:
+
 CMakeFiles/server.dir/src/logic/account.cpp.o:
 
 CMakeFiles/server.dir/src/logic/group.cpp.o:
@@ -103,6 +113,8 @@ CMakeFiles/server.dir/src/db/repo_interface/repository_hub.cpp.o:
 CMakeFiles/server.dir/src/db/mysql/mysql_conn_pool.cpp.o:
 
 /usr/lib/gcc/x86_64-linux-gnu/13/../../../x86_64-linux-gnu/libmysqlcppconn.so:
+
+/usr/lib/x86_64-linux-gnu/libboost_system.so.1.83.0:
 
 /usr/lib/gcc/x86_64-linux-gnu/13/libstdc++.so:
 

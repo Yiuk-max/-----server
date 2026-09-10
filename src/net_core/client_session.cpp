@@ -138,6 +138,8 @@ void client_session::register_user(std::string username,std::string password){
         return;
     }
     current_account_ = new_account;
+    // 注册后把自己加为自己的好友，允许给自己发消息（自聊）。
+    repo_hub_->friends()->ensure_self_friend(new_account->getUID());
     std::string UID = new_account->get_string_UID();
     std::string success = "Registration successful. You can now log in with UID " + UID + ".\n";
     package_message(success,"system");
@@ -157,6 +159,9 @@ void client_session::login(int UID,std::string password){
     }
     // 记录上一次登录时间（用于查询离线消息：自上次登录之后未收到的消息）
     std::string last_login_time = account->get_last_login_time();
+    // 确保自己是自己的好友：新账号在注册时已写入，这里覆盖历史账号，并在被删除后自愈。
+    // 必须在 social_module 构造（加载好友列表）之前完成，才能出现在 show 列表里。
+    repo_hub_->friends()->ensure_self_friend(UID);
     auto new_social = std::make_shared<social_module>(UID, repo_hub_);
     auto self = shared_from_this();
 

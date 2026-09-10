@@ -66,6 +66,28 @@ bool friend_repo::add_friend(int uid_a, int uid_b) {
     }
 }
 
+// 确保用户与自己是好友：(uid, uid) 一行，INSERT IGNORE 保证幂等。
+bool friend_repo::ensure_self_friend(int uid) {
+    ConnGuard guard;
+    if (!guard) {
+        std::cerr << "[friend_repo] ensure_self_friend: no DB connection." << std::endl;
+        return false;
+    }
+    try {
+        std::unique_ptr<sql::PreparedStatement> pstmt(
+            guard.get()->prepareStatement(
+                "INSERT IGNORE INTO friend_relation (UID, friend_UID, remark_name) VALUES (?, ?, NULL)"));
+        pstmt->setInt(1, uid);
+        pstmt->setInt(2, uid);
+        pstmt->execute();
+        return true;
+    } catch (const sql::SQLException& e) {
+        std::cerr << "[friend_repo] ensure_self_friend failed: " << e.what()
+                  << " (ERRNO=" << e.getErrorCode() << ")" << std::endl;
+        return false;
+    }
+}
+
 // 删除好友：事务内同时删除两行；若本就不存在也视为成功。
 bool friend_repo::remove_friend(int uid_a, int uid_b) {
     ConnGuard guard;

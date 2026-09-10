@@ -27,6 +27,9 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/home/ubuntu/Desktop/server/src/net_core/receiver_sender.cpp" "CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o" "gcc" "CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o.d"
   "/home/ubuntu/Desktop/server/src/net_core/server_config.cpp" "CMakeFiles/server.dir/src/net_core/server_config.cpp.o" "gcc" "CMakeFiles/server.dir/src/net_core/server_config.cpp.o.d"
   "/home/ubuntu/Desktop/server/src/net_core/session_manager.cpp" "CMakeFiles/server.dir/src/net_core/session_manager.cpp.o" "gcc" "CMakeFiles/server.dir/src/net_core/session_manager.cpp.o.d"
+  "/home/ubuntu/Desktop/server/src/net_core_ws/ws_protocol.cpp" "CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.o" "gcc" "CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.o.d"
+  "/home/ubuntu/Desktop/server/src/net_core_ws/ws_server.cpp" "CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.o" "gcc" "CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.o.d"
+  "/home/ubuntu/Desktop/server/src/net_core_ws/ws_session.cpp" "CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.o" "gcc" "CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.o.d"
   "/home/ubuntu/Desktop/server/src/utils/thread_pool.cpp" "CMakeFiles/server.dir/src/utils/thread_pool.cpp.o" "gcc" "CMakeFiles/server.dir/src/utils/thread_pool.cpp.o.d"
   "" "server" "gcc" "CMakeFiles/server.dir/link.d"
   )

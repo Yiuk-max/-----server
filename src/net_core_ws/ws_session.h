@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <deque>
 #include <memory>
@@ -7,6 +8,7 @@
 #include <utility>
 
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/websocket.hpp>
@@ -54,6 +56,10 @@ private:
     void dispatch_to_business(std::string json_text, std::string file_data);
     void on_business_done();
 
+    // 空闲超时：与 binary 层 use_heartbeat / heartbeat_interval 行为对齐。
+    void touch();
+    void schedule_idle_check();
+
     void enqueue(std::string payload, bool is_text);
     void do_write();
     void on_write(boost::beast::error_code ec, std::size_t bytes);
@@ -63,9 +69,11 @@ private:
     void teardown();
     void fail(boost::beast::error_code ec, const char* what);
 
-    boost::beast::websocket::stream<boost::beast::tcp_stream> ws_;
-    boost::beast::flat_buffer buffer_;
-    boost::beast::http::request<boost::beast::http::string_body> request_;
+    boost::beast::websocket::stream<boost::beast::tcp_stream> ws_;  // WebSocket stream，绑定到独立 strand 上
+    boost::asio::steady_timer idle_timer_;                          // 空闲检测计时器，绑定到独立 strand 上
+    std::chrono::steady_clock::time_point last_active_;             // 最近一次读/写/心跳的时间点，绑定到独立 strand 上
+    boost::beast::flat_buffer buffer_;                              // WebSocket 读缓冲区，绑定到独立 strand 上
+    boost::beast::http::request<boost::beast::http::string_body> request_; // 握手阶段的 HTTP 请求，绑定到独立 strand 上
 
     std::shared_ptr<ThreadPool> business_pool_;// 业务线程池由外部持有并共享，保证生命周期覆盖所有会话
     std::shared_ptr<client_session> session_;

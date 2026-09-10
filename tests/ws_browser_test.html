@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Chat Server WebSocket 测试</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 16px; max-width: 900px; }
+  fieldset { margin-bottom: 12px; }
+  label { margin-right: 8px; }
+  input { padding: 4px; }
+  button { padding: 5px 10px; margin-right: 6px; }
+  #log { background: #111; color: #ddd; padding: 10px; height: 340px; overflow: auto;
+         white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 13px; border-radius: 6px; }
+  .in  { color: #7fd1ff; }
+  .out { color: #9dff9d; }
+  .sys { color: #ffd37f; }
+  .err { color: #ff8080; }
+  .row { margin: 6px 0; }
+</style>
+</head>
+<body>
+<h2>Chat Server WebSocket 测试</h2>
+
+<fieldset>
+  <legend>连接</legend>
+  <div class="row">
+    <label>Host <input id="host" value="127.0.0.1" size="12"></label>
+    <label>Port <input id="port" value="8080" size="6"></label>
+    <label>Path <input id="path" value="/ws" size="6"></label>
+    <button onclick="connect()">连接</button>
+    <button onclick="disconnect()">断开</button>
+    <span id="state">未连接</span>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>账号</legend>
+  <div class="row">
+    <label>昵称 <input id="username" value="browser_user" size="14"></label>
+    <label>密码 <input id="password" value="123456" size="12"></label>
+    <button onclick="register()">注册</button>
+    <label>UID <input id="uid" size="8"></label>
+    <button onclick="login()">登录</button>
+    <button onclick="logout()">登出</button>
+  </div>
+  <div class="row">
+    <button onclick="send({type:'show'})">show 聊天列表</button>
+    <button onclick="send({type:'heartbeat'})">心跳</button>
+    <button onclick="send({type:'refresh_offline_messages'})">刷新离线消息</button>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>私聊 / 群聊</legend>
+  <div class="row">
+    <label>目标 UID <input id="target" size="8"></label>
+    <label>内容 <input id="message" value="你好，from browser" size="30"></label>
+    <button onclick="privateChat()">私聊 private_chat</button>
+    <button onclick="groupChat()">群聊 group_chat</button>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>原始 JSON（发送任意消息）</legend>
+  <div class="row">
+    <input id="raw" value='{"type":"show"}' size="70">
+    <button onclick="sendRaw()">发送</button>
+  </div>
+</fieldset>
+
+<div class="row">
+  <button onclick="document.getElementById('log').textContent=''">清空日志</button>
+</div>
+<div id="log"></div>
+
+<script>
+let ws = null;
+
+function log(cls, text) {
+  const el = document.getElementById('log');
+  const t = new Date().toLocaleTimeString();
+  el.innerHTML += `<span class="${cls}">[${t}] ${text}</span>\n`;
+  el.scrollTop = el.scrollHeight;
+}
+function setState(s) { document.getElementById('state').textContent = s; }
+
+// 若页面通过 HTTP 提供（如宿主机访问 http://<vm-ip>:8000/...），
+// 自动把 Host 填成当前主机名/IP，避免手动改；file:// 打开时回退 127.0.0.1。
+window.addEventListener('DOMContentLoaded', () => {
+  const h = location.hostname;
+  if (h && h !== 'localhost') document.getElementById('host').value = h;
+});
+
+function connect() {
+  if (ws && ws.readyState <= 1) { log('err', '已连接'); return; }
+  const host = document.getElementById('host').value.trim();
+  const port = document.getElementById('port').value.trim();
+  const path = document.getElementById('path').value.trim();
+  const url = `ws://${host}:${port}${path}`;
+  log('sys', '连接 ' + url);
+  ws = new WebSocket(url);
+  ws.onopen    = () => { setState('已连接'); log('sys', 'WebSocket 已连接'); };
+  ws.onclose   = (e) => { setState('已断开'); log('sys', `连接关闭 code=${e.code} reason=${e.reason}`); };
+  ws.onerror   = () => log('err', 'WebSocket 错误（检查服务端是否以 net_layer=websocket 启动）');
+  ws.onmessage = (e) => {
+    if (typeof e.data === 'string') {
+      log('in', '← ' + e.data);
+      try {
+        const m = JSON.parse(e.data);
+        if (m.type === 'system' && /Registration successful.*UID (\d+)/.test(m.content)) {
+          document.getElementById('uid').value = m.content.match(/UID (\d+)/)[1];
+        }
+      } catch (_) {}
+    } else {
+      log('in', '← [二进制帧 ' + e.data.size + ' bytes]');
+    }
+  };
+}
+function disconnect() { if (ws) ws.close(); }
+function sendRaw() { send(document.getElementById('raw').value, true); }
+
+function send(objOrText, isRaw) {
+  if (!ws || ws.readyState !== 1) { log('err', '未连接'); return; }
+  const text = isRaw ? objOrText : JSON.stringify(objOrText);
+  ws.send(text);
+  log('out', '→ ' + text);
+}
+function register() {
+  send({ type: 'register',
+         username: document.getElementById('username').value,
+         password: document.getElementById('password').value });
+}
+function login() {
+  send({ type: 'login',
+         UID: parseInt(document.getElementById('uid').value, 10),
+         password: document.getElementById('password').value });
+}
+function logout() { send({ type: 'logout' }); }
+function privateChat() {
+  send({ type: 'private_chat',
+         target_UID: parseInt(document.getElementById('target').value, 10),
+         message: document.getElementById('message').value });
+}
+function groupChat() {
+  send({ type: 'group_chat',
+         target_UID: parseInt(document.getElementById('target').value, 10),
+         message: document.getElementById('message').value });
+}
+</script>
+</body>
+</html>
