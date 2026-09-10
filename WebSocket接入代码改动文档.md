@@ -717,6 +717,8 @@ Asio IO 线程不执行 MySQL 查询。一个连接的消息不会并行业务�
 
 验收：注册、登录、heartbeat、show 可以通过 WS 完成。
 
+> **状态：已完成（2026-06）。** 文件传输仍按需求暂缓，`WsSession` 对文件请求返回“暂不支持”提示；详见第 14 节。
+
 ### M2：聊天和通知
 
 改动：
@@ -859,4 +861,65 @@ ctest --test-dir build --output-on-failure
 - WebSocket 网络层、握手、帧协议（M1 起）。
 - WebSocket 文件二进制协议；文件部分仅保持原 TCP 能力可编译。
 - 群缓存引用计数在“断线”路径的释放时机调整（当前随会话最终析构释放，不再与此前并发处理任务竞争）。
+
+## 14. M1 实施记录（已完成）
+
+### 14.1 新增/改动文件
+
+| 文件 | 改动 |
+|---|---|
+| `src/net_core_ws/ws_protocol.h/.cpp` | 新增：WebSocket binary 应用层编解码（4B json_len + JSON + file） |
+| `src/net_core_ws/ws_session.h/.cpp` | 新增：单连接会话，实现 `IClientTransport`；HTTP 握手 + 路径校验 + text/binary 读 + 单连接发送队列 + close |
+| `src/net_core_ws/ws_server.h/.cpp` | 新增：Asio acceptor（IPv6 双栈）、`run_websocket_server()` 入口 |
+| `src/net_core/server_config.h/.cpp` | 新增 `net_layer / ws_path / ws_io_threads / ws_max_message_bytes / ws_max_pending_bytes`；字符串 getter 改为按值返回 |
+| `src/main.cpp` | 拆出 `run_binary_server()`，按 `net_layer` 分流 |
+| `CMakeLists.txt` | 新增 `net_core_ws` 源目录/include；`find_package(Boost COMPONENTS system)`；链接 `Boost::system`、`Threads`；新增 `ws_protocol` 测试 |
+| `configure.json` | 新增 `net_layer`（默认 `binary`）与 `websocket` 配置块 |
+| `tests/test_ws_protocol.cpp` | 新增：binary 编解码、长度越界、短 payload |
+
+### 14.2 运行时配置
+
+```jsonc
+{
+  "net_layer": "binary",          // 或 "websocket"
+  "websocket": {
+    "path": "/ws",
+    "io_threads": 4,
+    "max_message_bytes": 1048576,
+    "max_pending_bytes": 8388608
+  }
+}
+```
+
+- `net_layer` 缺省为 `binary`，旧配置可直接启动。
+- 非法值（非 `binary/websocket`）启动失败并输出明确错误。
+- 两种模式都监听 `8080`，但同一时刻只启动一个。
+
+### 14.3 关键实现点
+
+- **握手**：`http::async_read` 读取升级请求 → 校验 `Upgrade` 与 `path`（允许 query）→ `ws_.async_accept()`。非升级请求返回 `426`，错误路径返回 `404`。
+- **线程**：每个连接接受时绑定独立 `strand`；所有 socket 操作 post 回该 strand。业务提交到共享 `ThreadPool`。
+- **顺序**：收到一条完整消息 → 提交业务线程 → 业务完成后回 strand 再发起下一次读，保证单连接消息按序处理并形成读背压。
+- **发送**：任意业务线程 `send_packet()` 只 post 到 strand 入队；单连接同时只有一个 `async_write`。发送队列超过 `max_pending_bytes` 则关闭连接。
+- **大小限制**：`read_message_max(max_message_bytes)`；超过时 Beast 以 `message_too_big` 关闭。
+- **关闭**：`immediate` 直接 teardown；`after_pending_writes` 先排空写队列再 `async_close`。`teardown()` 幂等，且只调用一次 `session_->on_disconnected()`。
+- **文件**：M1 阶段 `send_file/accept_file_chunk` 返回“暂不支持”系统消息，不实现二进制文件收发（M3）。
+
+### 14.4 端到端冒烟结果
+
+用最小 Python WebSocket 客户端（标准库手写握手/帧）在真实 MySQL 上验证：
+
+- 错误路径 `/nope` → `404`；`/ws` 握手返回合法 `Sec-WebSocket-Accept`。
+- `heartbeat` → `heartbeat_ack/pong`；未知命令与缺少 `type` 正常提示。
+- binary 非法帧（json_len 越界）→ 返回 `Invalid binary frame` 且连接保持。
+- 注册、登录、`show` 均可通过 WS 完成。
+- 顶号：第二个 WS 登录后第一个收到顶号通知；第二个连接不受第一个断线影响。
+- `close` 握手正常；`SIGTERM` 可干净退出。
+- 同一二进制切回 `net_layer=binary` 后，原 TCP 冒烟测试全部通过（无回归）。
+
+### 14.5 M1 未做（留给后续）
+
+- WebSocket 文件二进制收发（M3）。
+- `wss/TLS`、`Origin` 校验、token 鉴权。
+- 群广播级别的全局发送限流（当前只有单连接队列上限）。
 

@@ -7,12 +7,15 @@
 // 从 configure.json 读取配置，供各网络/连接模块查询。
 //
 // 目前支持的配置项：
+//   - net_layer           : string "binary" | "websocket"，启动时二选一（默认 binary）
 //   - use_heartbeat       : bool   是否启用心跳包检测
 //   - heartbeat_interval  : int    活动超时阈值（秒）；连接超过该秒数无数据即断开
+//   - websocket           : object WebSocket 网络层配置
+//       path / io_threads / max_message_bytes / max_pending_bytes
 //   - database            : object MySQL 连接池配置
 //       host / port / user / password / dbname / db_conn_count(默认 4)
 //
-// 用法：ServerConfig::get_instance().use_heartbeat()
+// 用法：ServerConfig::get_instance().net_layer()
 //       ServerConfig::get_instance().db_conn_count()
 // ============================================================
 class ServerConfig {
@@ -22,23 +25,39 @@ public:
     // 从指定路径加载配置（服务器启动时调用一次）
     void load(const std::string& path);
 
+    // ---- 网络层选择 ----
+    std::string net_layer() const;     // "binary" 或 "websocket"
+
     bool use_heartbeat() const;
     int  heartbeat_interval() const;   // 活动超时秒数
 
-    // ---- MySQL 连接池配置 ----
-    const std::string& db_host() const;
+    // ---- WebSocket 配置 ----
+    std::string ws_path() const;                 // 握手路径，默认 "/ws"
+    int         ws_io_threads() const;           // Asio 事件循环线程数（>=1）
+    std::size_t ws_max_message_bytes() const;    // 单条 WS 消息上限
+    std::size_t ws_max_pending_bytes() const;    // 单连接待发送字节上限
+
+    // ---- MySQL 连接池配置（按值返回，避免锁外引用内部字符串） ----
+    std::string db_host() const;
     int  db_port() const;
-    const std::string& db_user() const;
-    const std::string& db_password() const;
-    const std::string& db_name() const;
+    std::string db_user() const;
+    std::string db_password() const;
+    std::string db_name() const;
     int  db_conn_count() const;        // 连接池内连接数量（默认 4）
 
 private:
     ServerConfig() = default;
 
     mutable std::mutex mtx_;
+    std::string net_layer_ = "binary";
     bool use_heartbeat_          = false;
     int  heartbeat_interval_     = 60;
+
+    // WebSocket 配置
+    std::string ws_path_             = "/ws";
+    int         ws_io_threads_       = 4;
+    std::size_t ws_max_message_bytes_ = 1024 * 1024;      // 1 MiB
+    std::size_t ws_max_pending_bytes_ = 8 * 1024 * 1024;  // 8 MiB
 
     // MySQL 连接池配置
     std::string db_host_     = "localhost";

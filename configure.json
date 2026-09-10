@@ -1,6 +1,13 @@
 {
+    "net_layer": "binary",
     "use_heartbeat": false,
     "heartbeat_interval": 60,
+    "websocket": {
+        "path": "/ws",
+        "io_threads": 4,
+        "max_message_bytes": 1048576,
+        "max_pending_bytes": 8388608
+    },
     "database": {
         "host": "localhost",
         "port": 3306,

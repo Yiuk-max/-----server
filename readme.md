@@ -1,6 +1,7 @@
-# 聊天服务器（C++17 / epoll / 主从 Reactor）
+# 聊天服务器（C++17 / epoll 主从 Reactor / WebSocket）
 
 基于 epoll + 主从 Reactor 多线程模型的 TCP 聊天服务器，支持注册/登录、私聊、群聊、好友系统、文件传输。
+另提供平行的 **Boost.Asio + Beast WebSocket 网络层**，由 `configure.json` 的 `net_layer` 在启动时二选一，两种模式复用同一套业务层。
 
 ## 快速开始
 
@@ -23,11 +24,16 @@ cd build
 
 ## 配置文件
 
-服务器启动时读取**相对路径** `configure.json`（即当前工作目录下的文件）。程序通常从 `build/` 目录运行，因此请先执行 `cp configure.json build/`（或在 `build/` 下创建该文件）再启动，否则只读到默认值。配置文件包含两部分：
+服务器启动时读取**相对路径** `configure.json`（即当前工作目录下的文件）。程序通常从 `build/` 目录运行，因此请先执行 `cp configure.json build/`（或在 `build/` 下创建该文件）再启动，否则只读到默认值。配置文件包含：
 
-1. 心跳：`use_heartbeat`（开关）、`heartbeat_interval`（超时秒数）。
-2. 数据库连接池：`database` 下的 `host / port / user / password / dbname / db_conn_count`
+1. 网络层：`net_layer`（`"binary"` 或 `"websocket"`，默认 `binary`，启动时二选一，改完重启）；
+   `websocket` 子对象可配置 `path`（默认 `/ws`）、`io_threads`、`max_message_bytes`、`max_pending_bytes`。
+2. 心跳：`use_heartbeat`（开关）、`heartbeat_interval`（超时秒数）。
+3. 数据库连接池：`database` 下的 `host / port / user / password / dbname / db_conn_count`
    （`db_conn_count` 为连接池上限，默认 4）。
+
+> WebSocket 依赖 Boost（`Boost::system`，需 `libboost-dev`/`libboost-system-dev`）。`net_layer` 是运行时选择，
+> 因此同一个二进制总是包含 WebSocket 代码，Boost 为编译期依赖。
 
 未读到配置文件时使用默认值（连接信息见《数据库设计.txt》），可能连不上你的数据库。
 
@@ -45,6 +51,8 @@ server/
 ├── src/
 │   ├── main.cpp            # 入口：socket、主从 Reactor、线程池、初始化 MySQL 连接池
 │   ├── net_core/           # 网络核心层：epoller / client_session / message_handler / notice_service / group_manager / receiver_sender / session_manager / server_config
+│   ├── net_common/         # 传输抽象：IClientTransport（让业务层不依赖具体 TCP/WS）
+│   ├── net_core_ws/        # WebSocket 网络层：ws_server / ws_session / ws_protocol（Boost.Asio + Beast）
 │   ├── logic/              # 业务逻辑层：account / group / social_module
 │   ├── db/                 # 数据库分层：mysql(连接池) / repo_interface(接口契约) / repo(MySQL 实现)
 │   └── utils/              # 线程池
