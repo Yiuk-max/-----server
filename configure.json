@@ -6,7 +6,8 @@
         "path": "/ws",
         "io_threads": 4,
         "max_message_bytes": 1048576,
-        "max_pending_bytes": 8388608
+        "max_pending_bytes": 8388608,
+        "web_root": "./web"
     },
     "database": {
         "host": "localhost",

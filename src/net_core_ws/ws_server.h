@@ -23,7 +23,8 @@ public:
              std::shared_ptr<ThreadPool> pool,
              std::string path,// WebSocket 连接路径（如 /ws）
              std::size_t max_message_bytes,
-             std::size_t max_pending_bytes);
+             std::size_t max_pending_bytes,
+             std::string web_root);// 静态前端资源目录（非升级请求时服务）
 
     void run();
 
@@ -35,8 +36,9 @@ private:
     boost::asio::ip::tcp::acceptor acceptor_;   // 监听器必须在独立 strand 上创建，保证所有 IO 串行。
     std::shared_ptr<ThreadPool> pool_;          //所有session共享同一个业务线程池，保证生命周期覆盖所有会话。
     std::string path_;                          // WebSocket 连接路径（如 /ws）
-    std::size_t max_message_bytes_;             // 每个连接的最大消息字节数
-    std::size_t max_pending_bytes_;             // 每个连接的最大消息字节数和最大待发送字节数
+    std::size_t max_message_bytes_;             // 每个连接的最大消息字节数    接收
+    std::size_t max_pending_bytes_;             // 每个连接的最大待发送字节数  发送
+    std::string web_root_;                       // 静态前端资源目录
 };
 
 // 阻塞运行 WebSocket 服务器（读取 ServerConfig），直到收到 SIGINT/SIGTERM,优雅退出

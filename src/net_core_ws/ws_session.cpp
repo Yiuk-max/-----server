@@ -1,7 +1,10 @@
 #include "ws_session.h"
 
+#include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <iostream>
+#include <tuple>
 
 #include <boost/asio/post.hpp>
 #include <boost/asio/strand.hpp>
@@ -16,18 +19,46 @@ namespace websocket = beast::websocket;
 namespace net       = boost::asio;
 using tcp           = boost::asio::ip::tcp;
 
+namespace {
+// 仅允许白名单扩展名；返回空串表示不服务该类型。
+std::string static_content_type(const std::string& path) {
+    auto dot = path.find_last_of('.');
+    if (dot == std::string::npos) {
+        return {};
+    }
+    std::string ext = path.substr(dot);
+    std::transform(ext.begin(), ext.end(), ext.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (ext == ".html" || ext == ".htm") return "text/html; charset=utf-8";
+    if (ext == ".css")  return "text/css; charset=utf-8";
+    if (ext == ".js")   return "application/javascript; charset=utf-8";
+    if (ext == ".json") return "application/json; charset=utf-8";
+    if (ext == ".svg")  return "image/svg+xml";
+    if (ext == ".png")  return "image/png";
+    if (ext == ".jpg" || ext == ".jpeg") return "image/jpeg";
+    if (ext == ".gif")  return "image/gif";
+    if (ext == ".ico")  return "image/x-icon";
+    if (ext == ".woff2") return "font/woff2";
+    if (ext == ".woff")  return "font/woff";
+    if (ext == ".map")   return "application/json; charset=utf-8";
+    return {};
+}
+}  // namespace
+
 WsSession::WsSession(tcp::socket&& socket,
                      std::shared_ptr<ThreadPool> business_pool,
                      std::string path,
                      std::size_t max_message_bytes,
-                     std::size_t max_pending_bytes)
+                     std::size_t max_pending_bytes,
+                     std::string web_root)
     : ws_(std::move(socket)),
       idle_timer_(ws_.get_executor()),
       last_active_(std::chrono::steady_clock::now()),
       business_pool_(std::move(business_pool)),
       path_(std::move(path)),
       max_message_bytes_(max_message_bytes),
-      max_pending_bytes_(max_pending_bytes) {
+      max_pending_bytes_(max_pending_bytes),
+      web_root_(std::move(web_root)) {
     // client_session 只依赖 IClientTransport，实际协议由本类负责。
     session_ = std::make_shared<client_session>();
 }
@@ -71,9 +102,8 @@ void WsSession::on_http_read(beast::error_code ec, std::size_t /*bytes*/) {
     }
 
     if (!websocket::is_upgrade(request_)) {
-        send_http_response_and_close(
-            http::status::upgrade_required,
-            "WebSocket upgrade required. Connect to ws://<host>:<port>" + path_ + "\n");
+        // 普通 HTTP 请求：作为静态前端资源响应（/ -> /index.html）。
+        handle_static_request();
         return;
     }
 
@@ -106,6 +136,77 @@ void WsSession::send_http_response_and_close(http::status status, std::string bo
                       [self, response](beast::error_code ec, std::size_t) {
                           self->teardown();  // 纯 HTTP 响应，直接关底层 socket
                       });
+}
+
+void WsSession::handle_static_request() {
+    // 静态资源只允许 GET / HEAD。
+    if (request_.method() != http::verb::get && request_.method() != http::verb::head) {
+        send_http_response_and_close(http::status::method_not_allowed, "Method Not Allowed\n");
+        return;
+    }
+
+    std::string target(request_.target());
+    auto query = target.find('?');
+    if (query != std::string::npos) {
+        target = target.substr(0, query);
+    }
+    if (target.empty() || target == "/") {
+        target = "/index.html";
+    }
+
+    // 安全：拒绝目录穿越与空字节（不额外做 URL 解码，编码后的 .. 只会被当作普通文件名）。
+    if (target.find("..") != std::string::npos || target.find('\0') != std::string::npos) {
+        send_http_response_and_close(http::status::bad_request, "Bad Request\n");
+        return;
+    }
+
+    const std::string content_type = static_content_type(target);
+    if (content_type.empty()) {
+        send_http_response_and_close(http::status::not_found, "Not found: " + target + "\n");
+        return;
+    }
+
+    std::string file_path = web_root_;
+    if (!file_path.empty() && file_path.back() == '/') {
+        file_path.pop_back();
+    }
+    file_path += target;
+
+    beast::error_code ec;
+    http::file_body::value_type body;
+    body.open(file_path.c_str(), beast::file_mode::scan, ec);
+    if (ec) {
+        send_http_response_and_close(http::status::not_found, "Not found: " + target + "\n");
+        return;
+    }
+
+    const auto size = body.size();
+
+    if (request_.method() == http::verb::head) {
+        auto res = std::make_shared<http::response<http::empty_body>>(
+            http::status::ok, request_.version());
+        res->set(http::field::server, "chat-server-ws");
+        res->set(http::field::content_type, content_type);
+        res->content_length(size);
+        res->keep_alive(false);
+        auto self = shared_from_this();
+        http::async_write(ws_.next_layer(), *res,
+                          [self, res](beast::error_code, std::size_t) { self->teardown(); });
+        return;
+    }
+
+    auto res = std::make_shared<http::response<http::file_body>>(
+        std::piecewise_construct,
+        std::make_tuple(std::move(body)),
+        std::make_tuple(http::status::ok, request_.version()));
+    res->set(http::field::server, "chat-server-ws");
+    res->set(http::field::content_type, content_type);
+    res->content_length(size);
+    res->keep_alive(false);
+
+    auto self = shared_from_this();
+    http::async_write(ws_.next_layer(), *res,
+                      [self, res](beast::error_code, std::size_t) { self->teardown(); });
 }
 
 void WsSession::on_accept(beast::error_code ec) {

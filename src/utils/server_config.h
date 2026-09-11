@@ -36,6 +36,7 @@ public:
     int         ws_io_threads() const;           // Asio 事件循环线程数（>=1）
     std::size_t ws_max_message_bytes() const;    // 单条 WS 消息上限
     std::size_t ws_max_pending_bytes() const;    // 单连接待发送字节上限
+    std::string ws_web_root() const;             // 静态前端资源目录，默认 "./web"
 
     // ---- MySQL 连接池配置（按值返回，避免锁外引用内部字符串） ----
     std::string db_host() const;
@@ -58,6 +59,7 @@ private:
     int         ws_io_threads_       = 4;
     std::size_t ws_max_message_bytes_ = 1024 * 1024;      // 1 MiB
     std::size_t ws_max_pending_bytes_ = 8 * 1024 * 1024;  // 8 MiB
+    std::string ws_web_root_         = "./web";           // 静态前端资源目录
 
     // MySQL 连接池配置
     std::string db_host_     = "localhost";

@@ -22,13 +22,15 @@ WsServer::WsServer(net::io_context& ioc,
                    std::shared_ptr<ThreadPool> pool,
                    std::string path,
                    std::size_t max_message_bytes,
-                   std::size_t max_pending_bytes)
+                   std::size_t max_pending_bytes,
+                   std::string web_root)
     : ioc_(ioc),
       acceptor_(net::make_strand(ioc)),
       pool_(std::move(pool)),
       path_(std::move(path)),
       max_message_bytes_(max_message_bytes),
-      max_pending_bytes_(max_pending_bytes) {
+      max_pending_bytes_(max_pending_bytes),
+      web_root_(std::move(web_root)) {
     beast::error_code ec;
 
     acceptor_.open(endpoint.protocol(), ec);// 监听器必须在独立 strand 上创建，保证所有 IO 串行。
@@ -78,7 +80,7 @@ void WsServer::on_accept(beast::error_code ec, tcp::socket socket) {
         }
     } else {
         std::make_shared<WsSession>(std::move(socket), pool_, path_,
-                                    max_message_bytes_, max_pending_bytes_)
+                                    max_message_bytes_, max_pending_bytes_, web_root_)
             ->run();
     }
     do_accept();
@@ -96,15 +98,17 @@ int run_websocket_server(unsigned short port) {
         auto server = std::make_shared<WsServer>(ioc, endpoint, pool,
                                                  cfg.ws_path(),
                                                  cfg.ws_max_message_bytes(),
-                                                 cfg.ws_max_pending_bytes());
+                                                 cfg.ws_max_pending_bytes(),
+                                                 cfg.ws_web_root());
         server->run();
 
         std::cout << "[ws] WebSocket server listening on port " << port
                   << ", path " << cfg.ws_path()
+                  << ", web_root " << cfg.ws_web_root()
                   << ", io_threads " << io_threads << std::endl;
 
         net::signal_set signals(ioc, SIGINT, SIGTERM);
-        signals.async_wait([&ioc](const beast::error_code&, int) { ioc.stop(); });
+        signals.async_wait([&ioc](const beast::error_code&, int) { ioc.stop(); });// 捕获 SIGINT/SIGTERM，优雅退出
 
         std::vector<std::thread> threads;
         for (int i = 1; i < io_threads; ++i) {

@@ -28,7 +28,8 @@ cd build
 服务器启动时读取**相对路径** `configure.json`（即当前工作目录下的文件）。程序通常从 `build/` 目录运行，因此请先执行 `cp configure.json build/`（或在 `build/` 下创建该文件）再启动，否则只读到默认值。配置文件包含：
 
 1. 网络层：`net_layer`（`"binary"` 或 `"websocket"`，默认 `binary`，启动时二选一，改完重启）；
-   `websocket` 子对象可配置 `path`（默认 `/ws`）、`io_threads`、`max_message_bytes`、`max_pending_bytes`。
+   `websocket` 子对象可配置 `path`（默认 `/ws`）、`io_threads`、`max_message_bytes`、`max_pending_bytes`、
+   `web_root`（静态前端资源目录，默认 `./web`）。
 2. 心跳：`use_heartbeat`（开关）、`heartbeat_interval`（超时秒数）。
 3. 数据库连接池：`database` 下的 `host / port / user / password / dbname / db_conn_count`
    （`db_conn_count` 为连接池上限，默认 4）。
@@ -45,7 +46,9 @@ cd build
 编辑运行目录下的 `configure.json`（通常是 `build/configure.json`）：
 
 - **用 WebSocket**：设置 `"net_layer": "websocket"`，浏览器 / WebSocket 客户端连 `ws://<host>:8080/ws`。
+  同一端口还会以 HTTP 提供前端页面：浏览器直接打开 `http://<host>:8080/` 即可（静态资源目录由 `websocket.web_root` 指定）。
 - **切回 TCP 老模式**：把 `net_layer` 改成 `"binary"`（或直接删掉该字段，默认就是 `binary`）再启动，用原来的 TCP 客户端连 `:8080`。
+  此时不再提供 HTTP 页面（binary 模式没有 HTTP 处理）。
 
 > 切错协议会立刻连不上，这是预期的：websocket 模式只接受 WS 握手（错误路径返回 404，非升级请求返回 426）；
 > binary 模式只认自定义帧。`use_heartbeat` / `heartbeat_interval` 对两种模式都生效。
@@ -59,13 +62,17 @@ cd build
 
 ### 浏览器快速测试
 
-仓库自带一个纯 HTML 测试页 `tests/ws_browser_test.html`，无需构建：
+**方式一（推荐）**：直接打开服务端提供的聊天页 `http://<host>:8080/`（仅 websocket 模式）。
+前端源码在 `web/`（`index.html` / `style.css` / `app.js`），由服务端静态提供，改完刷新即可，无需重新编译。
+
+> `web_root` 是相对**运行目录**的路径。从仓库 `build/` 目录运行时，需指向源码里的 `web/`，
+> 即 `"web_root": "../web"`（已在 `build/configure.json` 配好）；若在仓库根目录运行则用 `"./web"`。
+
+**方式二**：低阶协议测试页 `tests/ws_browser_test.html`，可直接打开或另起静态服务：
 
 ```bash
-# 方式一：直接双击/在浏览器打开该文件（file:// 下 ws:// 可用）
-# 方式二：从虚拟机提供给宿主机/局域网
 python3 -m http.server 8000 --directory tests
-#  然后在宿主机浏览器打开 http://<虚拟机IP>:8000/ws_browser_test.html
+#  然后在浏览器打开 http://<host>:8000/ws_browser_test.html
 ```
 
 页面里 Host 填服务端地址、Port `8080`、Path `/ws`，点「连接」即可注册/登录/私聊。
@@ -104,17 +111,18 @@ python3 tests/ws_chat_smoke.py 127.0.0.1 8080 /ws --idle-seconds=3
 server/
 ├── src/
 │   ├── main.cpp            # 入口：socket、主从 Reactor、线程池、初始化 MySQL 连接池
-│   ├── net_core/           # 网络核心层：epoller / client_session / message_handler / notice_service / group_manager / receiver_sender / session_manager / server_config
+│   ├── net_core/           # 网络核心层：epoller / client_session / message_handler / notice_service / group_manager / receiver_sender / session_manager
 │   ├── net_common/         # 传输抽象：IClientTransport（让业务层不依赖具体 TCP/WS）
-│   ├── net_core_ws/        # WebSocket 网络层：ws_server / ws_session / ws_protocol（Boost.Asio + Beast）
+│   ├── net_core_ws/        # WebSocket 网络层：ws_server / ws_session / ws_protocol（Boost.Asio + Beast，含静态前端服务）
 │   ├── logic/              # 业务逻辑层：account / group / social_module
 │   ├── db/                 # 数据库分层：mysql(连接池) / repo_interface(接口契约) / repo(MySQL 实现)
-│   └── utils/              # 线程池
+│   └── utils/              # 线程池 + server_config（读 configure.json）
 ├── include/total.h         # 基础设施公共头（不再是"万能头"）
 ├── configure.json          # 运行配置（网络层 / 心跳 / WebSocket / 数据库连接池）
 ├── sql/create_table.sql    # 数据库建表脚本
 ├── sql/add_self_friend.sql # 给已有账号补齐"自己是自己的好友"（自聊）
-├── tests/                  # 可选单元测试 + 端到端冒烟脚本 + 浏览器测试页
+├── tests/                  # 可选单元测试 + 端到端冒烟脚本 + 低阶浏览器测试页
+├── web/                    # 前端聊天页（index.html / style.css / app.js，由 WS 服务端静态提供）
 └── build/                  # 构建输出
 ```
 

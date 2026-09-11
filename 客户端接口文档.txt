@@ -528,3 +528,10 @@ WebSocket 模式下的约定：
     单连接待发送队列上限默认 8 MiB（`websocket.max_pending_bytes`）。
 
 选择建议：浏览器/移动端用 WebSocket；现有桌面 TCP 客户端继续用 binary。切换后需重启服务端。
+
+WebSocket 模式还内置了静态前端服务：
+*   浏览器直接打开 `http://<host>:8080/` 即可加载聊天页（`/` 映射到 `/index.html`）。
+*   静态资源目录由 `configure.json` 的 `websocket.web_root` 指定（默认 `./web`，相对运行目录；
+    从 `build/` 运行时为 `../web`）；源码在仓库 `web/`（index.html / style.css / app.js）。
+*   只服务 GET/HEAD 与白名单扩展名（html/css/js/json/图片/字体），路径含 `..` 返回 400，未命中返回 404。
+*   前端与后端协议完全解耦：页面只用标准 `WebSocket` 发送本文档描述的 JSON。

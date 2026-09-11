@@ -549,7 +549,7 @@ business_threads = 8
 
 如果继续使用当前 `ThreadPool`，`WsServer` 必须用 `shared_ptr` 持有它直到所有 `WsSession` 停止，不能让 session 留下悬空线程池引用。
 
-### 7.11 `src/net_core/server_config.h/.cpp`
+### 7.11 `src/utils/server_config.h/.cpp`（原在 `src/net_core/`，后重构移至 `src/utils/`）
 
 新增配置：
 
@@ -814,7 +814,7 @@ Asio IO 线程不执行 MySQL 查询。一个连接的消息不会并行业务�
 | 修改 | `src/net_core/connection.h/.cpp` |
 | 修改 | `src/net_core/receiver_sender.h/.cpp` |
 | 修改 | `src/net_core/epoller.cpp` |
-| 修改 | `src/net_core/server_config.h/.cpp` |
+| 修改 | `src/utils/server_config.h/.cpp` |
 | 修改 | `src/main.cpp`、`CMakeLists.txt`、`configure.json` |
 | 测试/文档 | 协议单测、WS 集成测试、现有三份使用文档 |
 
@@ -873,7 +873,7 @@ ctest --test-dir build --output-on-failure
 | `src/net_core_ws/ws_protocol.h/.cpp` | 新增：WebSocket binary 应用层编解码（4B json_len + JSON + file） |
 | `src/net_core_ws/ws_session.h/.cpp` | 新增：单连接会话，实现 `IClientTransport`；HTTP 握手 + 路径校验 + text/binary 读 + 单连接发送队列 + close |
 | `src/net_core_ws/ws_server.h/.cpp` | 新增：Asio acceptor（IPv6 双栈）、`run_websocket_server()` 入口 |
-| `src/net_core/server_config.h/.cpp` | 新增 `net_layer / ws_path / ws_io_threads / ws_max_message_bytes / ws_max_pending_bytes`；字符串 getter 改为按值返回 |
+| `src/net_core/server_config.h/.cpp`（后移至 `src/utils/`） | 新增 `net_layer / ws_path / ws_io_threads / ws_max_message_bytes / ws_max_pending_bytes`；字符串 getter 改为按值返回 |
 | `src/main.cpp` | 拆出 `run_binary_server()`，按 `net_layer` 分流 |
 | `CMakeLists.txt` | 新增 `net_core_ws` 源目录/include；`find_package(Boost COMPONENTS system)`；链接 `Boost::system`、`Threads`；新增 `ws_protocol` 测试 |
 | `configure.json` | 新增 `net_layer`（默认 `binary`）与 `websocket` 配置块 |
@@ -1000,3 +1000,48 @@ M2 的“聊天和通知”**不需要改动 `client_session` 及任何业务逻
 - 群广播级别的全局发送限流；当前只有单连接 `max_pending_bytes` 上限。
 - 慢客户端的自动化压测（脚本未覆盖写队列溢出路径，靠单连接队列上限兜底）。
 - `wss/TLS`、`Origin` 校验、token 鉴权。
+
+## 16. 前端页面与静态资源服务（已完成）
+
+目标：让 WebSocket 服务端同时充当静态文件服务器，浏览器打开 `http://<host>:8080/` 就能加载聊天页；前端与后端协议、C++ 业务逻辑完全解耦。
+
+### 16.1 新增/改动文件
+
+| 文件 | 改动 |
+|---|---|
+| `web/index.html` / `web/style.css` / `web/app.js` | 新增：原生 WebSocket 聊天页（连接、注册/登录、会话列表、私聊/群聊） |
+| `src/net_core_ws/ws_session.h/.cpp` | 非升级请求改走 `handle_static_request()`：`/` → `/index.html`，用 `http::file_body` 发送 |
+| `src/net_core_ws/ws_server.h/.cpp` | 新增 `web_root` 参数并透传给 `WsSession` |
+| `src/utils/server_config.h/.cpp` | 新增 `websocket.web_root`（默认 `./web`） |
+| `configure.json` / `build/configure.json` | 新增 `websocket.web_root`（分别为 `./web`、`../web`） |
+
+### 16.2 静态服务规则
+
+- 仅处理 `GET` / `HEAD`，其他方法返回 `405`。
+- `/` 映射为 `/index.html`；忽略 query string。
+- 扩展名白名单：`html/htm/css/js/json/svg/png/jpg/jpeg/gif/ico/woff/woff2/map`，其他返回 `404`。
+- 路径包含 `..` 或空字节返回 `400`；不做 URL 解码（编码后的 `..` 只会被当成普通文件名）。
+- 命中文件用 `http::file_body` 异步发送，`keep_alive=false`，发完关闭底层 socket。
+- WebSocket 升级请求仍走原流程（只接受配置的 `path`），非升级请求才进入静态处理。
+
+### 16.3 web_root 与运行目录
+
+`web_root` 是相对**当前工作目录**的路径：
+
+- 从仓库根运行：`"web_root": "./web"`。
+- 从 `build/` 运行（常见）：`"web_root": "../web"`（已在 `build/configure.json` 配好）。
+
+### 16.4 冒烟结果
+
+```
+GET /            -> 200 text/html; charset=utf-8
+GET /index.html  -> 200 text/html; charset=utf-8
+GET /style.css   -> 200 text/css; charset=utf-8
+GET /app.js      -> 200 application/javascript; charset=utf-8
+GET /../etc/passwd -> 400
+GET /nope.txt    -> 404
+GET /ws (非升级)  -> 404
+GET /ws (Upgrade) -> 101 Switching Protocols
+```
+
+聊天业务回归（`tests/ws_chat_smoke.py`）仍全部通过；`node --check web/app.js` 语法通过。

@@ -11,6 +11,7 @@
 #include <boost/asio/steady_timer.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
+#include <boost/beast/http/file_body.hpp>
 #include <boost/beast/websocket.hpp>
 
 #include "client_transport.h"
@@ -35,7 +36,8 @@ public:
               std::shared_ptr<ThreadPool> business_pool,
               std::string path,
               std::size_t max_message_bytes,
-              std::size_t max_pending_bytes);
+              std::size_t max_pending_bytes,
+              std::string web_root);
 
     // 开始握手与读循环（构造后由 WsServer 调用一次）。
     void run();
@@ -50,6 +52,8 @@ private:
     std::shared_ptr<WsSession> self();
     void on_http_read(boost::beast::error_code ec, std::size_t bytes);
     void send_http_response_and_close(boost::beast::http::status status, std::string body);
+    // 非 WebSocket 升级请求：按静态文件响应（/ 映射到 /index.html）。
+    void handle_static_request();
     void on_accept(boost::beast::error_code ec);
     void do_read();
     void on_read(boost::beast::error_code ec, std::size_t bytes);
@@ -88,4 +92,5 @@ private:
     std::string path_;
     std::size_t max_message_bytes_;
     std::size_t max_pending_bytes_;
+    std::string web_root_;   // 静态前端资源根目录（非升级请求）
 };

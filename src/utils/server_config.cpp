@@ -25,6 +25,7 @@ void ServerConfig::load(const std::string& path) {
             if (w.contains("io_threads"))        ws_io_threads_        = w["io_threads"].get<int>();
             if (w.contains("max_message_bytes")) ws_max_message_bytes_ = w["max_message_bytes"].get<std::size_t>();
             if (w.contains("max_pending_bytes")) ws_max_pending_bytes_ = w["max_pending_bytes"].get<std::size_t>();
+            if (w.contains("web_root"))          ws_web_root_          = w["web_root"].get<std::string>();
         }
         // MySQL 连接池配置（嵌套于 "database" 对象）
         if (cfg.contains("database") && cfg["database"].is_object()) {
@@ -53,6 +54,7 @@ void ServerConfig::load(const std::string& path) {
               << ", heartbeat_interval=" << heartbeat_interval_ << "s"
               << ", ws_path=" << ws_path_
               << ", ws_io_threads=" << ws_io_threads_
+              << ", ws_web_root=" << ws_web_root_
               << ", db_conn_count=" << db_conn_count_ << std::endl;
 }
 
@@ -89,6 +91,11 @@ std::size_t ServerConfig::ws_max_message_bytes() const {
 std::size_t ServerConfig::ws_max_pending_bytes() const {
     std::lock_guard<std::mutex> lock(mtx_);
     return ws_max_pending_bytes_;
+}
+
+std::string ServerConfig::ws_web_root() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return ws_web_root_;
 }
 
 std::string ServerConfig::db_host() const {
