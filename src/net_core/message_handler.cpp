@@ -130,15 +130,25 @@ void Base_handler::handle_message(const json& message,client_session& session,st
         return;
     }
     else if(type == "login"){
-        int UID = message["UID"];
         std::string password = message["password"];
-        session.login(UID, password);
+        // 登录支持两种方式：带 email 则用邮箱，否则用 UID（老客户端兼容）
+        if(message.contains("email")){
+            session.login_by_email(message.value("email", std::string()), password);
+        } else {
+            int UID = message["UID"];
+            session.login(UID, password);
+        }
         return;
     }
     else if(type == "register"){
-        std::string username = message["username"];
-        std::string password = message["password"];
-        session.register_user(username,password);
+        std::string username = message.value("username", std::string());
+        std::string password = message.value("password", std::string());
+        std::string email    = message.value("email", std::string());
+        session.register_user(username, password, email);
+        return;
+    }
+    else if(type == "set_email"){
+        session.set_email(message.value("email", std::string()));
         return;
     }
     else if(type == "change_name"){

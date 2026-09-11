@@ -37,6 +37,7 @@
 | `logout`              | 基础     | 登出当前账号（保留连接，可再登录）     |
 | `show`                | 基础     | 展示聊天对象列表（好友 + 群组）        |
 | `change_name`         | 基础     | 修改自己的昵称                         |
+| `set_email`           | 基础     | 绑定/换绑当前账号邮箱（老账号补绑）    |
 | `exit`                | 基础     | 退出系统、关闭连接                     |
 | `heartbeat`           | 基础     | 心跳包（无业务消息时的保活）           |
 | `private_chat`        | 私聊     | 私聊（一对一向指定 UID 发消息）        |
@@ -67,20 +68,23 @@
 以下所有请求的 JSON 字段名必须与描述严格一致，类型不可混淆。
 
 ### 1. 注册账号 (register)
-*   **用途**：创建新账号。服务器自动分配 UID。
+*   **用途**：创建新账号。服务器自动分配 UID。**新用户必须填邮箱**（不校验格式，仅要求不重复）。
 *   **JSON 结构**：
 ```json
 {
     "type": "register",
     "username": "张三",
-    "password": "123456"
+    "password": "123456",
+    "email": "zhangsan@example.com"
 }
 ```
-*   *注意*：注册成功后服务器会在返回的 `system` 消息中回传分配到的 UID，例如 `Registration successful. You can now log in with UID 000001.`，请解析 content 获取 UID 用于后续登录。
+*   *注意*：注册成功后服务器会回传分配到的 UID 与邮箱，例如
+    `Registration successful. You can now log in with UID 000001 or zhangsan@example.com.`
+    邮箱已被占用时返回 `Email [xxx] is already registered.`。
 
 ### 2. 用户登录 (login)
-*   **用途**：使用 UID + 密码登录。连接建立后客户端应在收到登录成功之前等待。
-*   **JSON 结构**：
+*   **用途**：用 **UID** 或 **邮箱** + 密码登录。连接建立后客户端应在收到登录成功之前等待。
+*   **JSON 结构（用 UID）**：
 ```json
 {
     "type": "login",
@@ -88,7 +92,16 @@
     "password": "123456"
 }
 ```
-*   *注意*：字段为 **UID**（整数），**不是** username。登录成功后服务器会把该连接的会话标识从 socket fd 切换为 UID。
+*   **JSON 结构（用邮箱）**：
+```json
+{
+    "type": "login",
+    "email": "zhangsan@example.com",
+    "password": "123456"
+}
+```
+*   *注意*：两种写法二选一（带 `email` 字段则按邮箱登录，否则按 `UID`）。登录成功后服务器会把该连接的会话标识从 socket fd 切换为 UID。
+    邮箱未绑定时返回 `No account is bound to email [xxx].`。
 
 ### 3. 展示聊天列表 (show)
 *   **用途**：返回当前登录用户的好友列表与已加入的群组列表。
@@ -267,6 +280,18 @@
 }
 ```
 *   *注意*：昵称允许重复（唯一标识为 UID）；仅当新昵称为空时返回失败提示，成功后返回包含新昵称的系统提示。
+
+### 17.1 设置/换绑邮箱 (set_email)
+*   **用途**：给当前登录账号绑定或换绑邮箱（老账号补绑用）；绑定后即可用邮箱登录。
+*   **JSON 结构**：
+```json
+{
+    "type": "set_email",
+    "email": "zhangsan@example.com"
+}
+```
+*   *注意*：需先登录；服务器不校验邮箱格式，仅要求不重复。一个账号一个邮箱，
+    邮箱已被其他账号占用时返回失败提示，成功返回 `Email updated successfully...`。
 
 ### 18. 发送好友申请 (add_friend)
 *   **用途**：向指定 UID 发送好友申请（存于 `relation_apply`，apply_type=1，status=0 等待）。

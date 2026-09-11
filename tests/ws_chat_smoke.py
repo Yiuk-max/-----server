@@ -209,7 +209,9 @@ def expect(cond, label):
 
 
 def register(client, name, password):
-    client.send_json({"type": "register", "username": name, "password": password})
+    # 新用户注册必须带邮箱（不校验格式，仅要求唯一）
+    client.send_json({"type": "register", "username": name,
+                      "password": password, "email": f"{name}@example.com"})
     msg = client.recv_until(lambda m: is_system(m, "Registration successful"))
     m = re.search(r"UID (\d+)", content(msg))
     if not m:

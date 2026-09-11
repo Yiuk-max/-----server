@@ -2,8 +2,8 @@
 -- 聊天服务器 数据库建表脚本（以当前数据库实际结构为准）
 -- 数据库：MySQL 8.0（当前库 collate 为 utf8mb4_0900_ai_ci）
 -- 字符集：utf8mb4（必须，否则中文/emoji 会乱码或插入失败）
--- 本脚本与线上 chat_server 库的结构一致，包含 6 张表：
---   Account / friend_relation / relation_apply / `Group` / Groupmember / message
+-- 本脚本与线上 chat_server 库的结构一致，包含 7 张表：
+--   Account / account_email / friend_relation / relation_apply / `Group` / Groupmember / message
 -- 说明：
 --   1. friend_relation 采用"双向同步"（应用层在事务内双写两行）
 --   2. friend_request 已更名扩展为 relation_apply（apply_type 区分好友/群聊申请），
@@ -155,6 +155,25 @@ CREATE TABLE IF NOT EXISTS message (
     KEY idx_group (receiver_UID, id),
     KEY idx_sender (sender_UID)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='聊天记录表';
+
+-- ------------------------------------------------------------
+-- 7. 账户邮箱绑定表 account_email
+--    用途：邮箱 <-> UID 一对一绑定，登录可用 UID 或邮箱（UID 难记）。
+--    说明：不做邮箱验证，仅要求唯一；email 主键天然防重。
+--          一个账户一个邮箱（UID 唯一）；换绑由 repo 层 set_email 事务处理。
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS account_email (
+    email        VARCHAR(190)    NOT NULL COMMENT '邮箱(登录用,唯一)',
+    UID          BIGINT UNSIGNED NOT NULL COMMENT '绑定的账户UID',
+    create_time  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '绑定时间',
+    update_time  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                 ON UPDATE CURRENT_TIMESTAMP          COMMENT '更新时间',
+
+    PRIMARY KEY (email),
+    UNIQUE KEY uk_account_email_uid (UID),
+    CONSTRAINT fk_email_uid
+        FOREIGN KEY (UID) REFERENCES Account(UID) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='账户邮箱绑定表';
 
 -- ============================================================
 -- 【应用层双向同步实现】参考（friend_relation 双写）

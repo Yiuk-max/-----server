@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include "account_repository.h"
+#include "account_email_repository.h"
 #include "friend_repository.h"
 #include "group_repository.h"
 #include "message_repository.h"
@@ -27,6 +28,10 @@ public:
     // 允许运行时替换实现（便于测试注入 mock / 未来切换数据源），业务层默认无需调用
     void set_account_repo(std::shared_ptr<I_account_repo> repo) { account_repo_ = std::move(repo); }
 
+    // 账户邮箱仓储（接口），默认已装配 repo 层真实 MySQL 实现
+    std::shared_ptr<I_account_email_repo> emails() const { return email_repo_; }
+    void set_email_repo(std::shared_ptr<I_account_email_repo> repo) { email_repo_ = std::move(repo); }
+
     // 好友仓储（接口），默认已装配 repo 层真实 MySQL 实现（见 repository_hub.cpp）
     std::shared_ptr<I_friend_repo> friends() const { return friend_repo_; }
     // 允许运行时替换实现（便于测试注入 mock / 未来切换数据源），业务层默认无需调用
@@ -44,6 +49,7 @@ public:
 
 private:
     std::shared_ptr<I_account_repo> account_repo_;          // 账户仓储（构造时装配真实 MySQL 实现）
+    std::shared_ptr<I_account_email_repo> email_repo_;      // 账户邮箱仓储（构造时装配真实 MySQL 实现）
     std::shared_ptr<I_friend_repo>  friend_repo_;           // 好友仓储（构造时装配真实 MySQL 实现）
     std::shared_ptr<I_group_repo>    group_repo_;           // 群聊仓储（构造时装配真实 MySQL 实现）
     std::shared_ptr<I_message_repo>  message_repo_;         // 消息仓储（构造时装配真实 MySQL 实现）

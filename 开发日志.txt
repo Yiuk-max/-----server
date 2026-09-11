@@ -465,3 +465,19 @@ interface 层怎么还留着account的空占位实现，看着只做了数据库
   允许给自己发消息并出现在 show 列表；sql/add_self_friend.sql 回填旧账号。
 - 文档：readme / 项目说明文档 / 客户端接口文档 更新“网络层切换”与 WebSocket 接入说明；
   WebSocket接入代码改动文档.md 记录 M0~M2 实施。
+
+2026-09-11 功能：邮箱登录 + 邮箱绑定（UID 难记问题）
+- 新增 account_email 表（email 主键、UID 唯一、FK ON DELETE CASCADE），
+  脚本：sql/account_email.sql（已有库单独执行）/ sql/create_table.sql（新库含该表）。
+- 新增仓储层：I_account_email_repo（repo_interface）与 account_email_repo（repo，含 SQL）；
+  RepositoryHub 新增 emails() 访问器并装配实现。
+- 业务层：
+    - register_user(username, password, email)：新用户注册必须带 email，
+      邮箱唯一性预检查 + 落库失败时回滚账户；
+    - login_by_email(email, password)：按邮箱解析 UID 后复用 UID 登录；
+    - set_email(email)：登录后给老账号补绑/换绑邮箱。
+- 协议：register 增加 email 字段；login 支持 email（带 email 则按邮箱登录，否则按 UID）；
+  新增 set_email 消息类型（Base_handler）。
+- 前端 web/：账号区加邮箱输入与“设置邮箱”按钮；登录框支持 UID 或邮箱；
+  邮箱仅做“含 @ 与 .com”的最简判断（按需求不做验证）。
+- 测试：tests/ws_chat_smoke.py 注册改为携带邮箱（需先建 account_email 表）。

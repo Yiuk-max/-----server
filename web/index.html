@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat Server · Web</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Chat Server</h1>
+    <span id="status" class="status off">未连接</span>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <section class="card">
+        <h2>连接</h2>
+        <div class="grid">
+          <label>Host<input id="host"></label>
+          <label>Port<input id="port"></label>
+          <label>Path<input id="path" value="/ws"></label>
+        </div>
+        <div class="row">
+          <button id="btn-connect">连接</button>
+          <button id="btn-disconnect" class="ghost">断开</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>账号</h2>
+        <label>昵称<input id="username" value="webuser" autocomplete="off"></label>
+        <label>密码<input id="password" type="password" value="123456"></label>
+        <label>邮箱（注册必填 / 可换绑）<input id="email" placeholder="you@example.com" autocomplete="off"></label>
+        <div class="row">
+          <button id="btn-register">注册</button>
+          <button id="btn-login">登录</button>
+        </div>
+        <div class="row">
+          <button id="btn-set-email" class="ghost">设置邮箱</button>
+          <button id="btn-logout" class="ghost">登出</button>
+        </div>
+        <label>UID 或邮箱（登录用）<input id="account" placeholder="UID 或邮箱" autocomplete="off"></label>
+      </section>
+
+      <section class="card grow">
+        <div class="card-head">
+          <h2>会话</h2>
+          <button id="btn-show" class="mini">刷新</button>
+        </div>
+        <ul id="contacts" class="contacts"></ul>
+      </section>
+    </aside>
+
+    <section class="chat">
+      <div class="chat-head">
+        <span id="peer">未选择会话</span>
+        <span id="peer-kind" class="tag hidden"></span>
+      </div>
+      <div id="messages" class="messages"></div>
+      <form id="composer" class="composer">
+        <input id="message" placeholder="输入消息，回车发送" autocomplete="off">
+        <button type="submit">发送</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

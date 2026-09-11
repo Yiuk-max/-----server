@@ -8,7 +8,7 @@
   const els = {
     status: $('status'),
     host: $('host'), port: $('port'), path: $('path'),
-    username: $('username'), password: $('password'), uid: $('uid'),
+    username: $('username'), password: $('password'), email: $('email'), account: $('account'),
     contacts: $('contacts'),
     messages: $('messages'),
     peer: $('peer'), peerKind: $('peer-kind'),
@@ -85,9 +85,9 @@
   }
 
   function handleSystem(content) {
-    // 1) 注册成功：解析 UID 自动填入
+    // 1) 注册成功：解析 UID 自动填入登录框
     const reg = /Registration successful.*UID (\d+)/.exec(content);
-    if (reg) { els.uid.value = String(parseInt(reg[1], 10)); }
+    if (reg) { els.account.value = String(parseInt(reg[1], 10)); }
 
     // 2) show 的响应就是下一条 system（列表每行 名称:UID）
     if (pendingShow) {
@@ -205,13 +205,32 @@
 
   $('btn-connect').onclick = connect;
   $('btn-disconnect').onclick = disconnect;
-  $('btn-register').onclick = () => send({
-    type: 'register', username: els.username.value.trim(), password: els.password.value,
-  });
+  function validEmail(email) {
+    // 按需求只做最基本判断：含 @ 与 .com 即放行，不做真实校验
+    return email.includes('@') && email.includes('.com');
+  }
+
+  $('btn-register').onclick = () => {
+    const email = els.email.value.trim();
+    if (!validEmail(email)) { addSystem('请输入邮箱（需包含 @ 和 .com）'); return; }
+    send({
+      type: 'register',
+      username: els.username.value.trim(),
+      password: els.password.value,
+      email,
+    });
+  };
   $('btn-login').onclick = () => {
-    const uid = parseInt(els.uid.value, 10);
-    if (!Number.isFinite(uid)) { addSystem('请先填写 UID（注册后自动填入）'); return; }
-    send({ type: 'login', UID: uid, password: els.password.value });
+    const acc = els.account.value.trim();
+    if (!acc) { addSystem('请填写 UID 或邮箱（注册后自动填入 UID）'); return; }
+    send(acc.includes('@')
+      ? { type: 'login', email: acc, password: els.password.value }
+      : { type: 'login', UID: parseInt(acc, 10), password: els.password.value });
+  };
+  $('btn-set-email').onclick = () => {
+    const email = els.email.value.trim();
+    if (!validEmail(email)) { addSystem('请输入邮箱（需包含 @ 和 .com）'); return; }
+    send({ type: 'set_email', email });
   };
   $('btn-logout').onclick = () => send({ type: 'logout' });
   $('btn-show').onclick = requestShow;

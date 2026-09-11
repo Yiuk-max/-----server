@@ -65,6 +65,7 @@ void client_session::init_(){
     handlers_["login"]                  = std::make_unique<Base_handler>();
     handlers_["register"]               = std::make_unique<Base_handler>();
     handlers_["change_name"]            = std::make_unique<Base_handler>();// 修改自己的昵称
+    handlers_["set_email"]              = std::make_unique<Base_handler>();// 绑定/换绑邮箱
     //群聊相关
     handlers_["create_group"]           = std::make_unique<Group_handler>();
     handlers_["group_add_client"]       = std::make_unique<Group_handler>();
@@ -122,10 +123,20 @@ void client_session::on_message(const std::string& json_data, std::string file_d
 }
 
 //===============注册、登录、退出、展示===============
-void client_session::register_user(std::string username,std::string password){
+void client_session::register_user(std::string username,std::string password,std::string email){
     if(username.empty() || password.empty()){
         std::string fail = "Username and password cannot be empty.\n";
         package_message(fail,"system");
+        return;
+    }
+    if(email.empty()){
+        // 新用户注册必须填邮箱
+        package_message("Email is required for registration.\n","system");
+        return;
+    }
+    // 邮箱唯一性预检查（并发下最终由 account_email.email 主键兜底）
+    if(repo_hub_->emails()->find_uid_by_email(email) != -1){
+        package_message("Email [" + email + "] is already registered.\n","system");
         return;
     }
     // 经仓储门面调账号仓储接口注册：
@@ -137,12 +148,48 @@ void client_session::register_user(std::string username,std::string password){
         package_message(fail,"system");
         return;
     }
+    const int uid = new_account->getUID();
+    if(!repo_hub_->emails()->set_email(uid, email)){
+        // 并发下邮箱刚被占用：回滚刚创建的账户，避免产生无邮箱的孤儿账号
+        repo_hub_->accounts()->remove_account(uid);
+        package_message("Email [" + email + "] is already registered.\n","system");
+        return;
+    }
     current_account_ = new_account;
     // 注册后把自己加为自己的好友，允许给自己发消息（自聊）。
-    repo_hub_->friends()->ensure_self_friend(new_account->getUID());
+    repo_hub_->friends()->ensure_self_friend(uid);
     std::string UID = new_account->get_string_UID();
-    std::string success = "Registration successful. You can now log in with UID " + UID + ".\n";
+    std::string success = "Registration successful. You can now log in with UID " + UID + " or " + email + ".\n";
     package_message(success,"system");
+}
+
+// 用邮箱登录：先查邮箱绑定的 UID，再复用 UID 登录流程
+void client_session::login_by_email(std::string email,std::string password){
+    int uid = repo_hub_->emails()->find_uid_by_email(email);
+    if (uid < 0) {
+        std::string fail = "No account is bound to email [" + email + "].\n";
+        package_message(fail,"system");
+        return;
+    }
+    login(uid, password);
+}
+
+// 绑定/换绑邮箱（老账号补绑邮箱用；不校验格式，仅要求不重复）
+void client_session::set_email(std::string email){
+    if(!current_account_){
+        package_message("You must be logged in to set an email.\n","system");
+        return;
+    }
+    if(email.empty()){
+        package_message("Email cannot be empty.\n","system");
+        return;
+    }
+    if(repo_hub_->emails()->set_email(current_account_->getUID(), email)){
+        std::string success = "Email updated successfully. Your email is [" + email + "].\n";
+        package_message(success,"system");
+    } else {
+        package_message("Failed to set email (email may already be used by another account).\n","system");
+    }
 }
 void client_session::login(int UID,std::string password){
     // 经仓储门面调账号仓储接口加载账户（契约 I_account_repo，由 repo 层 MySQL 实现 SELECT Account WHERE UID=?）

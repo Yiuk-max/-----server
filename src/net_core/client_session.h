@@ -36,8 +36,10 @@ public:
     client_session(){ init_(); };                                           // 会话由具体传输创建并绑定
     ~client_session();
     //===============注册、登录、退出===============
-    void register_user(std::string username,std::string password);          //注册新用户，分配UID
-    void login(int UID,std::string password);                               //登陆
+    void register_user(std::string username,std::string password,std::string email); //注册新用户（新用户必填邮箱）
+    void login(int UID,std::string password);                               //登陆（UID）
+    void login_by_email(std::string email,std::string password);            //登陆（邮箱，内部解析为 UID）
+    void set_email(std::string email);                                      //给当前账号绑定/换绑邮箱
     void logout();                                                          //登出
     void exit_self();                                                       //退出系统
     void kick_offline();                                                    //被顶下线：通知并关闭本连接（由新登录的另一会话调用）
