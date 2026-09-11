@@ -153,6 +153,30 @@ src/db/mysql/mysql_conn_pool.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/mysql/mysql_conn_pool.cpp.s
 .PHONY : src/db/mysql/mysql_conn_pool.cpp.s
 
+src/db/repo/account_email_repo.o: src/db/repo/account_email_repo.cpp.o
+.PHONY : src/db/repo/account_email_repo.o
+
+# target to build an object file
+src/db/repo/account_email_repo.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo/account_email_repo.cpp.o
+.PHONY : src/db/repo/account_email_repo.cpp.o
+
+src/db/repo/account_email_repo.i: src/db/repo/account_email_repo.cpp.i
+.PHONY : src/db/repo/account_email_repo.i
+
+# target to preprocess a source file
+src/db/repo/account_email_repo.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo/account_email_repo.cpp.i
+.PHONY : src/db/repo/account_email_repo.cpp.i
+
+src/db/repo/account_email_repo.s: src/db/repo/account_email_repo.cpp.s
+.PHONY : src/db/repo/account_email_repo.s
+
+# target to generate assembly for a file
+src/db/repo/account_email_repo.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/db/repo/account_email_repo.cpp.s
+.PHONY : src/db/repo/account_email_repo.cpp.s
+
 src/db/repo/account_repo.o: src/db/repo/account_repo.cpp.o
 .PHONY : src/db/repo/account_repo.o
 
@@ -537,30 +561,6 @@ src/net_core/receiver_sender.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.s
 .PHONY : src/net_core/receiver_sender.cpp.s
 
-src/net_core/server_config.o: src/net_core/server_config.cpp.o
-.PHONY : src/net_core/server_config.o
-
-# target to build an object file
-src/net_core/server_config.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core/server_config.cpp.o
-.PHONY : src/net_core/server_config.cpp.o
-
-src/net_core/server_config.i: src/net_core/server_config.cpp.i
-.PHONY : src/net_core/server_config.i
-
-# target to preprocess a source file
-src/net_core/server_config.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core/server_config.cpp.i
-.PHONY : src/net_core/server_config.cpp.i
-
-src/net_core/server_config.s: src/net_core/server_config.cpp.s
-.PHONY : src/net_core/server_config.s
-
-# target to generate assembly for a file
-src/net_core/server_config.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core/server_config.cpp.s
-.PHONY : src/net_core/server_config.cpp.s
-
 src/net_core/session_manager.o: src/net_core/session_manager.cpp.o
 .PHONY : src/net_core/session_manager.o
 
@@ -657,6 +657,30 @@ src/net_core_ws/ws_session.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/net_core_ws/ws_session.cpp.s
 .PHONY : src/net_core_ws/ws_session.cpp.s
 
+src/utils/server_config.o: src/utils/server_config.cpp.o
+.PHONY : src/utils/server_config.o
+
+# target to build an object file
+src/utils/server_config.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/utils/server_config.cpp.o
+.PHONY : src/utils/server_config.cpp.o
+
+src/utils/server_config.i: src/utils/server_config.cpp.i
+.PHONY : src/utils/server_config.i
+
+# target to preprocess a source file
+src/utils/server_config.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/utils/server_config.cpp.i
+.PHONY : src/utils/server_config.cpp.i
+
+src/utils/server_config.s: src/utils/server_config.cpp.s
+.PHONY : src/utils/server_config.s
+
+# target to generate assembly for a file
+src/utils/server_config.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/utils/server_config.cpp.s
+.PHONY : src/utils/server_config.cpp.s
+
 src/utils/thread_pool.o: src/utils/thread_pool.cpp.o
 .PHONY : src/utils/thread_pool.o
 
@@ -693,6 +717,9 @@ help:
 	@echo "... src/db/mysql/mysql_conn_pool.o"
 	@echo "... src/db/mysql/mysql_conn_pool.i"
 	@echo "... src/db/mysql/mysql_conn_pool.s"
+	@echo "... src/db/repo/account_email_repo.o"
+	@echo "... src/db/repo/account_email_repo.i"
+	@echo "... src/db/repo/account_email_repo.s"
 	@echo "... src/db/repo/account_repo.o"
 	@echo "... src/db/repo/account_repo.i"
 	@echo "... src/db/repo/account_repo.s"
@@ -741,9 +768,6 @@ help:
 	@echo "... src/net_core/receiver_sender.o"
 	@echo "... src/net_core/receiver_sender.i"
 	@echo "... src/net_core/receiver_sender.s"
-	@echo "... src/net_core/server_config.o"
-	@echo "... src/net_core/server_config.i"
-	@echo "... src/net_core/server_config.s"
 	@echo "... src/net_core/session_manager.o"
 	@echo "... src/net_core/session_manager.i"
 	@echo "... src/net_core/session_manager.s"
@@ -756,6 +780,9 @@ help:
 	@echo "... src/net_core_ws/ws_session.o"
 	@echo "... src/net_core_ws/ws_session.i"
 	@echo "... src/net_core_ws/ws_session.s"
+	@echo "... src/utils/server_config.o"
+	@echo "... src/utils/server_config.i"
+	@echo "... src/utils/server_config.s"
 	@echo "... src/utils/thread_pool.o"
 	@echo "... src/utils/thread_pool.i"
 	@echo "... src/utils/thread_pool.s"

@@ -10,7 +10,6 @@ server: \
   CMakeFiles/server.dir/src/net_core/message_handler.cpp.o \
   CMakeFiles/server.dir/src/net_core/notice_service.cpp.o \
   CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o \
-  CMakeFiles/server.dir/src/net_core/server_config.cpp.o \
   CMakeFiles/server.dir/src/net_core/session_manager.cpp.o \
   CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.o \
   CMakeFiles/server.dir/src/net_core_ws/ws_server.cpp.o \
@@ -18,7 +17,9 @@ server: \
   CMakeFiles/server.dir/src/logic/account.cpp.o \
   CMakeFiles/server.dir/src/logic/group.cpp.o \
   CMakeFiles/server.dir/src/logic/social_module.cpp.o \
+  CMakeFiles/server.dir/src/utils/server_config.cpp.o \
   CMakeFiles/server.dir/src/utils/thread_pool.cpp.o \
+  CMakeFiles/server.dir/src/db/repo/account_email_repo.cpp.o \
   CMakeFiles/server.dir/src/db/repo/account_repo.cpp.o \
   CMakeFiles/server.dir/src/db/repo/friend_repo.cpp.o \
   CMakeFiles/server.dir/src/db/repo/group_repo.cpp.o \
@@ -82,8 +83,6 @@ CMakeFiles/server.dir/src/net_core/notice_service.cpp.o:
 
 CMakeFiles/server.dir/src/net_core/receiver_sender.cpp.o:
 
-CMakeFiles/server.dir/src/net_core/server_config.cpp.o:
-
 CMakeFiles/server.dir/src/net_core/session_manager.cpp.o:
 
 CMakeFiles/server.dir/src/net_core_ws/ws_protocol.cpp.o:
@@ -98,7 +97,11 @@ CMakeFiles/server.dir/src/logic/group.cpp.o:
 
 CMakeFiles/server.dir/src/logic/social_module.cpp.o:
 
+CMakeFiles/server.dir/src/utils/server_config.cpp.o:
+
 CMakeFiles/server.dir/src/utils/thread_pool.cpp.o:
+
+CMakeFiles/server.dir/src/db/repo/account_email_repo.cpp.o:
 
 CMakeFiles/server.dir/src/db/repo/account_repo.cpp.o:
 

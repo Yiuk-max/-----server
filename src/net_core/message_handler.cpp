@@ -19,8 +19,17 @@ void Chat_handler::handle_message(const json& message,client_session& session,st
         session.delete_message(message_id);
         return;
     }
-    else if(type == "refresh_offline_messages"){
-        session.refresh_offline_messages();
+    else if(type == "history_request"){
+        // 游标分页拉聊天历史：peer_id = 对方/群 UID；before_id 可选（首屏不传或传 null/0）
+        int peer_id = 0;
+        if(message.contains("peer_id") && message["peer_id"].is_number_integer()){
+            peer_id = message["peer_id"].get<int>();
+        }
+        int before_id = 0;
+        if(message.contains("before_id") && message["before_id"].is_number_integer()){
+            before_id = message["before_id"].get<int>();
+        }
+        session.chat_history(peer_id, before_id);
         return;
     }
     else if(type == "add_friend"){

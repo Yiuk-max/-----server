@@ -59,7 +59,7 @@
 | `show_group_members`  | 群组     | 查看群成员（含群内名字）               |
 | `show_group_requests` | 群组     | 查看群聊待处理的入群申请（仅群主）     |
 | `delete_message`      | 消息     | 删除消息（仅发送者本人、发送后 3 分钟内） |
-| `refresh_offline_messages` | 消息 | 手动刷新离线消息（自上次登录时间之后） |
+| `history_request`     | 消息     | 按 message_id 游标分页拉聊天历史（每页 10 条） |
 | `upload_file`         | 文件     | 上传文件（分块）                       |
 | `download_file`       | 文件     | 下载文件                               |
 
@@ -122,7 +122,7 @@
     "message": "你好呀！"
 }
 ```
-*   *注意*：服务器会校验目标 UID 是否存在、是否为好友（**不再要求在线**）。对方在线时实时转发；对方离线时消息落库，待其上线后经离线消息推送。转发的 JSON 中会附带 `message_id`；发送者会收到 `system` 提示 `Message sent. Message ID: <id>.`，用于后续删除。
+*   *注意*：服务器会校验目标 UID 是否存在、是否为好友（**不再要求在线**）。对方在线时实时转发；对方离线时消息落库，待其上线后经离线消息推送。转发的 JSON 中会附带 `message_id`、`sender_UID`、`sender_name`，`content` 为**原始内容**（不含发送者前缀）；发送者会收到 `system` 提示 `Message sent. Message ID: <id>.`，用于后续删除。
 
 ### 5. 群聊 (group_chat)
 *   **用途**：向指定群发消息，群内所有在线成员会收到以 `Group_Chat` 类型转发的消息。
@@ -134,7 +134,7 @@
     "message": "大家好！"
 }
 ```
-*   *注意*：转发的 `Group_Chat` JSON 中会附带数据库消息 ID `message_id` 和 `group_UID`（所属群 UID）；同时给发送者回一条 `system` 提示 `Message sent. Message ID: <id>.`，用于后续删除。
+*   *注意*：转发的 `Group_Chat` JSON 中会附带数据库消息 ID `message_id`、`group_UID`（所属群 UID）以及发送者 `sender_UID`/`sender_name`，`content` 为**原始内容**；同时给发送者回一条 `system` 提示 `Message sent. Message ID: <id>.`，用于后续删除。
 
 ### 6. 创建群聊 (create_group)
 *   **用途**：新建群，创建者自动成为群主（管理员），并加入自己的好友/群组列表。
@@ -413,19 +413,44 @@
 ```
 *   *注意*：`message_id` 来自发送私聊/群聊时服务器返回的 `system` 提示或转发消息中的 `message_id` 字段。
 
-### 29. 手动刷新离线消息 (refresh_offline_messages)
-*   **用途**：手动拉取自上次登录时间之后、发给自己的离线消息（私聊 + 所在群群聊）。
+### 29. 加载聊天历史 (history_request)
+*   **用途**：按 `message.id` 做游标分页，拉取与某个用户/群的聊天记录（每页最多 10 条，时间正序）。
 *   **JSON 结构**：
 ```json
 {
-    "type": "refresh_offline_messages"
+    "type": "history_request",
+    "peer_id": 1002,
+    "before_id": 456
 }
 ```
-*   *注意*：登录成功后服务器也会自动拉取一次离线消息；离线消息同样以 `private_chat` / `Group_Chat` 类型推送，并附带 `message_id`。
+*   `peer_id`：聊天对象 UID（私聊）或群 `group_UID`（群聊）。
+*   `before_id`：**游标**，只取 `message_id < before_id` 的记录；
+    **首次加载（刚登录/刚进入会话）不传该字段**（或传 `null`/`0`），表示取最新一页。
+*   **服务器响应**（`type` 为 `history_response`）：
+```json
+{
+    "type": "history_response",
+    "peer_id": 1002,
+    "messages": [
+        {
+            "message_id": 447,
+            "sender_UID": 1001,
+            "sender_name": "张三",
+            "is_group": false,
+            "content": "你好",
+            "timestamp": "2026-09-11 12:00:00"
+        }
+    ],
+    "has_more": true
+}
+```
+*   `messages`：最多 10 条，按时间**正序**（旧→新）；`content` 为**原始内容**（不含发送者前缀），发送者看 `sender_UID`/`sender_name`。
+*   `has_more`：为 `true` 表示还有更旧的记录；前端可用当前最旧一条的 `message_id` 作为下一次的 `before_id`，实现“上滑加载更多”。
+*   *注意*：登录成功后服务器仍会自动推送一次离线消息（以 `private_chat`/`Group_Chat` 形式，带 `message_id`），客户端可按 `message_id` 去重。
 
 五、服务器返回格式（Server -> Client）
 --------------------------------------
-服务器返回的数据同样封装为二进制帧结构。其 JSON 部分包含 `type` 和 `content` 字段：
+服务器返回的数据同样封装为二进制帧结构。其 JSON 部分通常包含 `type` 字段（业务消息还会有 `content`）：
 ```json
 {
     "type": "system",
@@ -435,21 +460,23 @@
 
 | 响应类型 (type)       | 场景/含义                                            | content 内容示例                                        |
 |-----------------------|------------------------------------------------------|--------------------------------------------------------|
-| `system`              | 通用系统提示、登录/注册结果、错误提示等              | `Login successful. Welcome, 张三!` 等                  |
-| `private_chat`        | 收到私聊消息                                         | `[张三]: 你好呀！`                                     |
-| `Group_Chat`          | 收到群聊消息（注意大小写 `Group_Chat`）              | 群内消息内容                                            |
+| `system`              | 通用系统提示、登录/注册结果、错误提示等              | `Login successful. Welcome, 张三! (UID 000001)` 等     |
+| `private_chat`        | 收到私聊消息                                         | `你好呀！`（另带 `sender_UID`/`sender_name`/`message_id`） |
+| `Group_Chat`          | 收到群聊消息（注意大小写 `Group_Chat`）              | 群内消息内容（另带 `sender_UID`/`sender_name`/`group_UID`/`message_id`） |
+| `history_response`    | 聊天历史分页响应                                     | 无 `content`；含 `peer_id`/`messages`/`has_more`        |
 | `delete_message`      | 消息被删除通知                                       | `content` 为空，通过 `message_id` 定位要移除的消息（群聊消息还会带 `group_UID`） |
 | `file_chunk`          | 服务器发送文件块（下载响应）                         | JSON 中包含 `file_id/filename/total_size/chunk_index/...` 元信息，文件数据在帧尾 |
 | `heartbeat_ack`       | 服务器对心跳包的应答（`content` 为 `pong`）          | `pong`                                                  |
 
-> 说明：`private_chat` / `Group_Chat`（含离线消息推送）的 JSON 中会额外携带 `message_id` 字段，表示该消息在数据库中的唯一 ID，可用于 `delete_message`；`Group_Chat` 还会额外携带 `group_UID` 字段（所属群 UID），便于客户端按群归类。
+> 说明：`private_chat` / `Group_Chat`（含离线消息推送）的 JSON 中会携带 `message_id`（数据库唯一 ID，可用于 `delete_message`）、
+> `sender_UID` 与 `sender_name`（发送者）；`content` 为**原始内容**。`Group_Chat` 还会携带 `group_UID`，便于客户端按群归类。
 
 ### 常见系统提示文本
 | 触发场景                 | content 内容（示例）                                          |
 |--------------------------|---------------------------------------------------------------|
 | **注册成功**             | `Registration successful. You can now log in with UID 000001.`  |
 | **用户名或密码为空**     | `Username and password cannot be empty.`                      |
-| **登录成功**             | `Login successful. Welcome, <用户名>!`                        |
+| **登录成功**             | `Login successful. Welcome, <用户名>! (UID <UID>)`            |
 | **UID 不存在**           | `Account with UID [<UID>] does not exist.`                    |
 | **密码错误**             | `Incorrect password for UID [<UID>].`                         |
 | **退出系统**             | `Goodbye!`                                                    |
@@ -467,7 +494,6 @@
 | **删除消息失败（不存在）** | `Message [<id>] does not exist.`                             |
 | **删除消息失败（非本人）** | `You can only delete your own messages.`                      |
 | **删除消息失败（超时）** | `Messages can only be deleted within 3 minutes of sending.`   |
-| **刷新离线消息完成**     | `Offline messages refreshed.`                                 |
 | **被拉入群通知**         | `You have been added to group [<群UID>].`                     |
 | **被踢出群通知**         | `You have been removed from group [<群UID>].`                 |
 | **设置备注成功**         | `Remark for UID [<UID>] updated successfully.`                |

@@ -44,6 +44,7 @@ public:
 
     void create_friend_group(std::string group_name, int& out_group_uid);
     void exit_friend_group(int group_UID);
+    bool has_group(int group_UID) const;   // 当前用户是否属于该群（内存群列表）
     // 仅更新内存中的群列表（供被拉入群/申请通过后同步；不写库）
     void add_group_to_list(int group_UID);
     // 仅从内存群列表移除（供被踢出群后同步；不写库）

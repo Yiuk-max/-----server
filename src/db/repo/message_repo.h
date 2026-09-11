@@ -17,6 +17,9 @@ public:
 
     std::vector<message> get_offline_messages(int receiver_UID, const std::string& since_time) override;
 
-    std::vector<message> get_chat_history(int user1_UID, int user2_UID, int limit) override;
+    // 游标分页查聊天历史（message.id 作游标）
+    bool get_history_page(int self_uid, int peer_uid, bool is_group,
+                          int before_id, int limit,
+                          std::vector<message>& out, bool& has_more) override;
 
 };

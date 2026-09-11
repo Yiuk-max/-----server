@@ -19,16 +19,16 @@ void NoticeService::send_to_users(const std::vector<int>& uid_list, const std::s
     }
 }
 
-void NoticeService::send_to_user_with_id(int uid, const std::string& message, const std::string& type, int message_id, int group_uid) {
+void NoticeService::send_to_user_with_id(int uid, const std::string& message, const std::string& type, int message_id, int group_uid, int sender_uid, const std::string& sender_name) {
     auto target = session_manager::get_instance().find_session(uid);
     if (target) {
-        target->package_chat_message(message, type, message_id, group_uid);
+        target->package_chat_message(message, type, message_id, group_uid, sender_uid, sender_name);
     }
 }
 
-void NoticeService::send_to_users_with_id(const std::vector<int>& uid_list, const std::string& message, const std::string& type, int message_id, int group_uid) {
+void NoticeService::send_to_users_with_id(const std::vector<int>& uid_list, const std::string& message, const std::string& type, int message_id, int group_uid, int sender_uid, const std::string& sender_name) {
     for (int uid : uid_list) {
-        send_to_user_with_id(uid, message, type, message_id, group_uid);
+        send_to_user_with_id(uid, message, type, message_id, group_uid, sender_uid, sender_name);
     }
 }
 

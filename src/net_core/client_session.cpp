@@ -50,7 +50,7 @@ void client_session::init_(){
     handlers_["private_chat"]           = std::make_unique<Chat_handler>();// 聊天消息.私聊
     handlers_["group_chat"]             = std::make_unique<Chat_handler>();// 聊天消息.群聊
     handlers_["delete_message"]         = std::make_unique<Chat_handler>();// 删除消息
-    handlers_["refresh_offline_messages"] = std::make_unique<Chat_handler>();// 手动刷新离线消息
+    handlers_["history_request"]        = std::make_unique<Chat_handler>();// 聊天历史（游标分页）
     handlers_["add_friend"]             = std::make_unique<Chat_handler>();// 好友申请
     handlers_["set_friend_remark"]      = std::make_unique<Chat_handler>();// 给好友设置备注名
     handlers_["accept_friend"]          = std::make_unique<Chat_handler>();// 同意好友申请
@@ -236,7 +236,7 @@ void client_session::login(int UID,std::string password){
         old_session->kick_offline();
     }
 
-    std::string success = "Login successful. Welcome, " + account->getName() + "!\n";
+    std::string success = "Login successful. Welcome, " + account->getName() + "! (UID " + account->get_string_UID() + ")\n";
     package_message(success,"system");
     show_friend_requests(); // 登录后自动查看待处理的好友申请
     // 登录后自动查看待处理的群聊入群申请（若有权限）todo
@@ -319,13 +319,13 @@ void client_session::group_chat(int target_UID,std::string message){
     int msg_id = repo_hub_->messages()->store_message(current_account_->getUID(), target_UID, message, true);
     // 从数据库拉取群成员列表，经全局通知服务广播（自动忽略不在线成员），并携带 message_id
     auto members = repo_hub_->groups()->get_group_members(target_UID);
-    std::string formatted_msg = "[" + current_account_->getName() + "]: " + message;
     if (msg_id > 0) {
-        NoticeService::get_instance().send_to_users_with_id(members, formatted_msg, "Group_Chat", msg_id, target_UID);
+        NoticeService::get_instance().send_to_users_with_id(members, message, "Group_Chat", msg_id, target_UID,
+                                                            current_account_->getUID(), current_account_->getName());
         // 告知发送者消息 id，便于 3 分钟内删除
         package_message("Message sent. Message ID: " + std::to_string(msg_id) + ".\n", "system");
     } else {
-        NoticeService::get_instance().send_to_users(members, formatted_msg, "Group_Chat");
+        NoticeService::get_instance().send_to_users(members, message, "Group_Chat");
     }
 }
 
@@ -351,15 +351,15 @@ void client_session::private_chat(int target_UID, std::string message) {
 
     // 3. 先落库（无论对方是否在线；离线消息由对方上线时离线拉取）
     int msg_id = repo_hub_->messages()->store_message(current_account_->getUID(), target_UID, message, false);
-    std::string formatted_msg = "[" + current_account_->getName() + "]: " + message;
 
     // 4. 对方在线则实时转发，否则留在 DB 等其上线离线拉取
     auto target_session = session_manager::get_instance().find_session(target_UID);
     if (target_session) {
         if (msg_id > 0) {
-            target_session->package_chat_message(formatted_msg, "private_chat", msg_id);
+            target_session->package_chat_message(message, "private_chat", msg_id, 0,
+                                                 current_account_->getUID(), current_account_->getName());
         } else {
-            target_session->package_message(formatted_msg, "private_chat");
+            target_session->package_message(message, "private_chat");
         }
     }
 
@@ -682,16 +682,29 @@ void client_session::package_message(const std::string& message,std::string type
     }
 }
 
-void client_session::package_chat_message(const std::string& message, std::string type, int message_id, int group_uid){
+void client_session::package_chat_message(const std::string& message, std::string type, int message_id, int group_uid, int sender_uid, const std::string& sender_name){
     json msg_json;
     msg_json["type"] = std::move(type);
     msg_json["content"] = message;
     msg_json["message_id"] = message_id;
     if (group_uid > 0) {
-        msg_json["group_UID"] = group_uid;
+        msg_json["group_UID"] = group_uid;   // 群聊消息携带群 UID，便于客户端归类
+    }
+    if (sender_uid > 0) {
+        msg_json["sender_UID"] = sender_uid; // 发送者 UID，便于客户端将消息路由到对应会话
+    }
+    if (!sender_name.empty()) {
+        msg_json["sender_name"] = sender_name; // 发送者昵称，便于客户端展示
     }
     if (auto transport = transport_.lock()) {
         transport->send_packet(std::move(msg_json));
+    }
+}
+
+// 直接发送一个完整 JSON（用于 history_response 这类非 {type,content} 结构的消息）
+void client_session::package_json(const json& message){
+    if (auto transport = transport_.lock()) {
+        transport->send_packet(message);
     }
 }
 
@@ -751,14 +764,44 @@ void client_session::delete_message(int message_id){
     }
 }
 
-// 手动刷新离线消息（自本次登录时间之后）
-void client_session::refresh_offline_messages(){
+// 聊天历史：message.id 作游标分页。登录后首屏不传 before_id（<=0 取最新一页），
+// 前端上滑加载更多时把当前最旧一条的 message_id 作为 before_id 传回。
+void client_session::chat_history(int peer_id, int before_id){
     if (!current_account_) {
-        package_message("You must be logged in to refresh offline messages.\n", "system");
+        package_message("You must be logged in to view chat history.\n", "system");
         return;
     }
-    send_offline_messages(current_account_->get_last_login_time());
-    package_message("Offline messages refreshed.\n", "system");
+    const int self_uid = current_account_->getUID();
+    // 内存群列表判断 peer 是群还是用户（UID 与群 UID 共用编号空间，靠 is_group 区分 type）
+    const bool is_group = social_manager_ && social_manager_->has_group(peer_id);
+
+    constexpr int kPageSize = 10;   // 每页 10 条
+    std::vector<message> page;
+    bool has_more = false;
+    if (!repo_hub_->messages()->get_history_page(self_uid, peer_id, is_group,
+                                                 before_id, kPageSize, page, has_more)) {
+        package_message("Failed to load chat history.\n", "system");
+        return;
+    }
+
+    json items = json::array();
+    for (const auto& m : page) {
+        json item;
+        item["message_id"]  = m.message_id;
+        item["sender_UID"]  = m.sender_UID;
+        item["sender_name"] = m.sender_name;
+        item["is_group"]    = m.is_group;
+        item["content"]     = m.content;
+        item["timestamp"]   = m.timestamp;
+        items.push_back(std::move(item));
+    }
+
+    json resp;
+    resp["type"]     = "history_response";
+    resp["peer_id"]  = peer_id;
+    resp["messages"] = std::move(items);
+    resp["has_more"] = has_more;
+    package_json(resp);
 }
 
 // 查询并推送自 since_time 之后的离线消息（私聊/群聊）
@@ -772,11 +815,10 @@ void client_session::send_offline_messages(const std::string& since_time){
         if (sender) {
             sender_name = sender->getName();
         }
-        std::string formatted = "[" + sender_name + "]: " + m.content;
         std::string type = m.is_group ? "Group_Chat" : "private_chat";
         // 群聊离线消息携带 group_UID，便于客户端归类
         int group_uid = m.is_group ? m.receiver_UID : 0;
-        package_chat_message(formatted, type, m.message_id, group_uid);
+        package_chat_message(m.content, type, m.message_id, group_uid, m.sender_UID, sender_name);
     }
 }
 

@@ -87,6 +87,11 @@ void social_module::exit_friend_group(int group_UID){
     }
 }
 
+// 当前用户是否属于该群（内存群列表判断，用于历史查询区分私聊/群聊）
+bool social_module::has_group(int group_UID) const {
+    return std::find(friend_groups.begin(), friend_groups.end(), group_UID) != friend_groups.end();
+}
+
 // 仅把群加入内存列表（不写库），用于被拉入群/申请通过后同步其会话
 void social_module::add_group_to_list(int group_UID){
     if (std::find(friend_groups.begin(), friend_groups.end(), group_UID) == friend_groups.end()) {
