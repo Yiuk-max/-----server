@@ -39,10 +39,13 @@ message make_message(sql::ResultSet* rs) {
     return m;
 }
 
-// 历史查询专用：额外读取 JOIN 出来的发送者昵称 sender_name。
+// 历史查询专用：额外读取 JOIN 出来的发送者昵称与“回复的原消息摘要”。
 message make_history_message(sql::ResultSet* rs) {
     message m = make_message(rs);
     m.sender_name = rs->isNull("sender_name") ? "" : rs->getString("sender_name");
+    m.reply_to_message_id = rs->isNull("reply_to_message_id") ? 0 : rs->getInt("reply_to_message_id");
+    m.reply_sender_name = rs->isNull("reply_sender_name") ? "" : rs->getString("reply_sender_name");
+    m.reply_content = rs->isNull("reply_content") ? "" : rs->getString("reply_content");
     return m;
 }
 } // namespace
@@ -50,20 +53,27 @@ message make_history_message(sql::ResultSet* rs) {
 // 存储消息：type=2 群聊 / 1 私聊；私聊 receiver_UID=对方UID，群聊 receiver_UID=group_UID
 // 成功返回数据库分配的 message_id，失败返回 -1
 int message_repo::store_message(int sender_UID, int receiver_UID,
-                                const std::string& content, bool is_group) {
+                                const std::string& content, bool is_group,
+                                int reply_to_message_id) {
     ConnGuard guard;
     if (!guard) {
         std::cerr << "[message_repo] store_message: no DB connection." << std::endl;
         return -1;
     }
     try {
+        const bool is_reply = reply_to_message_id > 0;
         std::unique_ptr<sql::PreparedStatement> pstmt(
             guard.get()->prepareStatement(
-                "INSERT INTO message (type, sender_UID, receiver_UID, content) VALUES (?, ?, ?, ?)"));
+                is_reply
+                    ? "INSERT INTO message (type, sender_UID, receiver_UID, content, reply_to_message_id) VALUES (?, ?, ?, ?, ?)"
+                    : "INSERT INTO message (type, sender_UID, receiver_UID, content) VALUES (?, ?, ?, ?)"));
         pstmt->setInt(1, is_group ? 2 : 1);
         pstmt->setInt(2, sender_UID);
         pstmt->setInt(3, receiver_UID);
         pstmt->setString(4, content);
+        if (is_reply) {
+            pstmt->setInt(5, reply_to_message_id);
+        }
         pstmt->executeUpdate();
 
         // 取回 AUTO_INCREMENT 分配的 message_id
@@ -160,13 +170,19 @@ std::vector<message> message_repo::get_offline_messages(int receiver_UID, const 
     try {
         std::unique_ptr<sql::PreparedStatement> pstmt(
             guard.get()->prepareStatement(
-                "SELECT id, type, sender_UID, receiver_UID, content, send_time FROM message "
-                "WHERE ((type = 1 AND receiver_UID = ? AND sender_UID != ?) "
-                "   OR (type = 2 AND receiver_UID IN "
+                "SELECT m.id, m.type, m.sender_UID, m.receiver_UID, m.content, m.send_time, "
+                "       a.nickname AS sender_name, "
+                "       m.reply_to_message_id, ra.nickname AS reply_sender_name, r.content AS reply_content "
+                "FROM message m "
+                "LEFT JOIN Account a  ON a.UID = m.sender_UID "
+                "LEFT JOIN message r  ON r.id = m.reply_to_message_id "
+                "LEFT JOIN Account ra ON ra.UID = r.sender_UID "
+                "WHERE ((m.type = 1 AND m.receiver_UID = ? AND m.sender_UID != ?) "
+                "   OR (m.type = 2 AND m.receiver_UID IN "
                 "         (SELECT group_UID FROM Groupmember WHERE member_UID = ?) "
-                "       AND sender_UID != ?)) "
-                "  AND send_time > ? "
-                "ORDER BY id ASC"));
+                "       AND m.sender_UID != ?)) "
+                "  AND m.send_time > ? "
+                "ORDER BY m.id ASC"));
         pstmt->setInt(1, receiver_UID);
         pstmt->setInt(2, receiver_UID);
         pstmt->setInt(3, receiver_UID);
@@ -174,7 +190,7 @@ std::vector<message> message_repo::get_offline_messages(int receiver_UID, const 
         pstmt->setString(5, since);
         std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
         while (rs->next()) {
-            result.push_back(make_message(rs.get()));
+            result.push_back(make_history_message(rs.get()));
         }
     } catch (const sql::SQLException& e) {
         std::cerr << "[message_repo] get_offline_messages failed: " << e.what()
@@ -206,14 +222,22 @@ bool message_repo::get_history_page(int self_uid, int peer_uid, bool is_group,
 
     const char* sql_group =
         "SELECT m.id, m.type, m.sender_UID, m.receiver_UID, m.content, m.send_time, "
-        "       a.nickname AS sender_name "
-        "FROM message m LEFT JOIN Account a ON a.UID = m.sender_UID "
+        "       a.nickname AS sender_name, "
+        "       m.reply_to_message_id, ra.nickname AS reply_sender_name, r.content AS reply_content "
+        "FROM message m "
+        "LEFT JOIN Account a  ON a.UID = m.sender_UID "
+        "LEFT JOIN message r  ON r.id = m.reply_to_message_id "
+        "LEFT JOIN Account ra ON ra.UID = r.sender_UID "
         "WHERE m.type = 2 AND m.receiver_UID = ? AND m.id < ? "
         "ORDER BY m.id DESC LIMIT ?";
     const char* sql_private =
         "SELECT m.id, m.type, m.sender_UID, m.receiver_UID, m.content, m.send_time, "
-        "       a.nickname AS sender_name "
-        "FROM message m LEFT JOIN Account a ON a.UID = m.sender_UID "
+        "       a.nickname AS sender_name, "
+        "       m.reply_to_message_id, ra.nickname AS reply_sender_name, r.content AS reply_content "
+        "FROM message m "
+        "LEFT JOIN Account a  ON a.UID = m.sender_UID "
+        "LEFT JOIN message r  ON r.id = m.reply_to_message_id "
+        "LEFT JOIN Account ra ON ra.UID = r.sender_UID "
         "WHERE m.type = 1 "
         "  AND ((m.sender_UID = ? AND m.receiver_UID = ?) "
         "    OR (m.sender_UID = ? AND m.receiver_UID = ?)) "

@@ -7,7 +7,8 @@
 
 class message_repo : public I_message_repo {
 public:
-    int store_message(int sender_UID, int receiver_UID, const std::string& message, bool is_group) override;
+    int store_message(int sender_UID, int receiver_UID, const std::string& message,
+                      bool is_group, int reply_to_message_id = 0) override;
 
     bool delete_message(int message_id) override;
 

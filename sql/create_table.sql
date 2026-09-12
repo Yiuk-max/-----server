@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS message (
     sender_UID   BIGINT UNSIGNED NOT NULL                COMMENT '发送者',
     receiver_UID BIGINT UNSIGNED NOT NULL                COMMENT '接收方(私聊=对方UID;群聊=group_UID)',
     content      TEXT            NOT NULL                COMMENT '消息内容',
+    reply_to_message_id BIGINT UNSIGNED NULL             COMMENT '回复的原消息id(NULL=非回复)',
     send_time    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发送时间',
 
     PRIMARY KEY (id),

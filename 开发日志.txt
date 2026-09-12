@@ -494,3 +494,22 @@ interface 层怎么还留着account的空占位实现，看着只做了数据库
 - 前端 web/app.js：按 peer 维护消息缓存；登录后对每个会话预加载最近 10 条；
   滚动到顶部用当前最旧 message_id 作 before_id 加载更旧一页；按 message_id 去重；
   私聊本地回显，群聊用服务端广播回显。
+
+2026-09-12 前端：原生页面替换为 Vite + Vue 3（后端 0 改动）
+- 新增 frontend/（Vite + Vue 3 + vue-router hash 模式）：chatStore.js 封装 WebSocket 客户端与
+  会话/历史分页状态，ChatView/SettingsView 只做展示；逻辑与协议沿用之前的原生实现，未改后端。
+- vite.config.js：base './'、build.outDir '../web'（产物落到后端 web_root 指向目录）、
+  dev 模式把 /ws 代理到 127.0.0.1:8080。
+- 约束适配：无 SPA fallback → hash 路由；后缀白名单 → 不引入 wasm/webp/ttf，用系统字体。
+- web/ 由手写页面改为构建产物；README/项目说明文档同步更新。
+
+2026-09-12 功能：回复某条消息（一层引用）
+- 数据库：message 表新增 reply_to_message_id BIGINT UNSIGNED NULL（sql/add_reply_to.sql；
+  create_table.sql 同步）。reply_to_message_id=123 表示回复 id=123，NULL 为非回复。
+- 仓储：store_message 增加 reply_to_message_id 参数并入库；get_history_page / get_offline_messages
+  改为 LEFT JOIN message r ON r.id=m.reply_to_message_id + Account，带出原消息的 sender_name 与 content 摘要。
+- 业务：private_chat/group_chat 增加 reply_to_message_id；发送时按 id 单独查原消息摘要
+  （原消息可能不在当前分页里），推送与历史均带 reply_to_message_id + reply_to{message_id,sender_name,content}。
+- 协议：客户端 private_chat/group_chat 可带 reply_to_message_id；服务器推送/历史返回 reply_to 摘要；
+  只支持一层直接引用（回复的消息本身可被回复，但 UI 只展示一层）。
+- 前端（frontend/ Vite+Vue）：消息上 hover 出现“回复”按钮，输入框上方显示引用条，气泡内渲染一层引用块。

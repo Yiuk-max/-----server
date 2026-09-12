@@ -26,8 +26,10 @@ public:
     // 同上，但发送的聊天消息会带上数据库 message_id（供客户端定位/删除）；
     // group_uid > 0 时（群聊）额外携带 group_UID 字段；
     // sender_uid/sender_name 携带发送者信息（前端据此路由与展示）。
-    void send_to_user_with_id(int uid, const std::string& message, const std::string& type, int message_id, int group_uid = 0, int sender_uid = 0, const std::string& sender_name = "");
-    void send_to_users_with_id(const std::vector<int>& uid_list, const std::string& message, const std::string& type, int message_id, int group_uid = 0, int sender_uid = 0, const std::string& sender_name = "");
+    void send_to_user_with_id(int uid, const std::string& message, const std::string& type, int message_id, int group_uid = 0, int sender_uid = 0, const std::string& sender_name = "",
+                              int reply_to_message_id = 0, const std::string& reply_sender_name = "", const std::string& reply_content = "");
+    void send_to_users_with_id(const std::vector<int>& uid_list, const std::string& message, const std::string& type, int message_id, int group_uid = 0, int sender_uid = 0, const std::string& sender_name = "",
+                               int reply_to_message_id = 0, const std::string& reply_sender_name = "", const std::string& reply_content = "");
 
     // 查询某 UID 当前是否在线
     bool is_online(int uid);

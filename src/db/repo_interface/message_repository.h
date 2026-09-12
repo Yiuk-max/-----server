@@ -12,6 +12,12 @@ struct message {
     bool is_group;         // 是否为群聊消息
     std::string timestamp; // 时间戳
     std::string sender_name; // 发送者昵称（仅历史查询时填充，便于前端展示）
+
+    // 回复：本条消息回复的原消息 id（0=非回复）；
+    // reply_sender_name / reply_content 为原消息摘要（历史查询时 JOIN 填充）。
+    int reply_to_message_id = 0;
+    std::string reply_sender_name;
+    std::string reply_content;
 };
 //存储信息、定时删除信息、查询没有收到的私聊、群聊离线信息、查询私聊/群聊历史消息
 
@@ -20,7 +26,10 @@ public:
     virtual ~I_message_repo() = default;
 
     // 存储消息：成功返回数据库分配的 message_id，失败返回 -1
-    virtual int store_message(int sender_UID, int receiver_UID, const std::string& message, bool is_group) = 0;
+    // 存储消息：成功返回数据库分配的 message_id，失败返回 -1。
+    // reply_to_message_id > 0 表示本条是回复该 id 的消息（只支持一层直接引用）。
+    virtual int store_message(int sender_UID, int receiver_UID, const std::string& message,
+                              bool is_group, int reply_to_message_id = 0) = 0;
 
     virtual bool delete_message(int message_id) = 0;
 

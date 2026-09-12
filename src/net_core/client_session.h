@@ -50,11 +50,12 @@ public:
     //===============业务逻辑===============
     void show_chatlist();                                                   //展示聊天对象（好友、群聊）   
     //聊天
-    void private_chat(int target_UID,std::string message);                  //私聊    
-    void group_chat(int target_UID,std::string message);                    //群聊——发言
+    void private_chat(int target_UID,std::string message,int reply_to_message_id = 0);   //私聊（可选回复某条消息）
+    void group_chat(int target_UID,std::string message,int reply_to_message_id = 0);     //群聊——发言（可选回复）
     void delete_message(int message_id);                                    //删除消息（仅限发送后3分钟内，通知在线接收方）
     void chat_history(int peer_id, int before_id);                          //聊天历史（游标分页，before_id<=0 取最新一页）
     void send_offline_messages(const std::string& since_time);  // 查询并推送自 since_time 之后的离线消息
+    bool load_reply_summary(int reply_to_message_id, std::string& sender_name, std::string& content); // 查回复的原消息摘要
     //好友相关
     void send_friend_request(int target_UID,std::string apply_message);     //添加好友(通过social_manager_)
     void set_friend_remark(int friend_UID,std::string remark);              //给好友设置备注名
@@ -81,7 +82,7 @@ public:
     //===============发送===============
 
     void package_message(const std::string& message,std::string type);      //打包信息并等待处理
-    void package_chat_message(const std::string& message,std::string type,int message_id,int group_uid = 0,int sender_uid = 0,const std::string& sender_name = ""); //打包聊天消息（带 message_id / group_UID / sender 信息）
+    void package_chat_message(const std::string& message,std::string type,int message_id,int group_uid = 0,int sender_uid = 0,const std::string& sender_name = "",int reply_to_message_id = 0,const std::string& reply_sender_name = "",const std::string& reply_content = ""); //打包聊天消息
     void package_json(const json& message);                                 //直接发送一个完整 JSON（如 history_response）
 
 };

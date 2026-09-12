@@ -69,7 +69,7 @@ void WsServer::do_accept() {
     auto socket = std::make_shared<tcp::socket>(net::make_strand(ioc_));
     auto self = shared_from_this();
     acceptor_.async_accept(*socket, [self, socket](beast::error_code ec) {//asyn_accept 回调在 acceptor strand 上执行，创建 WsSession 后再切换到其独立 strand。
-        self->on_accept(ec, std::move(*socket));// 成功则创建 WsSession 并调用 run()，失败则打印错误并继续接受。
+        self->on_accept(ec, std::move(*socket));// 成功则创建 WsSession 并调用 run()
     });
 }
 
@@ -83,7 +83,7 @@ void WsServer::on_accept(beast::error_code ec, tcp::socket socket) {
                                     max_message_bytes_, max_pending_bytes_, web_root_)
             ->run();
     }
-    do_accept();
+    do_accept();//循环调用，继续接受新连接
 }
 
 int run_websocket_server(unsigned short port) {
@@ -91,7 +91,7 @@ int run_websocket_server(unsigned short port) {
     const int io_threads = std::max(1, cfg.ws_io_threads());
 
     try {
-        net::io_context ioc{io_threads};
+        net::io_context ioc{io_threads};   //参数用来提示io_context内部维护的线程池大小，方便asio自动调优，实际线程数由用户创建的线程数决定
         auto pool = std::make_shared<ThreadPool>(8);
 
         tcp::endpoint endpoint{tcp::v6(), port};
@@ -112,7 +112,7 @@ int run_websocket_server(unsigned short port) {
 
         std::vector<std::thread> threads;
         for (int i = 1; i < io_threads; ++i) {
-            threads.emplace_back([&ioc] { ioc.run(); });
+            threads.emplace_back([&ioc] { ioc.run(); });//一个 ioc 被多个线程调用，先凑n-1个线程，主线程再调用一次 ioc.run()，总共 n 个线程。
         }
         ioc.run();
         for (auto& t : threads) {

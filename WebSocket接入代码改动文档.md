@@ -1045,3 +1045,53 @@ GET /ws (Upgrade) -> 101 Switching Protocols
 ```
 
 聊天业务回归（`tests/ws_chat_smoke.py`）仍全部通过；`node --check web/app.js` 语法通过。
+
+## 17. 前端重构为 Vite + Vue 3（后端零改动）
+
+第 16 节的原生 HTML/CSS/JS 前端（`web/index.html` + `style.css` + `app.js`）已替换为 **Vite + Vue 3** 工程，源码放到 `frontend/`，构建产物仍输出到 `web/`，因此**后端 C++ 与 `configure.json` 零改动**。
+
+### 17.1 结构
+
+```
+frontend/
+├── index.html
+├── vite.config.js        # base './'；build.outDir '../web'；dev 代理 /ws -> 8080
+├── package.json
+└── src/
+    ├── main.js / router.js（hash 路由）/ style.css
+    ├── App.vue           # 顶栏 + RouterView
+    ├── chatStore.js      # WebSocket 客户端 + 会话/历史/离线状态（与 UI 解耦）
+    └── views/
+        ├── ChatView.vue      # 连接 / 账号 / 会话列表 / 消息 / 输入
+        └── SettingsView.vue  # 连接信息 + 系统日志
+```
+
+### 17.2 与后端约束的对应
+
+- **无 SPA fallback** → `createWebHashHistory()`，页面只在 `/` 加载。
+- **后缀白名单**（`html/css/js/json/svg/png/jpg/jpeg/gif/ico/woff/woff2/map`）→ 不引入 `wasm/webp/avif/ttf`；字体用系统字体。
+- **同源** → 生产构建 `base:'./'`，浏览器在 `http://<host>:8080/` 打开，WS 连 `ws://<host>:8080/ws`。
+- **开发** → `vite.config.js` 把 `/ws` 代理到 `127.0.0.1:8080`，`npm run dev` 即可联调。
+
+### 17.3 业务逻辑（从原生版迁移，未改动协议）
+
+- `chatStore.js` 负责：登录后 `show` → 每个会话 `history_request` 预加载最近 10 条；
+  上滑用最旧 `message_id` 作 `before_id` 拉更旧一页；按 `message_id` 去重；
+  私聊按 `sender_UID`、群聊按 `group_UID` 路由；本地回显带 `orderKey` 保证“发送在下、收到在上”。
+- 组件只做展示与交互，通过 `useChat()` 取状态与动作。
+
+### 17.4 构建与验证
+
+```bash
+cd frontend && npm install && npm run build   # 产出 web/index.html + web/assets/*.js|css
+```
+
+静态自检（服务端 `net_layer=websocket, web_root=../web`）：
+
+```
+GET /                          -> 200 text/html
+GET /assets/index-*.js         -> 200 application/javascript
+GET /assets/index-*.css        -> 200 text/css
+GET /assets/x.webp             -> 404（白名单外）
+GET /ws (Upgrade)              -> 101 Switching Protocols
+```

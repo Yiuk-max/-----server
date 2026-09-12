@@ -303,7 +303,7 @@ void client_session::show_chatlist(){
 //============================================业务逻辑=======================================
 //==========================================================================================
 
-void client_session::group_chat(int target_UID,std::string message){
+void client_session::group_chat(int target_UID,std::string message,int reply_to_message_id){
     if (!current_account_) {
         package_message("You must be logged in to send group messages.\n", "system");
         return;
@@ -315,13 +315,17 @@ void client_session::group_chat(int target_UID,std::string message){
         package_message(fail, "system");
         return;
     }
-    // 先存储消息，取回数据库分配的 message_id
-    int msg_id = repo_hub_->messages()->store_message(current_account_->getUID(), target_UID, message, true);
+    // 先存储消息（含 reply_to_message_id），取回数据库分配的 message_id
+    int msg_id = repo_hub_->messages()->store_message(current_account_->getUID(), target_UID, message, true, reply_to_message_id);
+    // 回复的原消息摘要（可能不在当前分页里，单独按 id 查）
+    std::string reply_name, reply_content;
+    if (reply_to_message_id > 0) load_reply_summary(reply_to_message_id, reply_name, reply_content);
     // 从数据库拉取群成员列表，经全局通知服务广播（自动忽略不在线成员），并携带 message_id
     auto members = repo_hub_->groups()->get_group_members(target_UID);
     if (msg_id > 0) {
         NoticeService::get_instance().send_to_users_with_id(members, message, "Group_Chat", msg_id, target_UID,
-                                                            current_account_->getUID(), current_account_->getName());
+                                                            current_account_->getUID(), current_account_->getName(),
+                                                            reply_to_message_id, reply_name, reply_content);
         // 告知发送者消息 id，便于 3 分钟内删除
         package_message("Message sent. Message ID: " + std::to_string(msg_id) + ".\n", "system");
     } else {
@@ -329,7 +333,7 @@ void client_session::group_chat(int target_UID,std::string message){
     }
 }
 
-void client_session::private_chat(int target_UID, std::string message) {
+void client_session::private_chat(int target_UID, std::string message, int reply_to_message_id) {
     if (!current_account_) {
         package_message("You must be logged in to send private messages.\n", "system");
         return;
@@ -350,14 +354,18 @@ void client_session::private_chat(int target_UID, std::string message) {
     }
 
     // 3. 先落库（无论对方是否在线；离线消息由对方上线时离线拉取）
-    int msg_id = repo_hub_->messages()->store_message(current_account_->getUID(), target_UID, message, false);
+    int msg_id = repo_hub_->messages()->store_message(current_account_->getUID(), target_UID, message, false, reply_to_message_id);
+    // 回复的原消息摘要（可能不在当前分页里，单独按 id 查）
+    std::string reply_name, reply_content;
+    if (reply_to_message_id > 0) load_reply_summary(reply_to_message_id, reply_name, reply_content);
 
     // 4. 对方在线则实时转发，否则留在 DB 等其上线离线拉取
     auto target_session = session_manager::get_instance().find_session(target_UID);
     if (target_session) {
         if (msg_id > 0) {
             target_session->package_chat_message(message, "private_chat", msg_id, 0,
-                                                 current_account_->getUID(), current_account_->getName());
+                                                 current_account_->getUID(), current_account_->getName(),
+                                                 reply_to_message_id, reply_name, reply_content);
         } else {
             target_session->package_message(message, "private_chat");
         }
@@ -682,7 +690,7 @@ void client_session::package_message(const std::string& message,std::string type
     }
 }
 
-void client_session::package_chat_message(const std::string& message, std::string type, int message_id, int group_uid, int sender_uid, const std::string& sender_name){
+void client_session::package_chat_message(const std::string& message, std::string type, int message_id, int group_uid, int sender_uid, const std::string& sender_name, int reply_to_message_id, const std::string& reply_sender_name, const std::string& reply_content){
     json msg_json;
     msg_json["type"] = std::move(type);
     msg_json["content"] = message;
@@ -695,6 +703,15 @@ void client_session::package_chat_message(const std::string& message, std::strin
     }
     if (!sender_name.empty()) {
         msg_json["sender_name"] = sender_name; // 发送者昵称，便于客户端展示
+    }
+    if (reply_to_message_id > 0) {
+        // 只带一层引用：直接给出被回复消息的 id + 摘要
+        msg_json["reply_to_message_id"] = reply_to_message_id;
+        json reply;
+        reply["message_id"] = reply_to_message_id;
+        reply["sender_name"] = reply_sender_name;
+        reply["content"] = reply_content;
+        msg_json["reply_to"] = std::move(reply);
     }
     if (auto transport = transport_.lock()) {
         transport->send_packet(std::move(msg_json));
@@ -793,6 +810,14 @@ void client_session::chat_history(int peer_id, int before_id){
         item["is_group"]    = m.is_group;
         item["content"]     = m.content;
         item["timestamp"]   = m.timestamp;
+        if (m.reply_to_message_id > 0) {
+            item["reply_to_message_id"] = m.reply_to_message_id;
+            json reply;
+            reply["message_id"] = m.reply_to_message_id;
+            reply["sender_name"] = m.reply_sender_name;
+            reply["content"] = m.reply_content;
+            item["reply_to"] = std::move(reply);
+        }
         items.push_back(std::move(item));
     }
 
@@ -818,8 +843,23 @@ void client_session::send_offline_messages(const std::string& since_time){
         std::string type = m.is_group ? "Group_Chat" : "private_chat";
         // 群聊离线消息携带 group_UID，便于客户端归类
         int group_uid = m.is_group ? m.receiver_UID : 0;
-        package_chat_message(m.content, type, m.message_id, group_uid, m.sender_UID, sender_name);
+        package_chat_message(m.content, type, m.message_id, group_uid, m.sender_UID, sender_name,
+                             m.reply_to_message_id, m.reply_sender_name, m.reply_content);
     }
+}
+
+// 查“被回复的原消息”摘要（原消息可能不在当前分页里，必须单独按 id 查）。
+// 成功填充 sender_name/content 并返回 true。
+bool client_session::load_reply_summary(int reply_to_message_id, std::string& sender_name, std::string& content){
+    sender_name.clear();
+    content.clear();
+    if (reply_to_message_id <= 0) return false;
+    message original;
+    if (!repo_hub_->messages()->get_message(reply_to_message_id, original)) return false;
+    auto acc = repo_hub_->accounts()->load_account(original.sender_UID);
+    sender_name = acc ? acc->getName() : std::to_string(original.sender_UID);
+    content = original.content;
+    return true;
 }
 
 //=======================效验target_UID_is_exit=====================

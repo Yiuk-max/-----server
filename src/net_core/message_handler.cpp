@@ -1,17 +1,29 @@
 #include "message_handler.h"
 #include "client_session.h"
+
+namespace {
+// 读取可选的 reply_to_message_id（缺失/非整数/<=0 均视为非回复）
+int reply_id(const json& message) {
+    if (message.contains("reply_to_message_id") && message["reply_to_message_id"].is_number_integer()) {
+        int id = message["reply_to_message_id"].get<int>();
+        return id > 0 ? id : 0;
+    }
+    return 0;
+}
+}  // namespace
+
 void Chat_handler::handle_message(const json& message,client_session& session,std::string &file_data){
     std::string type = message["type"];
     if(type == "private_chat"){
         int target_UID = message["target_UID"];
         std::string msg = message["message"];
-        session.private_chat(target_UID, msg);
+        session.private_chat(target_UID, msg, reply_id(message));
         return;
     }
     else if(type == "group_chat"){
         int target_UID = message["target_UID"];
         std::string msg = message["message"];
-        session.group_chat(target_UID, msg);
+        session.group_chat(target_UID, msg, reply_id(message));
         return;
     }
     else if(type == "delete_message"){

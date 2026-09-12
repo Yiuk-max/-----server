@@ -63,10 +63,19 @@ cd build
 ### 浏览器快速测试
 
 **方式一（推荐）**：直接打开服务端提供的聊天页 `http://<host>:8080/`（仅 websocket 模式）。
-前端源码在 `web/`（`index.html` / `style.css` / `app.js`），由服务端静态提供，改完刷新即可，无需重新编译。
+前端是 **Vite + Vue 3** 项目，源码在 `frontend/`，构建产物输出到 `web/`（服务端静态提供）：
 
-> `web_root` 是相对**运行目录**的路径。从仓库 `build/` 目录运行时，需指向源码里的 `web/`，
+```bash
+cd frontend
+npm install
+npm run build      # 产出到 ../web（index.html + assets/*.js|css）
+# 开发模式：npm run dev（5173，已代理 /ws 到后端 8080）
+```
+
+> `web_root` 是相对**运行目录**的路径。从仓库 `build/` 目录运行时指向构建产物 `web/`，
 > 即 `"web_root": "../web"`（已在 `build/configure.json` 配好）；若在仓库根目录运行则用 `"./web"`。
+
+> 后端静态服务后缀白名单不含 `wasm/webp/avif/ttf`，且无 SPA fallback，因此前端用 hash 路由、字体用 woff2 或系统字体。
 
 **方式二**：低阶协议测试页 `tests/ws_browser_test.html`，可直接打开或另起静态服务：
 
@@ -101,6 +110,7 @@ python3 tests/ws_chat_smoke.py 127.0.0.1 8080 /ws --idle-seconds=3
 
 - **[项目说明文档.md](项目说明文档.md)** —— 技术栈、目录结构、架构与工作流程、核心模块说明、常见问题。
 - **[客户端接口文档.txt](客户端接口文档.txt)** —— 前后端 JSON / 帧协议接口规范（建议客户端开发者先读此文档）。
+- **[frontend/README.md](frontend/README.md)** —— 前端（Vite + Vue 3）开发与构建说明。
 - **[WebSocket接入代码改动文档.md](WebSocket接入代码改动文档.md)** —— WebSocket 接入方案与 M0~M2 实施记录。
 - **[数据库设计.txt](数据库设计.txt)** —— 数据库表结构、UID 分配与连接池接入说明。
 - **[开发日志.txt](开发日志.txt)** —— 待办清单与开发日志（含历次架构重构与问题修复记录）。
@@ -121,8 +131,9 @@ server/
 ├── configure.json          # 运行配置（网络层 / 心跳 / WebSocket / 数据库连接池）
 ├── sql/create_table.sql    # 数据库建表脚本
 ├── sql/add_self_friend.sql # 给已有账号补齐"自己是自己的好友"（自聊）
+├── frontend/               # 前端源码（Vite + Vue 3）：npm run build 输出到 web/
+├── web/                    # 前端构建产物（由 WS 服务端静态提供，勿手改）
 ├── tests/                  # 可选单元测试 + 端到端冒烟脚本 + 低阶浏览器测试页
-├── web/                    # 前端聊天页（index.html / style.css / app.js，由 WS 服务端静态提供）
 └── build/                  # 构建输出
 ```
 

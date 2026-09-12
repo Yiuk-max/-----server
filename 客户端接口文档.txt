@@ -119,10 +119,13 @@
 {
     "type": "private_chat",
     "target_UID": 1002,
-    "message": "你好呀！"
+    "message": "你好呀！",
+    "reply_to_message_id": 447
 }
 ```
-*   *注意*：服务器会校验目标 UID 是否存在、是否为好友（**不再要求在线**）。对方在线时实时转发；对方离线时消息落库，待其上线后经离线消息推送。转发的 JSON 中会附带 `message_id`、`sender_UID`、`sender_name`，`content` 为**原始内容**（不含发送者前缀）；发送者会收到 `system` 提示 `Message sent. Message ID: <id>.`，用于后续删除。
+*   `reply_to_message_id` 可选：填被回复消息的 database id 即为“回复”；不传/为 0/null 则为普通消息。
+    每条消息只能直接引用一条消息（只支持一层引用）。
+*   *注意*：服务器会校验目标 UID 是否存在、是否为好友（**不再要求在线**）。对方在线时实时转发；对方离线时消息落库，待其上线后经离线消息推送。转发的 JSON 中会附带 `message_id`、`sender_UID`、`sender_name`，`content` 为**原始内容**（不含发送者前缀）；若为回复，还会带 `reply_to_message_id` 与 `reply_to` 摘要；发送者会收到 `system` 提示 `Message sent. Message ID: <id>.`，用于后续删除。
 
 ### 5. 群聊 (group_chat)
 *   **用途**：向指定群发消息，群内所有在线成员会收到以 `Group_Chat` 类型转发的消息。
@@ -131,9 +134,11 @@
 {
     "type": "group_chat",
     "target_UID": 2001,
-    "message": "大家好！"
+    "message": "大家好！",
+    "reply_to_message_id": 447
 }
 ```
+*   `reply_to_message_id` 可选，含义同私聊（只支持一层引用）。
 *   *注意*：转发的 `Group_Chat` JSON 中会附带数据库消息 ID `message_id`、`group_UID`（所属群 UID）以及发送者 `sender_UID`/`sender_name`，`content` 为**原始内容**；同时给发送者回一条 `system` 提示 `Message sent. Message ID: <id>.`，用于后续删除。
 
 ### 6. 创建群聊 (create_group)
@@ -438,13 +443,16 @@
             "sender_name": "张三",
             "is_group": false,
             "content": "你好",
-            "timestamp": "2026-09-11 12:00:00"
+            "timestamp": "2026-09-11 12:00:00",
+            "reply_to_message_id": 430,
+            "reply_to": {"message_id": 430, "sender_name": "李四", "content": "被回复的那条"}
         }
     ],
     "has_more": true
 }
 ```
 *   `messages`：最多 10 条，按时间**正序**（旧→新）；`content` 为**原始内容**（不含发送者前缀），发送者看 `sender_UID`/`sender_name`。
+    若该条是回复，额外返回 `reply_to_message_id` 与 `reply_to` 摘要（被回复的原消息可能不在本页，服务器会单独按 id 查出摘要）。
 *   `has_more`：为 `true` 表示还有更旧的记录；前端可用当前最旧一条的 `message_id` 作为下一次的 `before_id`，实现“上滑加载更多”。
 *   *注意*：登录成功后服务器仍会自动推送一次离线消息（以 `private_chat`/`Group_Chat` 形式，带 `message_id`），客户端可按 `message_id` 去重。
 
@@ -461,8 +469,8 @@
 | 响应类型 (type)       | 场景/含义                                            | content 内容示例                                        |
 |-----------------------|------------------------------------------------------|--------------------------------------------------------|
 | `system`              | 通用系统提示、登录/注册结果、错误提示等              | `Login successful. Welcome, 张三! (UID 000001)` 等     |
-| `private_chat`        | 收到私聊消息                                         | `你好呀！`（另带 `sender_UID`/`sender_name`/`message_id`） |
-| `Group_Chat`          | 收到群聊消息（注意大小写 `Group_Chat`）              | 群内消息内容（另带 `sender_UID`/`sender_name`/`group_UID`/`message_id`） |
+| `private_chat`        | 收到私聊消息                                         | `你好呀！`（另带 `sender_UID`/`sender_name`/`message_id`，回复消息还带 `reply_to_message_id`/`reply_to`） |
+| `Group_Chat`          | 收到群聊消息（注意大小写 `Group_Chat`）              | 群内消息内容（另带 `sender_UID`/`sender_name`/`group_UID`/`message_id`，回复消息还带 `reply_to_message_id`/`reply_to`） |
 | `history_response`    | 聊天历史分页响应                                     | 无 `content`；含 `peer_id`/`messages`/`has_more`        |
 | `delete_message`      | 消息被删除通知                                       | `content` 为空，通过 `message_id` 定位要移除的消息（群聊消息还会带 `group_UID`） |
 | `file_chunk`          | 服务器发送文件块（下载响应）                         | JSON 中包含 `file_id/filename/total_size/chunk_index/...` 元信息，文件数据在帧尾 |
@@ -470,6 +478,7 @@
 
 > 说明：`private_chat` / `Group_Chat`（含离线消息推送）的 JSON 中会携带 `message_id`（数据库唯一 ID，可用于 `delete_message`）、
 > `sender_UID` 与 `sender_name`（发送者）；`content` 为**原始内容**。`Group_Chat` 还会携带 `group_UID`，便于客户端按群归类。
+> 回复消息会额外携带 `reply_to_message_id` 与被回复消息的摘要 `reply_to`（`{message_id, sender_name, content}`），只展示一层引用。
 
 ### 常见系统提示文本
 | 触发场景                 | content 内容（示例）                                          |
