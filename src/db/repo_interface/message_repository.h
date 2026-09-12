@@ -29,7 +29,8 @@ public:
     // 存储消息：成功返回数据库分配的 message_id，失败返回 -1。
     // reply_to_message_id > 0 表示本条是回复该 id 的消息（只支持一层直接引用）。
     virtual int store_message(int sender_UID, int receiver_UID, const std::string& message,
-                              bool is_group, int reply_to_message_id = 0) = 0;
+                              bool is_group, int reply_to_message_id = 0,
+                              std::string* out_timestamp = nullptr) = 0;
 
     virtual bool delete_message(int message_id) = 0;
 

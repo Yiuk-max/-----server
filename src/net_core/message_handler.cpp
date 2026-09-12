@@ -45,9 +45,10 @@ void Chat_handler::handle_message(const json& message,client_session& session,st
         return;
     }
     else if(type == "add_friend"){
-        int target_UID = message["target_UID"];
-        std::string apply_message = message["apply_message"];
-        session.send_friend_request(target_UID, apply_message);
+        // 按邮箱定位要添加的好友：email 缺失/未绑定时由 social_module 给出系统提示
+        std::string target_email = message.value("email", std::string());
+        std::string apply_message = message.value("apply_message", std::string());
+        session.send_friend_request(target_email, apply_message);
         return;
     }
     else if(type == "set_friend_remark"){

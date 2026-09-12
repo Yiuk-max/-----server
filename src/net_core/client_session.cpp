@@ -315,17 +315,18 @@ void client_session::group_chat(int target_UID,std::string message,int reply_to_
         package_message(fail, "system");
         return;
     }
-    // 先存储消息（含 reply_to_message_id），取回数据库分配的 message_id
-    int msg_id = repo_hub_->messages()->store_message(current_account_->getUID(), target_UID, message, true, reply_to_message_id);
+    // 先存储消息（含 reply_to_message_id），取回数据库分配的 message_id 与发送时间
+    std::string msg_timestamp;
+    int msg_id = repo_hub_->messages()->store_message(current_account_->getUID(), target_UID, message, true, reply_to_message_id, &msg_timestamp);
     // 回复的原消息摘要（可能不在当前分页里，单独按 id 查）
     std::string reply_name, reply_content;
     if (reply_to_message_id > 0) load_reply_summary(reply_to_message_id, reply_name, reply_content);
-    // 从数据库拉取群成员列表，经全局通知服务广播（自动忽略不在线成员），并携带 message_id
+    // 从数据库拉取群成员列表，经全局通知服务广播（自动忽略不在线成员），并携带 message_id 与发送时间
     auto members = repo_hub_->groups()->get_group_members(target_UID);
     if (msg_id > 0) {
         NoticeService::get_instance().send_to_users_with_id(members, message, "Group_Chat", msg_id, target_UID,
                                                             current_account_->getUID(), current_account_->getName(),
-                                                            reply_to_message_id, reply_name, reply_content);
+                                                            reply_to_message_id, reply_name, reply_content, msg_timestamp);
         // 告知发送者消息 id，便于 3 分钟内删除
         package_message("Message sent. Message ID: " + std::to_string(msg_id) + ".\n", "system");
     } else {
@@ -354,7 +355,8 @@ void client_session::private_chat(int target_UID, std::string message, int reply
     }
 
     // 3. 先落库（无论对方是否在线；离线消息由对方上线时离线拉取）
-    int msg_id = repo_hub_->messages()->store_message(current_account_->getUID(), target_UID, message, false, reply_to_message_id);
+    std::string msg_timestamp;
+    int msg_id = repo_hub_->messages()->store_message(current_account_->getUID(), target_UID, message, false, reply_to_message_id, &msg_timestamp);
     // 回复的原消息摘要（可能不在当前分页里，单独按 id 查）
     std::string reply_name, reply_content;
     if (reply_to_message_id > 0) load_reply_summary(reply_to_message_id, reply_name, reply_content);
@@ -365,7 +367,7 @@ void client_session::private_chat(int target_UID, std::string message, int reply
         if (msg_id > 0) {
             target_session->package_chat_message(message, "private_chat", msg_id, 0,
                                                  current_account_->getUID(), current_account_->getName(),
-                                                 reply_to_message_id, reply_name, reply_content);
+                                                 reply_to_message_id, reply_name, reply_content, msg_timestamp);
         } else {
             target_session->package_message(message, "private_chat");
         }
@@ -379,9 +381,9 @@ void client_session::private_chat(int target_UID, std::string message, int reply
     }
 }
 
-void client_session::send_friend_request(int target_UID, std::string apply_message){
+void client_session::send_friend_request(const std::string& email, std::string apply_message){
     if (social_manager_) {
-        social_manager_->send_friend_request(target_UID, apply_message);
+        social_manager_->send_friend_request(email, apply_message);
     }
 }
 // 给好友设置备注名：先校验目标确实是自己的好友，再落库（friend_relation.remark_name）
@@ -690,7 +692,7 @@ void client_session::package_message(const std::string& message,std::string type
     }
 }
 
-void client_session::package_chat_message(const std::string& message, std::string type, int message_id, int group_uid, int sender_uid, const std::string& sender_name, int reply_to_message_id, const std::string& reply_sender_name, const std::string& reply_content){
+void client_session::package_chat_message(const std::string& message, std::string type, int message_id, int group_uid, int sender_uid, const std::string& sender_name, int reply_to_message_id, const std::string& reply_sender_name, const std::string& reply_content, const std::string& timestamp){
     json msg_json;
     msg_json["type"] = std::move(type);
     msg_json["content"] = message;
@@ -703,6 +705,9 @@ void client_session::package_chat_message(const std::string& message, std::strin
     }
     if (!sender_name.empty()) {
         msg_json["sender_name"] = sender_name; // 发送者昵称，便于客户端展示
+    }
+    if (!timestamp.empty()) {
+        msg_json["timestamp"] = timestamp;      // 发送时间，便于客户端展示
     }
     if (reply_to_message_id > 0) {
         // 只带一层引用：直接给出被回复消息的 id + 摘要
@@ -844,7 +849,7 @@ void client_session::send_offline_messages(const std::string& since_time){
         // 群聊离线消息携带 group_UID，便于客户端归类
         int group_uid = m.is_group ? m.receiver_UID : 0;
         package_chat_message(m.content, type, m.message_id, group_uid, m.sender_UID, sender_name,
-                             m.reply_to_message_id, m.reply_sender_name, m.reply_content);
+                             m.reply_to_message_id, m.reply_sender_name, m.reply_content, m.timestamp);
     }
 }
 

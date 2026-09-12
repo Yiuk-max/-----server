@@ -109,8 +109,17 @@ void social_module::remove_group_from_list(int group_UID){
     }
 }
 
-// 发送好友申请：落库（relation_apply, apply_type=1, status=0）+ 通知接收方
-void social_module::send_friend_request(int receiver_UID, std::string &apply_message){
+// 发送好友申请（按邮箱定位接收方）：解析邮箱→UID 后落库（relation_apply, apply_type=1, status=0）+ 通知接收方
+void social_module::send_friend_request(const std::string& email, std::string &apply_message){
+    if (email.empty()) {
+        NoticeService::get_instance().send_to_user(user_UID_, "Email is required to send a friend request.\n", "system");
+        return;
+    }
+    int receiver_UID = repo_hub_->emails()->find_uid_by_email(email);
+    if (receiver_UID < 0) {
+        NoticeService::get_instance().send_to_user(user_UID_, "No account is bound to email [" + email + "].\n", "system");
+        return;
+    }
     auto receiver = repo_hub_->accounts()->load_account(receiver_UID);//校验被添加者是否存在
     if (!receiver) {
         NoticeService::get_instance().send_to_user(user_UID_, "The target user does not exist!\n", "system");

@@ -54,7 +54,7 @@ message make_history_message(sql::ResultSet* rs) {
 // 成功返回数据库分配的 message_id，失败返回 -1
 int message_repo::store_message(int sender_UID, int receiver_UID,
                                 const std::string& content, bool is_group,
-                                int reply_to_message_id) {
+                                int reply_to_message_id, std::string* out_timestamp) {
     ConnGuard guard;
     if (!guard) {
         std::cerr << "[message_repo] store_message: no DB connection." << std::endl;
@@ -76,12 +76,14 @@ int message_repo::store_message(int sender_UID, int receiver_UID,
         }
         pstmt->executeUpdate();
 
-        // 取回 AUTO_INCREMENT 分配的 message_id
+        // 取回 AUTO_INCREMENT 分配的 message_id 与 send_time（同连接上 LAST_INSERT_ID 有效）
         int message_id = -1;
         std::unique_ptr<sql::ResultSet> rs(
-            guard.get()->createStatement()->executeQuery("SELECT LAST_INSERT_ID()"));
+            guard.get()->createStatement()->executeQuery(
+                "SELECT id, send_time FROM message WHERE id = LAST_INSERT_ID()"));
         if (rs->next()) {
             message_id = rs->getInt(1);
+            if (out_timestamp) *out_timestamp = rs->getString(2);
         }
         return message_id > 0 ? message_id : -1;
     } catch (const sql::SQLException& e) {

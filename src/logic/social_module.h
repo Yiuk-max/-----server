@@ -49,7 +49,7 @@ public:
     void add_group_to_list(int group_UID);
     // 仅从内存群列表移除（供被踢出群后同步；不写库）
     void remove_group_from_list(int group_UID);
-    void send_friend_request(int receiver_UID, std::string &apply_message);
+    void send_friend_request(const std::string& email, std::string &apply_message);
     bool handle_friend_request(int sender_UID, bool accept);
     std::string show_friend_requests();
     std::string show_friends();

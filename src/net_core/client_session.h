@@ -57,7 +57,7 @@ public:
     void send_offline_messages(const std::string& since_time);  // 查询并推送自 since_time 之后的离线消息
     bool load_reply_summary(int reply_to_message_id, std::string& sender_name, std::string& content); // 查回复的原消息摘要
     //好友相关
-    void send_friend_request(int target_UID,std::string apply_message);     //添加好友(通过social_manager_)
+    void send_friend_request(const std::string& email,std::string apply_message); //添加好友(按邮箱，通过social_manager_)
     void set_friend_remark(int friend_UID,std::string remark);              //给好友设置备注名
     void handle_friend_request(int sender_UID,bool accept);                 //处理好友申请(同意/拒绝)
     void remove_friend(int friend_UID);                                     //删除好友
@@ -82,7 +82,7 @@ public:
     //===============发送===============
 
     void package_message(const std::string& message,std::string type);      //打包信息并等待处理
-    void package_chat_message(const std::string& message,std::string type,int message_id,int group_uid = 0,int sender_uid = 0,const std::string& sender_name = "",int reply_to_message_id = 0,const std::string& reply_sender_name = "",const std::string& reply_content = ""); //打包聊天消息
+    void package_chat_message(const std::string& message,std::string type,int message_id,int group_uid = 0,int sender_uid = 0,const std::string& sender_name = "",int reply_to_message_id = 0,const std::string& reply_sender_name = "",const std::string& reply_content = "",const std::string& timestamp = ""); //打包聊天消息
     void package_json(const json& message);                                 //直接发送一个完整 JSON（如 history_response）
 
 };

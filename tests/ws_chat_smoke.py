@@ -246,7 +246,7 @@ def run(host, port, path, idle_seconds=None):
     ok(f"login over WebSocket ok (uid {uid_a}, {uid_b})")
 
     print("[2] 好友申请 / 接受")
-    a.send_json({"type": "add_friend", "target_UID": uid_b, "apply_message": "hi"})
+    a.send_json({"type": "add_friend", "email": f"{name_b}@example.com", "apply_message": "hi"})
     b.recv_until(lambda m: is_system(m, "wants to be friend with you"))
     ok("friend request notification delivered to B")
     b.send_json({"type": "accept_friend", "sender_UID": uid_a})
