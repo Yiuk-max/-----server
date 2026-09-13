@@ -201,6 +201,7 @@ void WsSession::handle_static_request() {
         std::make_tuple(http::status::ok, request_.version()));
     res->set(http::field::server, "chat-server-ws");
     res->set(http::field::content_type, content_type);
+    res->set(http::field::cache_control, "no-cache");
     res->content_length(size);
     res->keep_alive(false);
 

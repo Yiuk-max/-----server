@@ -144,6 +144,7 @@ input:focus, textarea:focus { border-color: var(--accent); }
   height: 100vh;
   display: grid;
   grid-template-columns: 72px 1fr;
+  grid-template-rows: minmax(0, 1fr);
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -208,7 +209,13 @@ input:focus, textarea:focus { border-color: var(--accent); }
 .rail-avatar.off { border-color: var(--border-strong); color: var(--text-tertiary); }
 
 /* ============ 内容区（rooms + chat 两栏） ============ */
-.main { display: grid; grid-template-columns: 260px 1fr; min-width: 0; min-height: 0; }
+.main {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  grid-template-rows: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
 
 /* ---- rooms ---- */
 .rooms {
@@ -247,7 +254,8 @@ input:focus, textarea:focus { border-color: var(--accent); }
 }
 .search::placeholder { color: var(--text-tertiary); }
 
-.room-scroll { overflow-y: auto; flex: 1; padding: 0 8px 12px; }
+.room-scroll { overflow-y: auto; flex: 1; min-height: 0; padding: 0 8px 12px; }
+.room-scroll > * { flex-shrink: 0; }
 .room-group-label {
   font-family: ui-monospace, Menlo, Consolas, monospace;
   font-size: 10.5px;
@@ -353,13 +361,13 @@ input:focus, textarea:focus { border-color: var(--accent); }
 .icon-btn:hover { color: var(--accent); border-color: var(--accent); }
 
 .messages {
-  flex: 1; overflow-y: auto;
+  flex: 1; min-height: 0;
+  overflow-y: scroll;
   padding: 22px 26px;
-  display: flex; flex-direction: column; gap: 14px;
 }
 .day-divider {
   display: flex; align-items: center; gap: 12px;
-  margin: 6px 0 4px;
+  margin: 6px 0 14px;
 }
 .day-divider::before, .day-divider::after {
   content: ''; flex: 1; height: 1px; background: var(--border);
@@ -369,8 +377,8 @@ input:focus, textarea:focus { border-color: var(--accent); }
   font-size: 10.5px; color: var(--text-tertiary);
 }
 
-.msg { display: flex; gap: 12px; max-width: 68%; }
-.msg.mine { align-self: flex-end; flex-direction: row-reverse; }
+.msg { display: flex; gap: 12px; max-width: 68%; margin-bottom: 14px; }
+.msg.mine { flex-direction: row-reverse; margin-left: auto; }
 .avatar {
   width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
   background: var(--bg-input);
@@ -434,7 +442,8 @@ input:focus, textarea:focus { border-color: var(--accent); }
 .btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
 .btn.ghost.danger { background: transparent; color: var(--danger); }
 
-.history-hint { align-self: center; font-size: 12px; color: var(--text-tertiary); padding: 2px 10px; }
+.history-hint { text-align: center; font-size: 12px; color: var(--text-tertiary); padding: 2px 10px; margin-bottom: 10px; cursor: pointer; }
+.history-hint:hover { color: var(--accent); }
 .chat-empty {
   flex: 1; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 10px;
@@ -444,6 +453,7 @@ input:focus, textarea:focus { border-color: var(--accent); }
 
 /* ---- composer ---- */
 .composer {
+  position: relative;
   flex-shrink: 0;
   border-top: 1px solid var(--border);
   padding: 14px 22px 18px;
@@ -471,7 +481,8 @@ input:focus, textarea:focus { border-color: var(--accent); }
 }
 .composer-input:focus { border: 0; }
 .composer-row {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 10px;
   margin-top: 10px;
 }
 .composer-tools { display: flex; gap: 8px; }
@@ -481,6 +492,51 @@ input:focus, textarea:focus { border-color: var(--accent); }
   color: var(--text-tertiary); font-size: 13px;
 }
 .tool-btn:hover { color: var(--accent); background: var(--accent-soft); }
+.tool-btn.on { color: var(--accent); background: var(--accent-soft); }
+
+/* emoji 面板 */
+.emoji-panel {
+  position: absolute;
+  bottom: calc(100% - 6px);
+  right: 22px;
+  width: 320px;
+  height: 280px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 8px;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+}
+.emoji-tabs { display: flex; gap: 4px; margin-bottom: 6px; height: 30px; flex-shrink: 0; }
+.emoji-tabs button {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-secondary);
+}
+.emoji-tabs button.active { background: var(--accent-soft); }
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+}
+.emoji-grid button {
+  width: 100%;
+  aspect-ratio: 1;
+  font-size: 20px;
+  padding: 0;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+}
+.emoji-grid button:hover { background: var(--bg-panel-raised); }
 .send-btn {
   background: var(--accent); color: var(--accent-ink);
   font-family: ui-monospace, Menlo, Consolas, monospace;
@@ -505,6 +561,7 @@ input:focus, textarea:focus { border-color: var(--accent); }
 .modal input { margin-top: 4px; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
 .modal .list { max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.modal .list > * { flex-shrink: 0; }
 .modal .list-item {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 12.5px;
@@ -566,6 +623,7 @@ input:focus, textarea:focus { border-color: var(--accent); }
 .friends {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: minmax(0, 1fr);
   gap: 14px;
   padding: 14px;
   min-height: 0;
@@ -616,7 +674,8 @@ input:focus, textarea:focus { border-color: var(--accent); }
 .friends-head h2 { font-size: 13px; margin: 0; color: var(--text-secondary); font-weight: 600; }
 .friends-col label { margin-bottom: 10px; }
 .friends-col input { margin-top: 4px; }
-.friend-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.friend-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.friend-list > * { flex-shrink: 0; }
 .friend-item {
   display: flex; align-items: center; gap: 10px;
   padding: 8px 10px;

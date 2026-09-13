@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useChat } from '@/chatStore.js';
+import { emojiGroups } from '@/emoji.js';
 
 const chat = useChat();
 const { state, activeConv } = chat;
@@ -9,6 +10,14 @@ const draft = ref('');
 const filterText = ref('');
 const messagesRef = ref(null);
 const ctxMenu = ref(null);
+const draftRef = ref(null);
+const emojiOpen = ref(false);
+const activeEmojiGroup = ref(emojiGroups[0].name);
+
+const activeGroupItems = computed(() => {
+  const g = emojiGroups.find((x) => x.name === activeEmojiGroup.value);
+  return g ? g.items : [];
+});
 
 // 加载更旧一页时保持滚动位置
 let preserve = false;
@@ -51,6 +60,7 @@ function onSend() {
   if (!text) return;
   chat.sendChat(text);
   draft.value = '';
+  emojiOpen.value = false;
 }
 
 // 回车发送，Shift+Enter 换行；输入法合成中不发送
@@ -58,6 +68,18 @@ function onEnter(e) {
   if (e.isComposing || e.shiftKey) return;
   e.preventDefault();
   onSend();
+}
+
+// 把 emoji 追加到输入框文字末尾（不发送）
+function insertEmoji(emoji) {
+  draft.value = draft.value + emoji;
+  nextTick(() => {
+    const el = draftRef.value;
+    if (el) {
+      el.focus();
+      el.selectionStart = el.selectionEnd = draft.value.length;
+    }
+  });
 }
 
 async function onScroll() {
@@ -75,6 +97,34 @@ async function onScroll() {
   preserve = false;
 }
 
+// 消息不满一屏时自动往前加载，直到能滚动（或没有更早）
+async function ensureFilled() {
+  const conv = activeConv.value;
+  const el = messagesRef.value;
+  if (!conv || !el) return;
+  if (!conv.hasMore || conv.loading || !conv.oldestId) return;
+  if (el.scrollHeight <= el.clientHeight + 40) {
+    await chat.loadOlder(conv.peer);
+    await nextTick();
+    const el2 = messagesRef.value;
+    if (el2) el2.scrollTop = el2.scrollHeight; // 滚到底部看最新
+    ensureFilled();
+  }
+}
+
+// 手动点击“加载更早的消息”
+async function loadMoreManual() {
+  const conv = activeConv.value;
+  if (!conv || conv.loading || !conv.hasMore || !conv.oldestId) return;
+  const el = messagesRef.value;
+  const prevH = el ? el.scrollHeight : 0;
+  const prevT = el ? el.scrollTop : 0;
+  await chat.loadOlder(conv.peer);
+  await nextTick();
+  const el2 = messagesRef.value;
+  if (el2) el2.scrollTop = el2.scrollHeight - prevH + prevT;
+}
+
 // 切换会话滚到底部
 watch(() => activeConv.value?.peer, async () => {
   await nextTick();
@@ -89,6 +139,7 @@ watch(() => activeConv.value?.messages.length, async () => {
   const el = messagesRef.value;
   if (!el) return;
   if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) el.scrollTop = el.scrollHeight;
+  ensureFilled();
 });
 
 function openMsgProfile(m) {
@@ -260,8 +311,8 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu));
 
       <!-- 消息区 -->
       <div ref="messagesRef" class="messages" @scroll="onScroll" v-if="activeConv">
-        <div v-if="activeConv.hasMore || activeConv.loading" class="history-hint">
-          {{ activeConv.loading ? '加载中…' : '上滑加载更早的消息' }}
+        <div v-if="activeConv.hasMore || activeConv.loading" class="history-hint" @click="loadMoreManual">
+          {{ activeConv.loading ? '加载中…' : '上滑 / 点击加载更早的消息' }}
         </div>
 
         <div class="day-divider"><span>今天</span></div>
@@ -306,16 +357,32 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu));
         </div>
         <div class="composer-box">
           <textarea
+            ref="draftRef"
             v-model="draft" class="composer-input" rows="1"
             :placeholder="'在 ' + activeConv.name + ' 发消息…'"
             @keydown.enter="onEnter"
           ></textarea>
           <div class="composer-row">
             <div class="composer-tools">
-              <button type="button" class="tool-btn" title="待接入">📎</button>
-              <button type="button" class="tool-btn" title="待接入">🙂</button>
+              <button type="button" class="tool-btn" :class="{ on: emojiOpen }" title="表情" @click="emojiOpen = !emojiOpen">🙂</button>
+              <button type="button" class="tool-btn" title="文件（WS 暂不支持）">📎</button>
             </div>
             <button type="submit" class="send-btn">发送</button>
+          </div>
+        </div>
+
+        <!-- emoji 面板 -->
+        <div v-if="emojiOpen" class="emoji-panel">
+          <div class="emoji-tabs">
+            <button
+              v-for="g in emojiGroups" :key="g.name" type="button"
+              :class="{ active: activeEmojiGroup === g.name }"
+              :title="g.name"
+              @click="activeEmojiGroup = g.name"
+            >{{ g.icon }}</button>
+          </div>
+          <div class="emoji-grid">
+            <button v-for="e in activeGroupItems" :key="e" type="button" @click="insertEmoji(e)">{{ e }}</button>
           </div>
         </div>
       </form>

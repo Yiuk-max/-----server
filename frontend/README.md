@@ -30,10 +30,20 @@ cd ../build && ./server      # configure.json: net_layer=websocket, web_root=../
 
 后端 Boost.Beast 静态服务有两条限制，`vite.config.js` 已对应处理：
 
-1. **没有 SPA fallback**：非文件路径一律 404，所以用 **hash 路由**（`#/settings`），
+1. **没有 SPA fallback**：非文件路径一律 404，所以用 **hash 路由**（`#/friends`、`#/settings`），
    页面永远只在 `/` 加载。
 2. **后缀白名单**：仅 `html/htm/css/js/json/svg/png/jpg/jpeg/gif/ico/woff/woff2/map`。
    不要引入 `wasm / webp / avif / ttf / otf / mp4`，否则 404。字体请用 woff2 或系统字体。
+
+## 已接入功能
+
+- 连接 / 心跳 / 自动重登；注册、登录（UID 或邮箱）、登出、改昵称、设置邮箱
+- 会话列表（好友 / 群组分组、搜索、未读时间）、私聊、群聊、离线消息
+- 历史游标分页（上滑加载更早）、回复某条消息、删除自己的消息（右键菜单）
+- 好友闭环：按邮箱加好友、好友申请列表（同意/拒绝）、通讯录、删除好友（`#/friends`）
+- 群聊：创建群、按 UID 申请入群、群管理（改群名/拉人/踢人/解散/成员/入群申请处理）
+- 个人主页：点击左下角头像或消息头像查看（自己可改昵称/换邮箱/登出；好友可删除）
+- 多主题：左侧栏底部上衣图标切换，只改配色（两色/三色），见 `theme.js`
 
 ## 目录
 
@@ -44,11 +54,13 @@ frontend/
 ├── package.json
 └── src/
     ├── main.js
-    ├── router.js          # hash 路由
-    ├── style.css
-    ├── App.vue
-    ├── chatStore.js       # WebSocket 客户端 + 会话/历史/离线状态（与 UI 解耦）
+    ├── router.js          # hash 路由：/（聊天）、/friends（好友）、/settings（设置）
+    ├── style.css          # 全局样式 + 多套主题 CSS 变量（按 data-theme 切换）
+    ├── theme.js           # 主题定义（两色/三色）与切换
+    ├── App.vue            # 左侧 rail 导航 + 主题切换 + 个人主页弹窗
+    ├── chatStore.js       # WebSocket 客户端 + 会话/历史/好友/群聊状态（与 UI 解耦）
     └── views/
-        ├── ChatView.vue    # 主界面：连接/账号/会话列表/消息/输入
-        └── SettingsView.vue# 系统日志与说明
+        ├── ChatView.vue    # 主聊天界面：会话列表 + 消息 + 输入 + 群管理
+        ├── FriendsView.vue # 好友页三栏：通讯录 / 添加好友·群聊 / 申请列表
+        └── SettingsView.vue# 连接配置 / 账号 / 系统日志
 ```

@@ -513,3 +513,20 @@ interface 层怎么还留着account的空占位实现，看着只做了数据库
 - 协议：客户端 private_chat/group_chat 可带 reply_to_message_id；服务器推送/历史返回 reply_to 摘要；
   只支持一层直接引用（回复的消息本身可被回复，但 UI 只展示一层）。
 - 前端（frontend/ Vite+Vue）：消息上 hover 出现“回复”按钮，输入框上方显示引用条，气泡内渲染一层引用块。
+
+2026-09-13 前端重构：三栏 UI + 好友/群聊/个人主页/多主题（含后端配合改动）
+- UI：按效果图改为 rail + 会话列表 + 聊天区三栏；新增 /friends 好友页三栏
+  （通讯录 / 添加好友·群聊 / 申请列表）、群管理弹窗、个人主页弹窗、右键菜单（回复/删除）。
+- 主题：多套主题（两色/三色）通过 <html data-theme> + CSS 变量切换；左侧栏底部「上衣」图标入口。
+- 好友：add_friend 改为按 email（后端 message_handler/social_module）；好友页申请列表汇总
+  「好友申请 + 入群申请」并带类型标签；同意/拒绝乐观移除并刷新。
+- 群聊：创建群、按 UID 申请入群；群管理（改群名/拉人/踢人/解散/成员/入群申请处理）；
+  入群申请也汇总到 /friends 右侧。
+- 个人主页：改昵称（成功后保存凭证自动刷新重登）、换绑邮箱、登出；好友可删除好友。
+- 消息：实时/离线消息带 timestamp（store_message 增加 out_timestamp 回传 send_time）；
+  右键回复/删除；私聊本地回显收到 Message sent 回执后升级为真实 message_id 以便删除。
+- 后端修复：
+  * relation_apply 处理完直接 DELETE（原 UPDATE status 会与 uk_apply 唯一键冲突，
+    导致「删除好友后重新申请/踢出后重新入群」时处理失败）。
+  * show_group_requests 增加 receiver_uid 群主校验（入群申请 receiver_UID 即群主）。
+- 文档：客户端接口文档更新 add_friend(email)、聊天消息 timestamp；frontend/README、项目说明文档同步。
