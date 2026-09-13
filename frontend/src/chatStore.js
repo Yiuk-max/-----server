@@ -56,7 +56,7 @@ function connect() {
   log(`连接 ${url}`);
   state.connecting = true;
   ws = new WebSocket(url);
-  ws.onopen = () => { state.connected = true; state.connecting = false; startHeartbeat(); log('已连接'); tryAutoRelogin(); };
+  ws.onopen = () => { state.connected = true; state.connecting = false; startHeartbeat(); log('已连接'); tryTokenLogin(); };
   ws.onclose = (e) => {
     state.connected = false; state.connecting = false; stopHeartbeat();
     log(`连接已关闭 (code=${e.code})`);
@@ -68,29 +68,12 @@ function connect() {
 
 function disconnect() { if (ws) ws.close(); }
 
-// 改昵称后刷新页面时，携带当前账号自动重登
-const RELOGIN_KEY = 'chat.relogin';
+// token 自动登录：登录成功后保存 token，页面启动时用它验证登录
+const TOKEN_KEY = 'chat.token';
 
-function rememberForRelogin() {
-  const account = (state.form.account || '').trim();
-  if (!account || !state.form.password) return;
-  try {
-    sessionStorage.setItem(RELOGIN_KEY, JSON.stringify({ account, password: state.form.password }));
-  } catch {}
-}
-
-function tryAutoRelogin() {
-  let cred = null;
-  try {
-    const raw = sessionStorage.getItem(RELOGIN_KEY);
-    if (raw) cred = JSON.parse(raw);
-    sessionStorage.removeItem(RELOGIN_KEY); // 只尝试一次
-  } catch {}
-  if (cred && cred.account && cred.password) {
-    state.form.account = cred.account;
-    state.form.password = cred.password;
-    login();
-  }
+function tryTokenLogin() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (token) send({ type: 'verify_token', token });
 }
 
 function startHeartbeat() {
@@ -126,8 +109,21 @@ function onMessage(ev) {
     case 'private_chat':     return onLive(msg, msg.sender_UID, false);
     case 'Group_Chat':       return onLive(msg, msg.group_UID, true);
     case 'delete_message':   return onDelete(msg);
+    case 'login_success':    return onLoginSuccess(msg);
     default:                 log(`[${msg.type}] ${msg.content ?? ''}`);
   }
+}
+
+function onLoginSuccess(msg) {
+  state.myUid = msg.user && msg.user.id != null ? msg.user.id : null;
+  state.myName = (msg.user && msg.user.username) || '';
+  if (msg.token) localStorage.setItem(TOKEN_KEY, msg.token);
+  state.form.account = state.myUid != null ? String(state.myUid) : '';
+  state.conversations = {};
+  state.activeId = null;
+  state.contacts = [];
+  log('登录成功');
+  setTimeout(() => { show(); showFriendRequests(); }, 300);
 }
 
 function onSystem(content) {
@@ -148,6 +144,11 @@ function onSystem(content) {
   }
 
   log(content.trimEnd());
+
+  // token 过期/无效：清除本地 token，回到登录界面
+  if (/Token expired|Invalid or expired token/.test(content)) {
+    try { localStorage.removeItem(TOKEN_KEY); } catch {}
+  }
 
   // 有人申请加好友：自动刷新申请列表
   if (/wants to be friend with you/.test(content)) {
@@ -172,8 +173,7 @@ function onSystem(content) {
   const nameReg = /Name updated successfully\. Your new name is \[(.*?)\]\./.exec(content);
   if (nameReg) {
     state.myName = nameReg[1];
-    // 刷新页面并携带当前账号自动重登，让会话列表/历史里的旧昵称一起刷新
-    rememberForRelogin();
+    // 刷新页面后用 token 自动重登，让会话列表/历史里的旧昵称一起刷新
     setTimeout(() => location.reload(), 400);
   }
 
@@ -199,16 +199,6 @@ function onSystem(content) {
     }
   }
 
-  const login = /Login successful.*\(UID (\d+)\)/.exec(content);
-  if (login) {
-    state.myUid = parseInt(login[1], 10);
-    const nm = /Welcome, (.*?)!/.exec(content);
-    state.myName = nm ? nm[1] : '';
-    state.conversations = {};
-    state.activeId = null;
-    state.contacts = [];
-    setTimeout(() => { show(); showFriendRequests(); }, 300);
-  }
 }
 
 // 直播/离线消息：私聊按 sender_UID、群聊按 group_UID 路由
@@ -380,7 +370,7 @@ function login() {
 }
 
 function logout() {
-  try { sessionStorage.removeItem(RELOGIN_KEY); } catch {}
+  try { localStorage.removeItem(TOKEN_KEY); } catch {}
   send({ type: 'logout' });
 }
 
@@ -561,9 +551,8 @@ function removeFriend(friendUid) {
   }, 300);
 }
 
-// 带账号重新登录刷新（复用改昵称后的自动重登机制）
+// 带 token 重新登录刷新
 function refresh() {
-  rememberForRelogin();
   location.reload();
 }
 

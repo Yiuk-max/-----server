@@ -75,3 +75,10 @@ std::string account::get_info(){
     info += getName() + ":" + get_string_UID();
     return info;
 }
+
+std::string account::get_token() const {
+    return base_info.token;
+}
+void account::set_token(const std::string& token) {
+    base_info.token = token;
+}

@@ -37,6 +37,8 @@ public:
     void register_user(std::string username,std::string password,std::string email); //注册新用户（新用户必填邮箱）
     void login(int UID,std::string password);                               //登陆（UID）
     void login_by_email(std::string email,std::string password);            //登陆（邮箱，内部解析为 UID）
+    void verify_token(std::string token);                                   //用 token 自动登录（跳过密码）
+    void finish_login(const std::shared_ptr<account>& account, const std::string& token); //登录成功通用收尾
     void set_email(std::string email);                                      //给当前账号绑定/换绑邮箱
     void logout();                                                          //登出
     void exit_self();                                                       //退出系统

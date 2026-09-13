@@ -162,6 +162,10 @@ void Base_handler::handle_message(const json& message,client_session& session,st
         }
         return;
     }
+    else if(type == "verify_token"){
+        session.verify_token(message.value("token", std::string()));
+        return;
+    }
     else if(type == "register"){
         std::string username = message.value("username", std::string());
         std::string password = message.value("password", std::string());

@@ -25,4 +25,10 @@ public:
 
     // 更新：UPDATE Account 个人资料（改名/设置等）；成功返回 true
     bool update_account(const std::shared_ptr<account>& acc) override;
+
+    // 更新登录令牌：登录成功后写入/刷新 token，成功返回 true
+    bool update_token(int uid, const std::string& token) override;
+
+    // 按 token 查询账户（自动登录用）；token 不存在/为空返回 nullptr
+    std::shared_ptr<account> load_account_by_token(const std::string& token) override;
 };

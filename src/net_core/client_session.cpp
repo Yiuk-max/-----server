@@ -8,6 +8,7 @@
 #include "group_manager.h"
 #include <ctime>
 #include <cstdio>
+#include <random>
 
 
 extern bool running;
@@ -66,6 +67,7 @@ void client_session::init_(){
     handlers_["register"]               = std::make_unique<Base_handler>();
     handlers_["change_name"]            = std::make_unique<Base_handler>();// 修改自己的昵称
     handlers_["set_email"]              = std::make_unique<Base_handler>();// 绑定/换绑邮箱
+    handlers_["verify_token"]           = std::make_unique<Base_handler>();// 用 token 自动登录
     //群聊相关
     handlers_["create_group"]           = std::make_unique<Group_handler>();
     handlers_["group_add_client"]       = std::make_unique<Group_handler>();
@@ -191,23 +193,33 @@ void client_session::set_email(std::string email){
         package_message("Failed to set email (email may already be used by another account).\n","system");
     }
 }
-void client_session::login(int UID,std::string password){
-    // 经仓储门面调账号仓储接口加载账户（契约 I_account_repo，由 repo 层 MySQL 实现 SELECT Account WHERE UID=?）
-    auto account = repo_hub_->accounts()->load_account(UID);
-    if (!account) {
-        std::string fail = "Account with UID [" + std::to_string(UID) + "] does not exist.\n";
-        package_message(fail,"system");
-        return;
+// 前置声明：解析 MySQL DATETIME 为 time_t（定义在文件下方，delete_message 附近）
+static std::time_t parse_datetime(const std::string& s);
+
+// 生成随机登录令牌（64 位十六进制）
+static std::string generate_token() {
+    const char* hex = "0123456789abcdef";
+    std::string t;
+    t.reserve(64);
+    std::random_device rd;
+    std::mt19937_64 gen(rd());
+    std::uniform_int_distribution<unsigned long long> dis;
+    for (int i = 0; i < 4; i++) {
+        unsigned long long v = dis(gen);
+        for (int j = 0; j < 16; j++) {
+            t += hex[v & 0xF];
+            v >>= 4;
+        }
     }
-    if (!account->passwd_check(password)) {
-        std::string fail = "Incorrect password for UID [" + std::to_string(UID) + "].\n";
-        package_message(fail,"system");
-        return;
-    }
+    return t;
+}
+
+// 登录成功后的通用收尾：建立社交模块、上线映射、返回 token/user JSON、推送申请与离线消息
+void client_session::finish_login(const std::shared_ptr<account>& account, const std::string& token) {
+    const int UID = account->getUID();
     // 记录上一次登录时间（用于查询离线消息：自上次登录之后未收到的消息）
     std::string last_login_time = account->get_last_login_time();
     // 确保自己是自己的好友：新账号在注册时已写入，这里覆盖历史账号，并在被删除后自愈。
-    // 必须在 social_module 构造（加载好友列表）之前完成，才能出现在 show 列表里。
     repo_hub_->friends()->ensure_self_friend(UID);
     auto new_social = std::make_shared<social_module>(UID, repo_hub_);
     auto self = shared_from_this();
@@ -227,7 +239,6 @@ void client_session::login(int UID,std::string password){
         current_account_ = account;
         social_manager_ = std::move(new_social);
         logged_in_uid_ = UID;
-        // 原子替换 UID 映射；顶号通知必须在 session_manager 锁外执行。
         old_session = session_manager::get_instance().replace_online(UID, self);
     }
     previous_social.reset();
@@ -236,15 +247,19 @@ void client_session::login(int UID,std::string password){
         old_session->kick_offline();
     }
 
-    std::string success = "Login successful. Welcome, " + account->getName() + "! (UID " + account->get_string_UID() + ")\n";
-    package_message(success,"system");
-    show_friend_requests(); // 登录后自动查看待处理的好友申请
-    // 登录后自动查看待处理的群聊入群申请（若有权限）todo
+    // 返回登录成功 JSON：token + user 信息（前端保存 token 用于自动登录）
+    json resp;
+    resp["type"] = "login_success";
+    resp["token"] = token;
+    resp["user"]["id"] = UID;
+    resp["user"]["username"] = account->getName();
+    package_json(resp);
 
-    // 登录后自动获取一次离线消息（自上次登录时间之后）
+    show_friend_requests(); // 登录后自动查看待处理的好友申请
+    // 登录后自动获取一次离线消息
     send_offline_messages(last_login_time);
 
-    // 更新"上次登录时间"（存入 Account.settings JSON），供下次登录查询离线消息
+    // 更新"上次登录时间"
     {
         char time_buf[32];
         std::time_t now = std::time(nullptr);
@@ -254,6 +269,50 @@ void client_session::login(int UID,std::string password){
         account->set_last_login_time(time_buf);
         repo_hub_->accounts()->update_account(account);
     }
+}
+
+void client_session::login(int UID,std::string password){
+    // 经仓储门面调账号仓储接口加载账户
+    auto account = repo_hub_->accounts()->load_account(UID);
+    if (!account) {
+        std::string fail = "Account with UID [" + std::to_string(UID) + "] does not exist.\n";
+        package_message(fail,"system");
+        return;
+    }
+    if (!account->passwd_check(password)) {
+        std::string fail = "Incorrect password for UID [" + std::to_string(UID) + "].\n";
+        package_message(fail,"system");
+        return;
+    }
+    // 生成并持久化 token，随后返回给前端保存
+    std::string token = generate_token();
+    repo_hub_->accounts()->update_token(UID, token);
+    finish_login(account, token);
+}
+
+// 用 token 自动登录（跳过密码）：token 解析 → 验证 → 找到 user_id → 登录成功
+void client_session::verify_token(std::string token){
+    if (token.empty()) {
+        package_message("Token is required.\n", "system");
+        return;
+    }
+    auto account = repo_hub_->accounts()->load_account_by_token(token);
+    if (!account) {
+        package_message("Invalid or expired token.\n", "system");
+        return;
+    }
+    // 7 天过期：用 Account.settings 里的 last_login_time 判断。
+    // 每次登录都会刷新 last_login_time，因此是“7 天不登录则过期”的滑动过期。
+    const std::time_t last = parse_datetime(account->get_last_login_time());
+    const std::time_t now = std::time(nullptr);
+    constexpr std::time_t SEVEN_DAYS = 7 * 24 * 60 * 60;
+    if (last == 0 || now - last > SEVEN_DAYS) {
+        // 过期：清除 token，要求重新密码登录
+        repo_hub_->accounts()->update_token(account->getUID(), "");
+        package_message("Token expired, please login again.\n", "system");
+        return;
+    }
+    finish_login(account, token);
 }
 // 被顶下线：通知进入发送队列，待队列清空后关闭连接。
 void client_session::kick_offline(){

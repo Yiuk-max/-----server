@@ -185,6 +185,26 @@ function deleteFromMenu() {
   chat.deleteMessage(ctxMenu.value.message.message_id);
   closeMenu();
 }
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch {}
+  document.body.removeChild(ta);
+}
+function copyFromMenu() {
+  if (!ctxMenu.value) return;
+  const text = ctxMenu.value.message.content || '';
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+  closeMenu();
+}
 onMounted(() => document.addEventListener('click', closeMenu));
 onBeforeUnmount(() => document.removeEventListener('click', closeMenu));
 </script>
@@ -319,7 +339,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu));
 
         <div
           v-for="m in activeConv.messages" :key="m.message_id"
-          class="msg" :class="{ mine: chat.isMine(m, activeConv) }"
+          class="msg" :class="{ mine: chat.isMine(m, activeConv), 'ctx-target': ctxMenu && ctxMenu.message === m }"
           @contextmenu.prevent="openMenu($event, m)"
         >
           <div class="avatar" @click="openMsgProfile(m)">{{ avatarLetter(m.sender_name || (chat.isMine(m, activeConv) ? state.myName : activeConv.name)) }}</div>
@@ -394,6 +414,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu));
         @click.stop
       >
         <button @click="replyFromMenu">回复</button>
+        <button @click="copyFromMenu">复制</button>
         <button
           v-if="chat.isMine(ctxMenu.message, activeConv)"
           class="danger"

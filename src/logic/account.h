@@ -32,6 +32,7 @@ namespace account_info
         std::string password;             // password
         int         UID;                  // UID（系统分配，AUTO_INCREMENT）
         std::string settings_json;        // Account.settings 原始 JSON（回写时用）
+        std::string token;                // Account.token（登录令牌，自动登录用）
 
     };
 }
@@ -74,5 +75,9 @@ public:
     void set_settings_json(const std::string& json);
 
     std::string get_info();     // 展示用：昵称:补零UID
+
+    // 登录令牌（token，自动登录用）
+    std::string get_token() const;
+    void set_token(const std::string& token);
 };
 

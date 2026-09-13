@@ -39,6 +39,12 @@ public:
     // 修改：更新账户个人数据（改名 / 改设置等）。
     // 成功返回 true；失败（账户不存在 / DB 不可用等）返回 false。
     virtual bool update_account(const std::shared_ptr<account>& acc) = 0;
+
+    // 更新登录令牌：登录成功后写入/刷新 token，成功返回 true。
+    virtual bool update_token(int uid, const std::string& token) = 0;
+
+    // 按 token 查询账户（自动登录用）；token 不存在/为空返回 nullptr。
+    virtual std::shared_ptr<account> load_account_by_token(const std::string& token) = 0;
 };
 
 // 说明：具体实现 class account_repo 在 repo/account_repo.h（repo 层），

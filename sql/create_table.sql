@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS Account (
     nickname    VARCHAR(64)        NOT NULL                COMMENT '昵称',
     settings    JSON               NULL                    COMMENT '账号设置(主题/语言/通知开关等,JSON序列化)',
     language    VARCHAR(16)        NOT NULL DEFAULT 'Chinese' COMMENT '语言',
+    token       VARCHAR(64)        NULL                    COMMENT '登录令牌(自动登录用,可空)',
     create_time DATETIME           NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '注册时间',
     birthday    DATE               NULL                    COMMENT '生日(可空)',
 

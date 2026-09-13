@@ -145,7 +145,7 @@ std::shared_ptr<account> account_repo::load_account(int uid) {
     try {
         std::unique_ptr<sql::PreparedStatement> pstmt(
             guard.get()->prepareStatement(
-                "SELECT UID, password, nickname, settings, language FROM Account WHERE UID = ?"));
+                "SELECT UID, password, nickname, settings, language, token FROM Account WHERE UID = ?"));
         pstmt->setInt(1, uid);
         std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
         if (!rs->next()) {
@@ -160,9 +160,66 @@ std::shared_ptr<account> account_repo::load_account(int uid) {
         acc->set_theme(parse_theme(settings_json));
         acc->set_language(rs->getString("language"));
         acc->set_last_login_time(parse_last_login_time(settings_json));
+        if (!rs->isNull("token")) acc->set_token(rs->getString("token"));
         return acc;
     } catch (const sql::SQLException& e) {
         std::cerr << "[account_repo] load failed: " << e.what()
+                  << " (ERRNO=" << e.getErrorCode() << ")" << std::endl;
+        return nullptr;
+    }
+}
+
+// 更新登录令牌：登录成功后写入/刷新 token
+bool account_repo::update_token(int uid, const std::string& token) {
+    ConnGuard guard;
+    if (!guard) {
+        std::cerr << "[account_repo] update_token: no DB connection." << std::endl;
+        return false;
+    }
+    try {
+        std::unique_ptr<sql::PreparedStatement> pstmt(
+            guard.get()->prepareStatement("UPDATE Account SET token = ? WHERE UID = ?"));
+        pstmt->setString(1, token);
+        pstmt->setInt(2, uid);
+        return pstmt->executeUpdate() > 0;
+    } catch (const sql::SQLException& e) {
+        std::cerr << "[account_repo] update_token failed: " << e.what()
+                  << " (ERRNO=" << e.getErrorCode() << ")" << std::endl;
+        return false;
+    }
+}
+
+// 按 token 查询账户（自动登录用）
+std::shared_ptr<account> account_repo::load_account_by_token(const std::string& token) {
+    if (token.empty()) {
+        return nullptr;
+    }
+    ConnGuard guard;
+    if (!guard) {
+        std::cerr << "[account_repo] load_account_by_token: no DB connection." << std::endl;
+        return nullptr;
+    }
+    try {
+        std::unique_ptr<sql::PreparedStatement> pstmt(
+            guard.get()->prepareStatement(
+                "SELECT UID, password, nickname, settings, language, token FROM Account WHERE token = ?"));
+        pstmt->setString(1, token);
+        std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
+        if (!rs->next()) {
+            return nullptr; // token 不存在
+        }
+        auto acc = std::make_shared<account>(rs->getInt("UID"),
+                                             rs->getString("nickname"),
+                                             rs->getString("password"));
+        const std::string settings_json = rs->getString("settings");
+        acc->set_settings_json(settings_json);
+        acc->set_theme(parse_theme(settings_json));
+        acc->set_language(rs->getString("language"));
+        acc->set_last_login_time(parse_last_login_time(settings_json));
+        if (!rs->isNull("token")) acc->set_token(rs->getString("token"));
+        return acc;
+    } catch (const sql::SQLException& e) {
+        std::cerr << "[account_repo] load_account_by_token failed: " << e.what()
                   << " (ERRNO=" << e.getErrorCode() << ")" << std::endl;
         return nullptr;
     }
