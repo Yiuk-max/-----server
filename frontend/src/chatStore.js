@@ -18,6 +18,12 @@ const state = reactive({
   conversations: {},     // peerId -> { peer,name,isGroup,messages[],oldestId,hasMore,loaded,loading,pendingBefore }
   activeId: null,
   replyTarget: null,     // { peer, message_id, sender_name, content } 当前正在回复的消息
+  friendRequests: [],    // [{ sender_UID, sender_name, apply_message }]
+  groupMembers: [],      // [{ uid, name }] 当前查看的群成员
+  groupRequests: [],     // [{ requester_UID, message }] 当前查看的入群申请（单群）
+  groupRequestsAll: [],  // [{ group_UID, requester_UID, message }] 所有群的入群申请
+  profile: null,         // { uid, name, isSelf } 当前查看的个人主页
+  ui: { addFriend: false, friendRequests: false, groupManage: null },
   logs: [],
   conn: { host: '', port: '', path: '/ws' },
   form: { username: 'webuser', password: '123456', email: '', account: '' },
@@ -25,8 +31,8 @@ const state = reactive({
 
 let ws = null;
 let heartbeatTimer = null;
-let pendingShow = false;
 let tempSeq = 0;
+const pendingQueue = [];   // 待解析的 system 响应类型队列（按发送顺序消费）
 const historyWaiters = {};   // peer -> resolve(history)
 
 function log(text) {
@@ -50,7 +56,7 @@ function connect() {
   log(`连接 ${url}`);
   state.connecting = true;
   ws = new WebSocket(url);
-  ws.onopen = () => { state.connected = true; state.connecting = false; startHeartbeat(); log('已连接'); };
+  ws.onopen = () => { state.connected = true; state.connecting = false; startHeartbeat(); log('已连接'); tryAutoRelogin(); };
   ws.onclose = (e) => {
     state.connected = false; state.connecting = false; stopHeartbeat();
     log(`连接已关闭 (code=${e.code})`);
@@ -61,6 +67,31 @@ function connect() {
 }
 
 function disconnect() { if (ws) ws.close(); }
+
+// 改昵称后刷新页面时，携带当前账号自动重登
+const RELOGIN_KEY = 'chat.relogin';
+
+function rememberForRelogin() {
+  const account = (state.form.account || '').trim();
+  if (!account || !state.form.password) return;
+  try {
+    sessionStorage.setItem(RELOGIN_KEY, JSON.stringify({ account, password: state.form.password }));
+  } catch {}
+}
+
+function tryAutoRelogin() {
+  let cred = null;
+  try {
+    const raw = sessionStorage.getItem(RELOGIN_KEY);
+    if (raw) cred = JSON.parse(raw);
+    sessionStorage.removeItem(RELOGIN_KEY); // 只尝试一次
+  } catch {}
+  if (cred && cred.account && cred.password) {
+    state.form.account = cred.account;
+    state.form.password = cred.password;
+    login();
+  }
+}
 
 function startHeartbeat() {
   stopHeartbeat();
@@ -75,6 +106,11 @@ function send(obj) {
   if (!ws || ws.readyState !== WebSocket.OPEN) { log('未连接，无法发送'); return false; }
   ws.send(JSON.stringify(obj));
   return true;
+}
+
+// 发送一个会返回 system 文本的请求，并把解析类型入队（按发送顺序消费）
+function sendWithPending(obj, action, ctx) {
+  if (send(obj)) pendingQueue.push({ action, ctx });
 }
 
 // ---------- 接收 ----------
@@ -98,13 +134,70 @@ function onSystem(content) {
   const reg = /Registration successful.*UID (\d+)/.exec(content);
   if (reg) state.form.account = String(parseInt(reg[1], 10));
 
-  if (pendingShow) {
-    pendingShow = false;
-    applyContacts(parseContacts(content));
-    return;
+  if (pendingQueue.length) {
+    const { action, ctx } = pendingQueue.shift();
+    if (action === 'show') { applyContacts(parseContacts(content)); return; }
+    if (action === 'friendRequests') { state.friendRequests = parseFriendRequests(content); return; }
+    if (action === 'groupMembers') { state.groupMembers = parseGroupMembers(content); return; }
+    if (action === 'groupRequests') {
+      const list = parseGroupRequests(content).map((r) => ({ ...r, group_UID: ctx ? ctx.groupUid : null }));
+      if (ctx && ctx.all) state.groupRequestsAll = state.groupRequestsAll.concat(list);
+      else state.groupRequests = list;
+      return;
+    }
   }
 
   log(content.trimEnd());
+
+  // 有人申请加好友：自动刷新申请列表
+  if (/wants to be friend with you/.test(content)) {
+    setTimeout(() => showFriendRequests(), 300);
+  }
+
+  // 建群成功：刷新会话列表（新群出现）
+  if (/Group created successfully/.test(content)) {
+    setTimeout(() => show(), 300);
+  }
+
+  // 被拉入群 / 被踢出群：刷新会话列表
+  if (/You have been added to group|You have been removed from group/.test(content)) {
+    setTimeout(() => show(), 300);
+  }
+
+  // 有人申请入群：群管理面板开着时刷新申请列表
+  if (/has requested to join your group/.test(content) && state.ui.groupManage != null) {
+    setTimeout(() => showGroupRequests(state.ui.groupManage), 300);
+  }
+
+  const nameReg = /Name updated successfully\. Your new name is \[(.*?)\]\./.exec(content);
+  if (nameReg) {
+    state.myName = nameReg[1];
+    // 刷新页面并携带当前账号自动重登，让会话列表/历史里的旧昵称一起刷新
+    rememberForRelogin();
+    setTimeout(() => location.reload(), 400);
+  }
+
+  const delReg = /Message \[(\d+)\] deleted\./.exec(content);
+  if (delReg) removeLocalMessage(parseInt(delReg[1], 10));
+
+  // 私聊发送回执：把当前会话最后一条本地回显消息升级为真实 message_id（便于删除）
+  const sentReg = /Message sent\. Message ID: (\d+)\./.exec(content);
+  if (sentReg) {
+    const realId = parseInt(sentReg[1], 10);
+    const conv = activeConv.value;
+    if (conv) {
+      for (let i = conv.messages.length - 1; i >= 0; i--) {
+        const m = conv.messages[i];
+        if (m.local && typeof m.message_id === 'number' && m.message_id < 0) {
+          m.message_id = realId;
+          m.local = false;
+          delete m.orderKey;
+          sortConv(conv);
+          break;
+        }
+      }
+    }
+  }
 
   const login = /Login successful.*\(UID (\d+)\)/.exec(content);
   if (login) {
@@ -114,7 +207,7 @@ function onSystem(content) {
     state.conversations = {};
     state.activeId = null;
     state.contacts = [];
-    setTimeout(() => show(), 300);
+    setTimeout(() => { show(); showFriendRequests(); }, 300);
   }
 }
 
@@ -159,8 +252,7 @@ function onHistory(msg) {
   if (historyWaiters[peer]) { historyWaiters[peer](true); delete historyWaiters[peer]; }
 }
 
-function onDelete(msg) {
-  const id = msg.message_id;
+function removeLocalMessage(id) {
   if (!id) return;
   for (const key of Object.keys(state.conversations)) {
     const conv = state.conversations[key];
@@ -168,6 +260,10 @@ function onDelete(msg) {
     conv.messages = conv.messages.filter((m) => m.message_id !== id);
     if (conv.messages.length !== before) sortConv(conv);
   }
+}
+
+function onDelete(msg) {
+  removeLocalMessage(msg.message_id);
 }
 
 // ---------- 会话与消息存储 ----------
@@ -268,7 +364,7 @@ function loadOlder(peer) {
 
 // ---------- 账号操作 ----------
 
-function show() { if (send({ type: 'show' })) pendingShow = true; }
+function show() { sendWithPending({ type: 'show' }, 'show'); }
 
 function register() {
   const { username, password, email } = state.form;
@@ -283,12 +379,205 @@ function login() {
   else send({ type: 'login', UID: parseInt(acc, 10), password: state.form.password });
 }
 
-function logout() { send({ type: 'logout' }); }
+function logout() {
+  try { sessionStorage.removeItem(RELOGIN_KEY); } catch {}
+  send({ type: 'logout' });
+}
 
 function setEmail() {
   const email = state.form.email;
   if (!email.includes('@') || !email.includes('.com')) { log('请输入邮箱（需包含 @ 和 .com）'); return; }
   send({ type: 'set_email', email });
+}
+
+// ---------- 好友申请 ----------
+
+function parseFriendRequests(text) {
+  const list = [];
+  for (const raw of String(text).split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    // 兼容空留言：`[名字] (UID):` 或 `[名字] (UID): 留言`
+    const m = /^\[(.*?)\] \((\d+)\)(?::\s*(.*))?$/.exec(line);
+    if (m) list.push({ sender_name: m[1], sender_UID: parseInt(m[2], 10), apply_message: m[3] || '' });
+  }
+  return list;
+}
+
+function showFriendRequests() { sendWithPending({ type: 'show_friend_requests' }, 'friendRequests'); }
+
+function acceptFriend(senderUid) {
+  if (send({ type: 'accept_friend', sender_UID: senderUid })) {
+    // 本地移除该申请，并只刷新会话列表（新好友出现）；避免 show/showFriendRequests 并发抢 pending 标志
+    state.friendRequests = state.friendRequests.filter((r) => r.sender_UID !== senderUid);
+    setTimeout(() => show(), 300);
+  }
+}
+
+function rejectFriend(senderUid) {
+  if (send({ type: 'reject_friend', sender_UID: senderUid })) {
+    state.friendRequests = state.friendRequests.filter((r) => r.sender_UID !== senderUid);
+  }
+}
+
+function addFriend(email, message) {
+  const e = (email || '').trim();
+  if (!e) { log('请输入对方邮箱'); return; }
+  send({ type: 'add_friend', email: e, apply_message: (message || '').trim() });
+}
+
+function createGroup(name) {
+  const n = (name || '').trim();
+  if (!n) { log('请输入群名称'); return; }
+  send({ type: 'create_group', group_name: n });
+}
+
+// ---------- 群聊 ----------
+
+function parseGroupMembers(text) {
+  const list = [];
+  for (const raw of String(text).split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    const idx = line.indexOf(':');
+    if (idx < 0) continue;
+    const uidPart = line.slice(0, idx).trim();
+    const name = line.slice(idx + 1).trim();
+    if (/^\d+$/.test(uidPart)) list.push({ uid: parseInt(uidPart, 10), name });
+  }
+  return list;
+}
+
+function parseGroupRequests(text) {
+  const list = [];
+  for (const raw of String(text).split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    // 兼容空留言：`Requester UID: 43, Message:` 或 `Requester UID: 43, Message: hi`
+    const m = /^Requester UID: (\d+), Message:\s*(.*)$/.exec(line);
+    if (m) list.push({ requester_UID: parseInt(m[1], 10), message: m[2] || '' });
+  }
+  return list;
+}
+
+function showGroupMembers(groupUid) { sendWithPending({ type: 'show_group_members', group_UID: groupUid }, 'groupMembers'); }
+function showGroupRequests(groupUid, all = false) { sendWithPending({ type: 'show_group_requests', group_UID: groupUid }, 'groupRequests', { groupUid, all }); }
+
+// 遍历我加入的所有群，拉取发给我的入群申请（用于好友页右侧汇总）
+function loadAllGroupRequests() {
+  state.groupRequestsAll = [];
+  const groups = state.contacts.filter((c) => c.isGroup);
+  for (const g of groups) showGroupRequests(g.uid, true);
+}
+
+function sendJoinGroup(groupUid) {
+  const uid = Number(groupUid);
+  if (!uid || uid <= 0) { log('请输入有效的群 UID'); return; }
+  send({ type: 'send_join_group', group_UID: uid });
+}
+
+function handleJoinRequest(groupUid, requesterUid, accept) {
+  send({ type: 'handle_join_request', group_UID: groupUid, requester_UID: requesterUid, accept });
+  // 乐观移除本地申请，避免按钮没刷新导致重复点击
+  state.groupRequests = state.groupRequests.filter((r) => r.requester_UID !== requesterUid);
+  state.groupRequestsAll = state.groupRequestsAll.filter((r) => !(r.group_UID === groupUid && r.requester_UID === requesterUid));
+  // 延迟刷新成员列表 + 单群申请 + 全群汇总
+  setTimeout(() => {
+    showGroupMembers(groupUid);
+    showGroupRequests(groupUid);
+    loadAllGroupRequests();
+  }, 300);
+}
+
+function groupAddClient(groupUid, userUid) {
+  const uid = Number(userUid);
+  if (!uid || uid <= 0) { log('请输入有效的用户 UID'); return; }
+  send({ type: 'group_add_client', group_UID: groupUid, target_user_UID: uid });
+  setTimeout(() => showGroupMembers(groupUid), 300);
+}
+
+function groupDeleteClient(groupUid, userUid) {
+  send({ type: 'group_delete_client', group_UID: groupUid, target_user_UID: userUid });
+  setTimeout(() => showGroupMembers(groupUid), 300);
+}
+
+function modifyGroupName(groupUid, name) {
+  const n = (name || '').trim();
+  if (!n) { log('请输入群名称'); return; }
+  send({ type: 'modify_group_name', group_UID: groupUid, new_name: n });
+  setTimeout(() => show(), 300);
+}
+
+function deleteGroup(groupUid) {
+  send({ type: 'delete_group', group_UID: groupUid });
+  closeGroupManage();
+  setTimeout(() => show(), 300);
+}
+
+function openGroupManage(groupUid) {
+  state.ui.groupManage = groupUid;
+  state.groupMembers = [];
+  state.groupRequests = [];
+  showGroupMembers(groupUid);
+  showGroupRequests(groupUid);
+}
+
+function closeGroupManage() {
+  state.ui.groupManage = null;
+  state.groupMembers = [];
+  state.groupRequests = [];
+}
+
+function openAddFriend() { state.ui.addFriend = true; }
+function closeAddFriend() { state.ui.addFriend = false; }
+function openFriendRequests() { state.ui.friendRequests = true; showFriendRequests(); }
+function closeFriendRequests() { state.ui.friendRequests = false; }
+
+// ---------- 个人主页 / 删除好友 ----------
+
+function openSelfProfile() {
+  state.profile = { uid: state.myUid, name: state.myName || '我', isSelf: true };
+}
+
+function openUserProfile(uid, name) {
+  if (uid == null) return;
+  state.profile = {
+    uid,
+    name: name || String(uid),
+    isSelf: state.myUid != null && uid === state.myUid,
+  };
+}
+
+function closeProfile() { state.profile = null; }
+
+function removeFriend(friendUid) {
+  if (!friendUid) return;
+  send({ type: 'remove_friend', friend_UID: friendUid });
+  closeProfile();
+  setTimeout(() => {
+    show(); // 刷新会话列表（移除该好友）
+    if (state.conversations[friendUid]) delete state.conversations[friendUid];
+    if (state.activeId === friendUid) state.activeId = null;
+  }, 300);
+}
+
+// 带账号重新登录刷新（复用改昵称后的自动重登机制）
+function refresh() {
+  rememberForRelogin();
+  location.reload();
+}
+
+function changeName(newName) {
+  const name = (newName || '').trim();
+  if (!name) { log('请输入新昵称'); return; }
+  send({ type: 'change_name', new_name: name });
+}
+
+function deleteMessage(messageId) {
+  if (!messageId) return;
+  // 删除成功由服务端 system "Message [x] deleted." 回执驱动本地移除；
+  // 接收方则由 delete_message 广播驱动移除。
+  send({ type: 'delete_message', message_id: messageId });
 }
 
 function sendChat(text) {
@@ -352,7 +641,13 @@ const activeConv = computed(() => (
 const chat = {
   state, activeConv,
   connect, disconnect,
-  register, login, logout, show, setEmail,
+  register, login, logout, show, setEmail, changeName, deleteMessage,
+  addFriend, createGroup, showFriendRequests, acceptFriend, rejectFriend,
+  sendJoinGroup, showGroupMembers, showGroupRequests, loadAllGroupRequests, handleJoinRequest,
+  groupAddClient, groupDeleteClient, modifyGroupName, deleteGroup,
+  openGroupManage, closeGroupManage,
+  openAddFriend, closeAddFriend, openFriendRequests, closeFriendRequests,
+  openSelfProfile, openUserProfile, closeProfile, removeFriend, refresh,
   selectContact, sendChat, loadOlder, isMine, setReply, clearReply,
 };
 

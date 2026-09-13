@@ -279,8 +279,11 @@ bool friend_repo::get_friend_requests(int user_uid,
     }
 }
 
-// 处理好友申请：accept=true 置 status=1（同意）/ false 置 status=2（拒绝）
+// 处理好友申请：处理完直接删除申请记录（同意/拒绝都不保留）。
+// 这里不能只 UPDATE status，否则“删除好友后重新申请”场景下，
+// 新记录 status 0→1 会与旧记录 (…,status=1) 撞 uk_apply 唯一键。
 bool friend_repo::handle_friend_request(int sender_uid, int receiver_uid, bool accept) {
+    (void)accept;
     ConnGuard guard;
     if (!guard) {
         std::cerr << "[friend_repo] handle_friend_request: no DB connection." << std::endl;
@@ -289,11 +292,10 @@ bool friend_repo::handle_friend_request(int sender_uid, int receiver_uid, bool a
     try {
         std::unique_ptr<sql::PreparedStatement> pstmt(
             guard.get()->prepareStatement(
-                "UPDATE relation_apply SET status = ? "
+                "DELETE FROM relation_apply "
                 "WHERE apply_type = 1 AND sender_UID = ? AND receiver_UID = ? AND status = 0"));
-        pstmt->setInt(1, accept ? 1 : 2);
-        pstmt->setInt(2, sender_uid);
-        pstmt->setInt(3, receiver_uid);
+        pstmt->setInt(1, sender_uid);
+        pstmt->setInt(2, receiver_uid);
         return pstmt->executeUpdate() > 0;
     } catch (const sql::SQLException& e) {
         std::cerr << "[friend_repo] handle_friend_request failed: " << e.what()

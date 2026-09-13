@@ -1,5 +1,5 @@
 {
-    "net_layer": "binary",
+    "net_layer": "websocket",
     "use_heartbeat": false,
     "heartbeat_interval": 60,
     "websocket": {

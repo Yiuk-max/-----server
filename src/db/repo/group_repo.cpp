@@ -442,16 +442,18 @@ bool group_repo::handle_join_request(int group_uid, int requester_uid, int targe
                 return false;
             }
         }
-        // 更新申请状态：1=同意 2=拒绝（仅处理 status=0 的等待中申请）
+        // 处理完直接删除申请记录（同意/拒绝都不保留），
+        // 避免“踢出后重新申请”时 UPDATE status 与旧记录撞 uk_apply 唯一键。
         {
             std::unique_ptr<sql::PreparedStatement> pstmt(
                 guard.get()->prepareStatement(
-                    "UPDATE relation_apply SET status = ? "
+                    "DELETE FROM relation_apply "
                     "WHERE apply_type = 2 AND group_UID = ? AND sender_UID = ? AND status = 0"));
-            pstmt->setInt(1, accept ? 1 : 2);
-            pstmt->setInt(2, group_uid);
-            pstmt->setInt(3, target_uid);
-            pstmt->executeUpdate();
+            pstmt->setInt(1, group_uid);
+            pstmt->setInt(2, target_uid);
+            if (pstmt->executeUpdate() == 0) {
+                return false; // 无等待中的入群申请
+            }
         }
         // 同意则拉人入群（name 默认取用户昵称）
         if (accept) {
@@ -500,7 +502,7 @@ bool group_repo::modify_member_role(int group_uid, int requester_uid, int target
     }
 }
 
-bool group_repo::show_group_requests(int group_uid, std::vector<std::tuple<int, std::string>>& out_requests) {
+bool group_repo::show_group_requests(int group_uid, int receiver_uid, std::vector<std::tuple<int, std::string>>& out_requests) {
     ConnGuard guard;
     if (!guard) {
         std::cerr << "[group_repo] show_group_requests: no DB connection." << std::endl;
@@ -510,8 +512,9 @@ bool group_repo::show_group_requests(int group_uid, std::vector<std::tuple<int, 
         std::unique_ptr<sql::PreparedStatement> pstmt(
             guard.get()->prepareStatement(
                 "SELECT sender_UID, message FROM relation_apply "
-                "WHERE apply_type = 2 AND group_UID = ? AND status = 0"));
+                "WHERE apply_type = 2 AND group_UID = ? AND receiver_UID = ? AND status = 0"));
         pstmt->setInt(1, group_uid);
+        pstmt->setInt(2, receiver_uid);
         std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
         while (rs->next()) {
             int sender_uid = rs->getInt("sender_UID");

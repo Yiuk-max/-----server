@@ -651,7 +651,7 @@ void client_session::show_group_requests(int group_UID){
         return;
     }
     std::vector<std::tuple<int, std::string>> requests;
-    if (!repo_hub_->groups()->show_group_requests(group_UID, requests)) {
+    if (!repo_hub_->groups()->show_group_requests(group_UID, current_account_->getUID(), requests)) {
         package_message("Failed to retrieve group join requests.\n", "system");
         return;
     }

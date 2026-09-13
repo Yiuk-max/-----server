@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>聊天室 · 效果图</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+  :root{
+    --bg-app: #10141c;
+    --bg-panel: #171c26;
+    --bg-panel-raised: #1d2431;
+    --bg-input: #232b3a;
+    --border: #2a3242;
+    --text-primary: #e9e7df;
+    --text-secondary: #8b92a3;
+    --text-tertiary: #5c6577;
+    --accent: #c98a3e;
+    --accent-soft: rgba(201,138,62,0.14);
+    --online: #4fa88f;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; height:100%; background:var(--bg-app); }
+  body{
+    font-family: var(--sans);
+    color: var(--text-primary);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+  }
+
+  .app{
+    width: 1180px;
+    max-width: 96vw;
+    height: 760px;
+    max-height: 94vh;
+    display:grid;
+    grid-template-columns: 72px 240px 1fr;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow:hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.45);
+  }
+
+  /* ---- rail ---- */
+  .rail{
+    background: var(--bg-app);
+    border-right: 1px solid var(--border);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding: 18px 0;
+    gap: 10px;
+  }
+  .rail-logo{
+    width:36px; height:36px;
+    border-radius: 9px;
+    background: linear-gradient(155deg, var(--accent), #8a5a24);
+    display:flex; align-items:center; justify-content:center;
+    font-family: var(--mono); font-weight:600; font-size:13px;
+    color:#171100;
+    margin-bottom: 12px;
+  }
+  .rail-item{
+    width:40px; height:40px;
+    border-radius: 10px;
+    display:flex; align-items:center; justify-content:center;
+    color: var(--text-tertiary);
+    font-family: var(--mono); font-size: 12px;
+    cursor:pointer;
+    position:relative;
+  }
+  .rail-item.active{
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .rail-item.active::before{
+    content:'';
+    position:absolute; left:-13px; top:8px; bottom:8px; width:3px;
+    background: var(--accent); border-radius: 2px;
+  }
+  .rail-spacer{ flex:1; }
+  .rail-avatar{
+    width:34px; height:34px; border-radius:50%;
+    background:#3a4258;
+    border: 2px solid var(--online);
+  }
+
+  /* ---- room list ---- */
+  .rooms{
+    border-right: 1px solid var(--border);
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+  }
+  .rooms-header{
+    padding: 20px 18px 12px;
+    display:flex; align-items:baseline; justify-content:space-between;
+  }
+  .rooms-title{
+    font-size: 13px; font-weight:600; letter-spacing:0.2px;
+    color: var(--text-primary);
+  }
+  .rooms-count{
+    font-family: var(--mono); font-size:11px; color: var(--text-tertiary);
+  }
+  .search{
+    margin: 0 14px 14px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12.5px;
+    color: var(--text-tertiary);
+    font-family: var(--mono);
+  }
+  .room-scroll{ overflow-y:auto; flex:1; padding: 0 8px 12px; }
+  .room-group-label{
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--text-tertiary);
+    padding: 10px 10px 6px;
+  }
+  .room{
+    display:flex; align-items:center; gap:10px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    cursor:pointer;
+  }
+  .room.active{ background: var(--bg-panel-raised); }
+  .room-icon{
+    width:34px; height:34px; border-radius:9px;
+    background:#2a3242;
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px; flex-shrink:0;
+  }
+  .room-icon.dm{ border-radius:50%; background:#3a4258; position:relative; }
+  .dot{
+    position:absolute; right:-1px; bottom:-1px;
+    width:9px; height:9px; border-radius:50%;
+    background: var(--online);
+    border: 2px solid var(--bg-panel);
+  }
+  .room-body{ min-width:0; flex:1; }
+  .room-name{ font-size:13.5px; font-weight:500; color:var(--text-primary);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .room-preview{ font-size:11.5px; color:var(--text-tertiary);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+  .room-meta{ text-align:right; flex-shrink:0; }
+  .room-time{ font-family:var(--mono); font-size:10px; color:var(--text-tertiary); }
+  .badge{
+    margin-top:4px; display:inline-block;
+    background: var(--accent); color:#181000;
+    font-family: var(--mono); font-size:10px; font-weight:600;
+    padding: 1px 6px; border-radius: 20px;
+  }
+
+  /* ---- main chat ---- */
+  .chat{ display:flex; flex-direction:column; min-width:0; }
+  .chat-header{
+    height: 62px; flex-shrink:0;
+    border-bottom: 1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 0 22px;
+  }
+  .chat-title-wrap{ display:flex; align-items:center; gap:10px; }
+  .chat-hash{ color: var(--accent); font-family:var(--mono); font-size:16px; }
+  .chat-title{ font-size:15px; font-weight:600; }
+  .chat-sub{ font-size:11.5px; color:var(--text-tertiary); margin-top:1px; }
+  .chat-header-right{ display:flex; align-items:center; gap:16px; }
+  .online-pill{
+    display:flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:11px; color:var(--text-secondary);
+    background: var(--bg-app); border:1px solid var(--border);
+    padding:5px 10px; border-radius:20px;
+  }
+  .online-pill .dot2{ width:6px; height:6px; border-radius:50%; background:var(--online); }
+  .icon-btn{
+    width:32px; height:32px; border-radius:8px;
+    background: var(--bg-app); border:1px solid var(--border);
+    color: var(--text-tertiary);
+    display:flex; align-items:center; justify-content:center;
+    font-size:13px;
+  }
+
+  .messages{
+    flex:1; overflow-y:auto;
+    padding: 22px 26px;
+    display:flex; flex-direction:column; gap:16px;
+  }
+  .day-divider{
+    display:flex; align-items:center; gap:12px;
+    margin: 6px 0 4px;
+  }
+  .day-divider::before,.day-divider::after{
+    content:''; flex:1; height:1px; background: var(--border);
+  }
+  .day-divider span{
+    font-family:var(--mono); font-size:10.5px; color:var(--text-tertiary);
+  }
+  .msg{ display:flex; gap:12px; max-width: 620px; }
+  .msg.mine{ align-self:flex-end; flex-direction:row-reverse; }
+  .avatar{
+    width:32px; height:32px; border-radius:50%; flex-shrink:0;
+    background:#3a4258;
+  }
+  .msg-col{ min-width:0; }
+  .msg.mine .msg-col{ text-align:right; }
+  .msg-meta{ display:flex; gap:8px; align-items:baseline; margin-bottom:4px; }
+  .msg.mine .msg-meta{ justify-content:flex-end; }
+  .msg-name{ font-size:12.5px; font-weight:600; color:var(--text-primary); }
+  .msg-time{ font-family:var(--mono); font-size:10px; color:var(--text-tertiary); }
+  .bubble{
+    background: var(--bg-panel-raised);
+    border: 1px solid var(--border);
+    padding: 9px 13px;
+    border-radius: 4px 12px 12px 12px;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--text-primary);
+    display:inline-block;
+    text-align:left;
+  }
+  .msg.mine .bubble{
+    background: var(--accent-soft);
+    border-color: rgba(201,138,62,0.35);
+    border-radius: 12px 4px 12px 12px;
+  }
+  .bubble.file{
+    display:flex; align-items:center; gap:10px;
+  }
+  .file-icon{
+    width:34px; height:34px; border-radius:7px;
+    background: var(--bg-input);
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--mono); font-size:10px; color:var(--accent);
+    flex-shrink:0;
+  }
+  .file-name{ font-size:13px; font-weight:500; }
+  .file-size{ font-size:11px; color:var(--text-tertiary); font-family:var(--mono); }
+
+  .composer{
+    flex-shrink:0;
+    border-top: 1px solid var(--border);
+    padding: 14px 22px 18px;
+  }
+  .composer-box{
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .composer-input{
+    color: var(--text-secondary);
+    font-size: 13.5px;
+    min-height: 20px;
+  }
+  .composer-row{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-top: 10px;
+  }
+  .composer-tools{ display:flex; gap:8px; }
+  .tool-btn{
+    width:28px; height:28px; border-radius:6px;
+    display:flex; align-items:center; justify-content:center;
+    color: var(--text-tertiary); font-size:13px;
+  }
+  .send-btn{
+    background: var(--accent);
+    color: #181000;
+    font-family: var(--mono);
+    font-weight:600;
+    font-size: 12px;
+    padding: 7px 16px;
+    border-radius: 7px;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- rail -->
+  <div class="rail">
+    <div class="rail-logo">CS</div>
+    <div class="rail-item active">#</div>
+    <div class="rail-item">DM</div>
+    <div class="rail-item">@</div>
+    <div class="rail-spacer"></div>
+    <div class="rail-item">⚙</div>
+    <div class="rail-avatar"></div>
+  </div>
+
+  <!-- room list -->
+  <div class="rooms">
+    <div class="rooms-header">
+      <div class="rooms-title">消息</div>
+      <div class="rooms-count">3 未读</div>
+    </div>
+    <div class="search">搜索会话 / Ctrl+K</div>
+    <div class="room-scroll">
+      <div class="room-group-label">群组</div>
+      <div class="room active">
+        <div class="room-icon">#</div>
+        <div class="room-body">
+          <div class="room-name">general</div>
+          <div class="room-preview">阿凯：文件发送分片已经跑通了</div>
+        </div>
+        <div class="room-meta">
+          <div class="room-time">14:02</div>
+          <div class="badge">3</div>
+        </div>
+      </div>
+      <div class="room">
+        <div class="room-icon">#</div>
+        <div class="room-body">
+          <div class="room-name">后端-协议组</div>
+          <div class="room-preview">JSON 头长度校验讨论</div>
+        </div>
+        <div class="room-meta">
+          <div class="room-time">昨天</div>
+        </div>
+      </div>
+      <div class="room">
+        <div class="room-icon">#</div>
+        <div class="room-body">
+          <div class="room-name">数据库迁移</div>
+          <div class="room-preview">已切换到 JDBC 风格连接器</div>
+        </div>
+        <div class="room-meta">
+          <div class="room-time">周二</div>
+        </div>
+      </div>
+
+      <div class="room-group-label">私聊</div>
+      <div class="room">
+        <div class="room-icon dm">L<div class="dot"></div></div>
+        <div class="room-body">
+          <div class="room-name">Lena</div>
+          <div class="room-preview">好的，明天联调</div>
+        </div>
+        <div class="room-meta">
+          <div class="room-time">11:20</div>
+        </div>
+      </div>
+      <div class="room">
+        <div class="room-icon dm">M</div>
+        <div class="room-body">
+          <div class="room-name">Marco</div>
+          <div class="room-preview">[图片]</div>
+        </div>
+        <div class="room-meta">
+          <div class="room-time">周一</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- chat -->
+  <div class="chat">
+    <div class="chat-header">
+      <div class="chat-title-wrap">
+        <div class="chat-hash">#</div>
+        <div>
+          <div class="chat-title">general</div>
+          <div class="chat-sub">聊天服务器项目 · 日常讨论</div>
+        </div>
+      </div>
+      <div class="chat-header-right">
+        <div class="online-pill"><div class="dot2"></div>12 在线</div>
+        <div class="icon-btn">⌕</div>
+        <div class="icon-btn">⋯</div>
+      </div>
+    </div>
+
+    <div class="messages">
+      <div class="day-divider"><span>今天</span></div>
+
+      <div class="msg">
+        <div class="avatar"></div>
+        <div class="msg-col">
+          <div class="msg-meta">
+            <span class="msg-name">阿凯</span>
+            <span class="msg-time">13:58</span>
+          </div>
+          <div class="bubble">文件传输的分片逻辑昨晚跑通了，四字节长度头 + JSON + 原始数据这套协议没问题</div>
+        </div>
+      </div>
+
+      <div class="msg">
+        <div class="avatar"></div>
+        <div class="msg-col">
+          <div class="msg-meta">
+            <span class="msg-name">阿凯</span>
+            <span class="msg-time">13:59</span>
+          </div>
+          <div class="bubble file">
+            <div class="file-icon">ZIP</div>
+            <div>
+              <div class="file-name">protocol_test_report.zip</div>
+              <div class="file-size">2.4 MB</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="msg mine">
+        <div class="avatar"></div>
+        <div class="msg-col">
+          <div class="msg-meta">
+            <span class="msg-time">14:01</span>
+            <span class="msg-name">我</span>
+          </div>
+          <div class="bubble">收到，我这边把 SocialModule 依赖注入到 AccountRepo 的部分也改完了</div>
+        </div>
+      </div>
+
+      <div class="msg">
+        <div class="avatar"></div>
+        <div class="msg-col">
+          <div class="msg-meta">
+            <span class="msg-name">阿凯</span>
+            <span class="msg-time">14:02</span>
+          </div>
+          <div class="bubble">文件发送分片已经跑通了 👍</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="composer">
+      <div class="composer-box">
+        <div class="composer-input">在 general 发消息…</div>
+        <div class="composer-row">
+          <div class="composer-tools">
+            <div class="tool-btn">📎</div>
+            <div class="tool-btn">🙂</div>
+          </div>
+          <div class="send-btn">发送</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -44,8 +44,10 @@ public:
 
     virtual bool modify_member_role(int group_uid, int requester_uid, int target_uid, bool promote) = 0;
 
-    // 查看群聊待处理的入群申请（apply_type=2, status=0），
+    // 查看群聊待处理的入群申请（apply_type=2, status=0）。
+    // 入群申请的 receiver_UID 就是群主，因此这里必须校验 receiver_uid，
+    // 只有群主（申请接收者）能查到发给自己的入群申请。
     // out 输出 (sender_UID, message) 列表；成功返回 true。
-    virtual bool show_group_requests(int group_uid, std::vector<std::tuple<int, std::string>>& out_requests) = 0;
+    virtual bool show_group_requests(int group_uid, int receiver_uid, std::vector<std::tuple<int, std::string>>& out_requests) = 0;
 
 };
