@@ -17,6 +17,7 @@ find_package(nlohmann_json REQUIRED)
 # 因此同一二进制始终包含 WS 代码，Boost 为编译期依赖。
 find_package(Boost 1.74 REQUIRED COMPONENTS system)
 find_package(Threads REQUIRED)
+find_package(protobuf REQUIRED)
 
 include_directories(/usr/include/mysql-cppconn)
 # MySQL Connector/C++ 的 JDBC 头在 jdbc 子目录（mysql_driver.h / cppconn/...）
@@ -39,6 +40,12 @@ target_include_directories(server PRIVATE
 target_link_libraries(server PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(server PRIVATE mysqlcppconn)
 target_link_libraries(server PRIVATE Boost::system Threads::Threads)
+target_link_libraries(server PRIVATE protobuf::libprotobuf)
+
+
+
+
+
 
 # ---------------------------------------------------------------------------
 # 可选单元测试：不依赖 MySQL，默认关闭。
@@ -64,7 +71,7 @@ if(SERVER_BUILD_TESTS)
         tests/test_tcp_protocol.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/net_core/receiver_sender.cpp)
     target_include_directories(test_tcp_protocol PRIVATE ${SERVER_TEST_INCLUDES})
-    target_link_libraries(test_tcp_protocol PRIVATE nlohmann_json::nlohmann_json Threads::Threads)
+    target_link_libraries(test_tcp_protocol PRIVATE nlohmann_json::nlohmann_json Threads::Threads protobuf::libprotobuf)
     add_test(NAME tcp_protocol COMMAND test_tcp_protocol)
 
     # 在线表测试需要 client_session 完整实现，因此复用除 main.cpp 外的全部源文件。
@@ -72,13 +79,13 @@ if(SERVER_BUILD_TESTS)
         tests/test_session_manager.cpp
         ${NET_SRC} ${LOGIC_SRC} ${UTILS} ${REPO_SRC} ${REPO_INTERFACE_SRC} ${MYSQL_SRC})
     target_include_directories(test_session_manager PRIVATE ${SERVER_TEST_INCLUDES})
-    target_link_libraries(test_session_manager PRIVATE nlohmann_json::nlohmann_json mysqlcppconn Threads::Threads)
+    target_link_libraries(test_session_manager PRIVATE nlohmann_json::nlohmann_json mysqlcppconn Threads::Threads protobuf::libprotobuf)
     add_test(NAME session_manager COMMAND test_session_manager)
 
     add_executable(test_ws_protocol
         tests/test_ws_protocol.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/net_core_ws/ws_protocol.cpp)
     target_include_directories(test_ws_protocol PRIVATE ${SERVER_TEST_INCLUDES})
-    target_link_libraries(test_ws_protocol PRIVATE nlohmann_json::nlohmann_json Threads::Threads)
+    target_link_libraries(test_ws_protocol PRIVATE nlohmann_json::nlohmann_json Threads::Threads protobuf::libprotobuf)
     add_test(NAME ws_protocol COMMAND test_ws_protocol)
 endif()
