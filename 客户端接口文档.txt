@@ -3,32 +3,40 @@
 
 一、通讯基础说明
 ----------------
-*   **传输协议**：TCP（服务器监听 IPv6 通配地址，端口 `8080`）
-*   **数据编码**：二进制帧结构（详见第二节「帧格式」），帧体内部为 UTF-8 编码的标准 JSON 字符串。
+*   **传输协议**：启动时二选一，两种模式都监听 IPv6 通配地址，端口 `8080`：
+    *   `binary`：TCP + 自定义二进制帧。
+    *   `websocket`：WebSocket，连接地址 `ws://<host>:8080/ws`。
+*   **数据编码**：消息体统一使用 **protobuf**（`chat_proto.Envelope`，定义见 `src/proto/message.proto`），不再使用 JSON。
 *   **关键特点**：
-    1.  **支持粘包/半包处理**：服务器采用「4 字节总长度 + 4 字节 JSON 长度」的定长包头进行分包解析。客户端发送数据时**无需**添加换行符 `\n`，但必须正确填写帧头长度字段。
+    1.  **支持粘包/半包处理**（仅 binary 模式）：服务器采用「4 字节总长度 + 4 字节 payload 长度」的定长包头分包。客户端发送时**无需**添加换行符 `\n`，但必须正确填写帧头长度字段。WebSocket 自带消息边界，无需 total_len。
     2.  **基于 UID 寻址**：所有用户（个人）和群组均以整数 UID 作为唯一标识。登录、私聊、群聊操作均使用 UID，而非用户名。
-    3.  **服务器主动推送**：服务器可随时主动向客户端推送消息（如对方私聊、系统通知），客户端应**开启独立的接收线程**循环读取并解析帧。
+    3.  **服务器主动推送**：服务器可随时主动推送消息（如对方私聊、系统通知），客户端应**开启独立的接收线程**循环读取并解析。
 
-二、帧格式（二进制协议）
+二、帧格式
 ------------------------
+### 2.1 binary（TCP）模式
 所有通信数据均封装为如下帧结构：
 ```
-┌──────────────┬──────────────┬──────────────┬──────────────┐
-│  4 字节       │  4 字节       │ JSON 字符串   │ 文件数据(可选)│
-│  总长度 total │ JSON 长度 json│  (明文)       │  (file_data) │
-└──────────────┴──────────────┴──────────────┴──────────────┘
+┌──────────────┬──────────────┬──────────────────┬─────────────────┐
+│  4 字节       │  4 字节       │ protobuf 字节     │ 文件数据(可选)   │
+│  总长度 total │ payload 长度  │ (Envelope/FileMeta)│  (file_data)   │
+└──────────────┴──────────────┴──────────────────┴─────────────────┘
 ```
-*   **总长度 (total_len)**：`uint32_t`，主机序转网络序（`htonl`）。其值 = `8 + json字符串字节数 + 文件数据字节数`。
-*   **JSON 长度 (json_len)**：`uint32_t`，主机序转网络序（`htonl`）。其值 = JSON 字符串的字节长度。
-*   **JSON 部分**：紧跟在两个 4 字节长度字段之后，长度为 `json_len`。
-*   **文件数据部分**：紧跟在 JSON 之后，长度为 `total_len - 4 - json_len`，可缺省（长度为 0）。
+*   **总长度 (total_len)**：`uint32_t`，网络字节序（大端）。其值 = `8 + payload 字节数 + 文件数据字节数`。
+*   **payload 长度 (payload_len)**：`uint32_t`，网络字节序。其值 = protobuf 消息的字节数。
+*   **payload 部分**：紧跟在两个 4 字节长度字段之后，长度为 `payload_len`，是 `chat_proto.Envelope`（业务消息）或 `chat_proto.FileChunkMeta`（下载文件块）。
+*   **文件数据部分**：紧跟在 payload 之后，长度为 `total_len - 8 - payload_len`，可缺省（长度为 0）。
 
-> 服务器解析时，先读取前 4 字节得到 `total_len`，若接收缓冲区不足 `4 + total_len` 则等待更多数据（半包）；处理完当前帧后继续循环处理剩余数据（粘包）。
+> 服务器解析时，先读取前 4 字节得到 `total_len`，若接收缓冲区不足 `total_len` 则等待更多数据（半包）；处理完当前帧后继续循环处理剩余数据（粘包）。
+
+### 2.2 WebSocket 模式
+*   业务消息：**binary 帧**，payload 为 `4 字节 payload_len（大端） + protobuf Envelope`。
+*   文件消息（当前 WS 文件传输未开放）：同样为 binary 帧，`4 字节 payload_len + protobuf + file_data`。
+*   text 帧不再用于业务消息；收到 text 帧会被当作旧 JSON 客户端，服务端回复 system 提示后继续读取。
 
 三、消息类型总览
 ----------------
-客户端发送的每一帧，其 JSON 部分必须包含 `"type"` 字段，用于指示消息类型。以下是全部受支持的类型：
+每个 `Envelope` 必须设置 `type` 字段（字段 1，string），用于指示消息类型。以下是全部受支持的类型：
 
 | type                  | 归类     | 说明                                   |
 |-----------------------|----------|----------------------------------------|
@@ -60,434 +68,223 @@
 | `show_group_requests` | 群组     | 查看群聊待处理的入群申请（仅群主）     |
 | `delete_message`      | 消息     | 删除消息（仅发送者本人、发送后 3 分钟内） |
 | `history_request`     | 消息     | 按 message_id 游标分页拉聊天历史（每页 10 条） |
-| `upload_file`         | 文件     | 上传文件（分块）                       |
-| `download_file`       | 文件     | 下载文件                               |
+| `upload_file`         | 文件     | 上传文件（分块，仅 binary 模式）       |
+| `download_file`       | 文件     | 下载文件（仅 binary 模式）             |
 
-四、客户端请求接口（Client -> Server）
+四、Envelope 字段总表
 --------------------------------------
-以下所有请求的 JSON 字段名必须与描述严格一致，类型不可混淆。
+`chat_proto.Envelope` 采用「大信封」设计，一个 message 承载所有请求/响应字段。客户端只需设置与当前 `type` 相关的字段，其余字段可留默认值（protobuf3 缺省：int=0、string=""、bool=false、message 不设置）。
+
+| 字段名               | 字段号 | protobuf 类型 | 说明                                   |
+|----------------------|--------|---------------|----------------------------------------|
+| `type`               | 1      | string        | 消息类型，必填                         |
+| `content`            | 2      | string        | 纯文本内容（system 消息/聊天正文）     |
+| `target_UID`         | 3      | int32         | 私聊/群聊目标 UID                      |
+| `message`            | 4      | string        | 聊天消息正文                           |
+| `message_id`         | 5      | int32         | 数据库消息 ID                          |
+| `peer_id`            | 6      | int32         | 历史查询对象 UID/群 UID                |
+| `before_id`          | 7      | int32         | 历史查询游标（0 取最新一页）           |
+| `has_more`           | 8      | bool          | 历史是否还有更旧记录                   |
+| `group_UID`          | 9      | int32         | 群 UID                                 |
+| `target_user_UID`    | 10     | int32         | 被添加/移除的成员 UID                  |
+| `requester_UID`      | 11     | int32         | 入群申请人 UID                         |
+| `group_name`         | 12     | string        | 群名称                                 |
+| `new_name`           | 13     | string        | 新群名/新昵称                          |
+| `promote`            | 14     | bool          | 提升为群主/降级                        |
+| `friend_UID`         | 15     | int32         | 好友 UID                               |
+| `sender_UID`         | 16     | int32         | 发送者 UID                             |
+| `email`              | 17     | string        | 邮箱                                   |
+| `apply_message`      | 18     | string        | 好友申请留言                           |
+| `remark`             | 19     | string        | 好友备注名                             |
+| `accept`             | 20     | bool          | 同意/拒绝                             |
+| `UID`                | 21     | int32         | 登录 UID                               |
+| `username`           | 22     | string        | 注册用户名                             |
+| `password`           | 23     | string        | 密码                                   |
+| `token`              | 24     | string        | 登录令牌（login_success 返回）         |
+| `user`               | 25     | UserInfo      | 登录成功返回的用户信息                 |
+| `sender_name`        | 26     | string        | 发送者昵称                             |
+| `timestamp`          | 27     | string        | 发送时间 `YYYY-MM-DD HH:MM:SS`         |
+| `reply_to_message_id`| 28     | int32         | 被回复消息 ID                          |
+| `reply_to`           | 29     | ReplyTo       | 被回复消息摘要                         |
+| `file_name`          | 30     | string        | 文件名（download_file）                |
+| `meta`               | 31     | FileChunkMeta | 文件分块元信息（upload_file）          |
+| `messages`           | 32     | repeated ChatItem | 历史分页消息列表                  |
+
+### 子消息定义
+```proto
+message UserInfo {
+  int32  id       = 1;  // 用户 UID
+  string username = 2;  // 昵称
+}
+
+message ReplyTo {
+  int32  message_id  = 1;
+  string sender_name = 2;
+  string content     = 3;
+}
+
+message ChatItem {
+  int32  message_id          = 1;
+  int32  sender_UID          = 2;
+  string sender_name         = 3;
+  bool   is_group            = 4;
+  string content             = 5;
+  string timestamp           = 6;
+  int32  reply_to_message_id = 7;
+  ReplyTo reply_to           = 8;
+}
+
+message FileChunkMeta {
+  string type        = 1;  // 恒为 "file_chunk"
+  string file_id     = 2;
+  string filename    = 3;
+  uint64 total_size  = 4;
+  uint32 chunk_index = 5;
+  uint32 chunk_count = 6;
+  uint32 chunk_size  = 7;
+  uint64 offset      = 8;
+}
+```
+
+五、客户端请求接口（Client -> Server）
+--------------------------------------
+以下所有请求都封装为 `Envelope`，需设置 `type` 与对应字段。
 
 ### 1. 注册账号 (register)
-*   **用途**：创建新账号。服务器自动分配 UID。**新用户必须填邮箱**（不校验格式，仅要求不重复）。
-*   **JSON 结构**：
-```json
-{
-    "type": "register",
-    "username": "张三",
-    "password": "123456",
-    "email": "zhangsan@example.com"
-}
-```
-*   *注意*：注册成功后服务器会回传分配到的 UID 与邮箱，例如
+*   **用途**：创建新账号，服务器自动分配 UID。**新用户必须填邮箱**（不校验格式，仅要求不重复）。
+*   **字段**：`type="register"`、`username`、`password`、`email`
+*   *注意*：注册成功后服务器回传 system 文本，例如
     `Registration successful. You can now log in with UID 000001 or zhangsan@example.com.`
-    邮箱已被占用时返回 `Email [xxx] is already registered.`。
+    邮箱已被占用时返回 `Email [xxx] is already registered.`
 
 ### 2. 用户登录 (login)
-*   **用途**：用 **UID** 或 **邮箱** + 密码登录。连接建立后客户端应在收到登录成功之前等待。
-*   **JSON 结构（用 UID）**：
-```json
-{
-    "type": "login",
-    "UID": 1001,
-    "password": "123456"
-}
-```
-*   **JSON 结构（用邮箱）**：
-```json
-{
-    "type": "login",
-    "email": "zhangsan@example.com",
-    "password": "123456"
-}
-```
-*   *注意*：两种写法二选一（带 `email` 字段则按邮箱登录，否则按 `UID`）。登录成功后服务器会把该连接的会话标识从 socket fd 切换为 UID。
-    邮箱未绑定时返回 `No account is bound to email [xxx].`。
+*   **用途**：用 **UID** 或 **邮箱** + 密码登录。
+*   **字段（用 UID）**：`type="login"`、`UID`、`password`
+*   **字段（用邮箱）**：`type="login"`、`email`、`password`
+*   *注意*：`email` 非空时按邮箱登录，否则按 `UID` 登录。
+*   **成功响应**：`type="login_success"`，携带 `token` 与 `user{id, username}`。
+    邮箱未绑定时返回 system `No account is bound to email [xxx].`
 
 ### 3. 展示聊天列表 (show)
-*   **用途**：返回当前登录用户的好友列表与已加入的群组列表。
-*   **JSON 结构**：
-```json
-{
-    "type": "show"
-}
-```
+*   **字段**：`type="show"`
 
 ### 4. 私聊 (private_chat)
-*   **用途**：向指定目标用户 UID 发送私有消息。
-*   **JSON 结构**：
-```json
-{
-    "type": "private_chat",
-    "target_UID": 1002,
-    "message": "你好呀！",
-    "reply_to_message_id": 447
-}
-```
-*   `reply_to_message_id` 可选：填被回复消息的 database id 即为“回复”；不传/为 0/null 则为普通消息。
-    每条消息只能直接引用一条消息（只支持一层引用）。
-*   *注意*：服务器会校验目标 UID 是否存在、是否为好友（**不再要求在线**）。对方在线时实时转发；对方离线时消息落库，待其上线后经离线消息推送。转发的 JSON 中会附带 `message_id`、`sender_UID`、`sender_name`、`timestamp`（发送时间），`content` 为**原始内容**（不含发送者前缀）；若为回复，还会带 `reply_to_message_id` 与 `reply_to` 摘要；发送者会收到 `system` 提示 `Message sent. Message ID: <id>.`，用于后续删除。
+*   **字段**：`type="private_chat"`、`target_UID`、`message`；`reply_to_message_id` 可选（回复时填被回复消息 ID）。
+*   *注意*：服务器会校验目标 UID 是否存在、是否为好友（不要求在线）。对方在线时实时转发；离线时落库，上线后补发。转发的消息携带 `message_id`、`sender_UID`、`sender_name`、`timestamp`；回复消息还带 `reply_to_message_id` 与 `reply_to`。发送者收到 system `Message sent. Message ID: <id>.`
 
 ### 5. 群聊 (group_chat)
-*   **用途**：向指定群发消息，群内所有在线成员会收到以 `Group_Chat` 类型转发的消息。
-*   **JSON 结构**：
-```json
-{
-    "type": "group_chat",
-    "target_UID": 2001,
-    "message": "大家好！",
-    "reply_to_message_id": 447
-}
-```
-*   `reply_to_message_id` 可选，含义同私聊（只支持一层引用）。
-*   *注意*：转发的 `Group_Chat` JSON 中会附带数据库消息 ID `message_id`、`group_UID`（所属群 UID）以及发送者 `sender_UID`/`sender_name`、`timestamp`（发送时间），`content` 为**原始内容**；同时给发送者回一条 `system` 提示 `Message sent. Message ID: <id>.`，用于后续删除。
+*   **字段**：`type="group_chat"`、`target_UID`（群 UID）、`message`；`reply_to_message_id` 可选。
+*   *注意*：转发的 `Group_Chat` 消息携带 `message_id`、`group_UID`、`sender_UID`、`sender_name`、`timestamp`；发送者收到 system `Message sent. Message ID: <id>.`
 
 ### 6. 创建群聊 (create_group)
-*   **用途**：新建群，创建者自动成为群主（管理员），并加入自己的好友/群组列表。
-*   **JSON 结构**：
-```json
-{
-    "type": "create_group",
-    "group_name": "我的新群聊"
-}
-```
-*   *注意*：创建成功后服务器会在返回的 `system` 消息中回传新建群的 UID，例如 `Group created successfully. Group name: [我的新群聊], Group UID: 002001.`，请解析 content 获取群 UID，后续加人/发言/改名都使用该 UID。
+*   **字段**：`type="create_group"`、`group_name`
+*   *注意*：创建成功后 system 文本中回传群 UID，例如
+    `Group created successfully. Group name: [我的新群聊], Group UID: 002001.`
 
 ### 7. 解散群聊 (delete_group)
-*   **用途**：群主解散指定群。
-*   **JSON 结构**：
-```json
-{
-    "type": "delete_group",
-    "group_UID": 2001
-}
-```
+*   **字段**：`type="delete_group"`、`group_UID`
 
 ### 8. 添加群成员 (group_add_client)
-*   **用途**：群主向群内添加成员。
-*   **JSON 结构**：
-```json
-{
-    "type": "group_add_client",
-    "group_UID": 2001,
-    "target_user_UID": 1003
-}
-```
+*   **字段**：`type="group_add_client"`、`group_UID`、`target_user_UID`
 
 ### 9. 移除群成员 (group_delete_client)
-*   **用途**：群主踢出指定成员。
-*   **JSON 结构**：
-```json
-{
-    "type": "group_delete_client",
-    "group_UID": 2001,
-    "target_user_UID": 1003
-}
-```
+*   **字段**：`type="group_delete_client"`、`group_UID`、`target_user_UID`
 
 ### 10. 修改群名称 (modify_group_name)
-*   **用途**：群主修改群名称。
-*   **JSON 结构**：
-```json
-{
-    "type": "modify_group_name",
-    "group_UID": 2001,
-    "new_name": "新群名"
-}
-```
+*   **字段**：`type="modify_group_name"`、`group_UID`、`new_name`
 
 ### 11. 上传文件 (upload_file)
-*   **用途**：发送方传输文件块（分块上传，单块最大 256KB）。文件数据放在帧的「文件数据部分」，JSON 中携带分块元信息。
-*   **JSON 结构（元信息）**：
-```json
-{
-    "type": "upload_file",
-    "meta": {
-        "file_id": "1000000000",
-        "filename": "report.pdf",
-        "total_size": 700000,
-        "chunk_index": 0,
-        "chunk_count": 3,
-        "chunk_size": 262144,
-        "offset": 0
-    },
-    "file_data": "……本块文件二进制数据……"
-}
-```
-*   **meta 字段说明**：
-    *   `file_id`：本次传输的唯一标识（服务器用时间戳生成）。
-    *   `filename`：原始文件名。
-    *   `total_size`：文件总大小（字节）。
-    *   `chunk_index`：当前块下标（从 0 开始）。
-    *   `chunk_count`：总块数。
-    *   `chunk_size`：当前块的实际字节数。
-    *   `offset`：当前块在文件中的起始偏移。
-*   *注意*：`meta` 为 JSON 对象，二进制文件数据通过帧尾部的文件数据段传递，不放入 JSON 内。
+*   **用途**：分块上传（单块最大 256KB，仅 binary 模式）。文件数据放帧尾，`meta` 放分块元信息。
+*   **字段**：`type="upload_file"`、`meta`（FileChunkMeta：`file_id/filename/total_size/chunk_index/chunk_count/chunk_size/offset`）
+*   *注意*：`meta` 为嵌套 message，二进制文件数据通过帧尾部的文件数据段传递，不放入 protobuf 内。
 
 ### 12. 下载文件 (download_file)
-*   **用途**：请求服务器发送指定文件。服务器响应以 `file_chunk` 类型分块推送。
-*   **JSON 结构**：
-```json
-{
-    "type": "download_file",
-    "file_name": "report.pdf"
-}
-```
-*   *注意*：服务器会在 `saving_path`（`./received_files/`）目录下查找该文件名。
+*   **字段**：`type="download_file"`、`file_name`
+*   *注意*：服务器会在 `./received_files/` 目录查找该文件，并以 `file_chunk` 分块推送（payload 为 `FileChunkMeta`，文件数据在帧尾）。
 
 ### 13. 安全退出 (exit)
-*   **用途**：告知服务器下线，清理资源并关闭连接。
-*   **JSON 结构**：
-```json
-{
-    "type": "exit"
-}
-```
+*   **字段**：`type="exit"`
 
 ### 14. 登出账号 (logout)
-*   **用途**：退出当前账号登录，但**保持连接**（与 `exit` 的彻底断开不同）。登出后该连接仍可继续登录其他账号或接收系统消息。
-*   **JSON 结构**：
-```json
-{
-    "type": "logout"
-}
-```
-*   *注意*：服务器返回 `Logout successful.` 提示，并清空当前会话的账号与社交状态；连接本身不断开。
+*   **字段**：`type="logout"`
+*   *注意*：返回 system `Logout successful.`，连接保持，可再登录。
 
 ### 15. 心跳包 (heartbeat) *（可选/可配）*
-*   **用途**：在无业务消息时维持连接活跃，避免被服务器判定为超时断开。由客户端按固定周期（如每 30 秒）发送。
-*   **JSON 结构**：
-```json
-{
-    "type": "heartbeat"
-}
-```
-*   *注意*：该功能是否启用、超时阈值（默认 60 秒）由服务器配置 `configure.json` 中的 `use_heartbeat` / `heartbeat_interval` 决定，默认关闭。启用后客户端需周期发送心跳；服务器收到心跳会回 `heartbeat_ack`。若一段时间内既无业务消息也无心跳，服务器会主动断开该连接。
+*   **字段**：`type="heartbeat"`
+*   *注意*：服务器收到回 `heartbeat_ack`（content=`pong`）。是否启用、超时阈值由 `configure.json` 的 `use_heartbeat` / `heartbeat_interval` 决定。
 
 ### 16. 设置好友备注名 (set_friend_remark)
-*   **用途**：给指定好友 UID 设置备注名（存于 `friend_relation.remark_name`）。
-*   **JSON 结构**：
-```json
-{
-    "type": "set_friend_remark",
-    "friend_UID": 1002,
-    "remark": "老张"
-}
-```
-*   *注意*：服务器会校验目标 UID 是否为当前登录用户的好友；不是好友或备注名为空时返回失败提示。
+*   **字段**：`type="set_friend_remark"`、`friend_UID`、`remark`
 
 ### 17. 修改自己的昵称 (change_name)
-*   **用途**：修改当前登录账号的昵称（存于 `Account.nickname`）。
-*   **JSON 结构**：
-```json
-{
-    "type": "change_name",
-    "new_name": "新昵称"
-}
-```
-*   *注意*：昵称允许重复（唯一标识为 UID）；仅当新昵称为空时返回失败提示，成功后返回包含新昵称的系统提示。
+*   **字段**：`type="change_name"`、`new_name`
 
 ### 17.1 设置/换绑邮箱 (set_email)
-*   **用途**：给当前登录账号绑定或换绑邮箱（老账号补绑用）；绑定后即可用邮箱登录。
-*   **JSON 结构**：
-```json
-{
-    "type": "set_email",
-    "email": "zhangsan@example.com"
-}
-```
-*   *注意*：需先登录；服务器不校验邮箱格式，仅要求不重复。一个账号一个邮箱，
-    邮箱已被其他账号占用时返回失败提示，成功返回 `Email updated successfully...`。
+*   **字段**：`type="set_email"`、`email`
+*   *注意*：需先登录；不校验邮箱格式，仅要求不重复。
 
 ### 18. 发送好友申请 (add_friend)
-*   **用途**：按对方邮箱发送好友申请（存于 `relation_apply`，apply_type=1，status=0 等待）。
-*   **JSON 结构**：
-```json
-{
-    "type": "add_friend",
-    "email": "lisi@example.com",
-    "apply_message": "我是张三"
-}
-```
-*   *注意*：`email` 未绑定任何账号时返回 `No account is bound to email [xxx].`；
-    若同对用户已存在等待中的申请，会返回失败提示（由唯一约束拦截）。
+*   **字段**：`type="add_friend"`、`email`、`apply_message`
 
 ### 19. 查看待处理的好友申请 (show_friend_requests)
-*   **用途**：列出发给当前用户、等待处理（status=0）的好友申请。
-*   **JSON 结构**：
-```json
-{
-    "type": "show_friend_requests"
-}
-```
+*   **字段**：`type="show_friend_requests"`
 
 ### 20. 同意好友申请 (accept_friend)
-*   **用途**：同意来自 `sender_UID` 的好友申请，双方成为好友（事务内双向落库）。
-*   **JSON 结构**：
-```json
-{
-    "type": "accept_friend",
-    "sender_UID": 1001
-}
-```
+*   **字段**：`type="accept_friend"`、`sender_UID`
 
 ### 21. 拒绝好友申请 (reject_friend)
-*   **用途**：拒绝来自 `sender_UID` 的好友申请。
-*   **JSON 结构**：
-```json
-{
-    "type": "reject_friend",
-    "sender_UID": 1001
-}
-```
+*   **字段**：`type="reject_friend"`、`sender_UID`
 
 ### 22. 删除好友 (remove_friend)
-*   **用途**：删除指定好友（事务内双向删除 `friend_relation`）。
-*   **JSON 结构**：
-```json
-{
-    "type": "remove_friend",
-    "friend_UID": 1002
-}
-```
+*   **字段**：`type="remove_friend"`、`friend_UID`
 
 ### 23. 申请加入群聊 (send_join_group)
-*   **用途**：向指定群发送入群申请。服务器落库一条申请（`relation_apply`，apply_type=2，status=0 等待），由群主调用 `handle_join_request` 处理。
-*   **JSON 结构**：
-```json
-{
-    "type": "send_join_group",
-    "group_UID": 2001
-}
-```
-*   *注意*：群不存在、已是群成员、或同人同群已有等待中的申请时返回失败提示。
+*   **字段**：`type="send_join_group"`、`group_UID`
 
 ### 24. 处理入群申请 (handle_join_request)
-*   **用途**：群主处理某用户的入群申请。同意后该用户被拉入群（群内名字默认取其用户昵称），拒绝则仅更新申请状态。
-*   **JSON 结构**：
-```json
-{
-    "type": "handle_join_request",
-    "group_UID": 2001,
-    "requester_UID": 1003,
-    "accept": true
-}
-```
-*   *注意*：`requester_UID` 为申请人（待处理者），`accept` 为布尔值（true 同意 / false 拒绝）。只有群主能处理。
+*   **字段**：`type="handle_join_request"`、`group_UID`、`requester_UID`、`accept`（bool）
 
 ### 25. 修改群成员身份 (modify_member_role)
-*   **用途**：群主提升/降级群成员身份。
-*   **JSON 结构**：
-```json
-{
-    "type": "modify_member_role",
-    "group_UID": 2001,
-    "target_UID": 1003,
-    "promote": true
-}
-```
-*   *注意*：`promote` 为布尔值（true 提升为 owner / false 降回 member）。只有群主能操作。
+*   **字段**：`type="modify_member_role"`、`group_UID`、`target_UID`、`promote`（bool）
 
 ### 26. 查看群成员 (show_group_members)
-*   **用途**：查看指定群的全部成员，返回每行一条 `UID: 群内名字`。
-*   **JSON 结构**：
-```json
-{
-    "type": "show_group_members",
-    "group_UID": 2001
-}
-```
+*   **字段**：`type="show_group_members"`、`group_UID`
 
 ### 27. 查看待处理入群申请 (show_group_requests)
-*   **用途**：群主查看指定群等待处理（status=0）的入群申请。
-*   **JSON 结构**：
-```json
-{
-    "type": "show_group_requests",
-    "group_UID": 2001
-}
-```
-*   *注意*：仅群主可查看；返回每行 `Requester UID: <申请人UID>, Message: <留言>`。
+*   **字段**：`type="show_group_requests"`、`group_UID`
 
 ### 28. 删除消息 (delete_message)
-*   **用途**：删除自己发送的消息。仅发送者本人、且发送后 3 分钟内可删；删除成功后服务器会通知在线的接收方。
-*   **JSON 结构**：
-```json
-{
-    "type": "delete_message",
-    "message_id": 123
-}
-```
-*   *注意*：`message_id` 来自发送私聊/群聊时服务器返回的 `system` 提示或转发消息中的 `message_id` 字段。
+*   **字段**：`type="delete_message"`、`message_id`
+*   *注意*：仅发送者本人、发送后 3 分钟内可删；删除后通知在线接收方。
 
 ### 29. 加载聊天历史 (history_request)
-*   **用途**：按 `message.id` 做游标分页，拉取与某个用户/群的聊天记录（每页最多 10 条，时间正序）。
-*   **JSON 结构**：
-```json
-{
-    "type": "history_request",
-    "peer_id": 1002,
-    "before_id": 456
-}
-```
-*   `peer_id`：聊天对象 UID（私聊）或群 `group_UID`（群聊）。
-*   `before_id`：**游标**，只取 `message_id < before_id` 的记录；
-    **首次加载（刚登录/刚进入会话）不传该字段**（或传 `null`/`0`），表示取最新一页。
-*   **服务器响应**（`type` 为 `history_response`）：
-```json
-{
-    "type": "history_response",
-    "peer_id": 1002,
-    "messages": [
-        {
-            "message_id": 447,
-            "sender_UID": 1001,
-            "sender_name": "张三",
-            "is_group": false,
-            "content": "你好",
-            "timestamp": "2026-09-11 12:00:00",
-            "reply_to_message_id": 430,
-            "reply_to": {"message_id": 430, "sender_name": "李四", "content": "被回复的那条"}
-        }
-    ],
-    "has_more": true
-}
-```
-*   `messages`：最多 10 条，按时间**正序**（旧→新）；`content` 为**原始内容**（不含发送者前缀），发送者看 `sender_UID`/`sender_name`。
-    若该条是回复，额外返回 `reply_to_message_id` 与 `reply_to` 摘要（被回复的原消息可能不在本页，服务器会单独按 id 查出摘要）。
-*   `has_more`：为 `true` 表示还有更旧的记录；前端可用当前最旧一条的 `message_id` 作为下一次的 `before_id`，实现“上滑加载更多”。
-*   *注意*：登录成功后服务器仍会自动推送一次离线消息（以 `private_chat`/`Group_Chat` 形式，带 `message_id`），客户端可按 `message_id` 去重。
+*   **字段**：`type="history_request"`、`peer_id`、`before_id`（可选，0 取最新一页）
+*   **响应**：`type="history_response"`，携带 `peer_id`、`messages`（repeated ChatItem，时间正序，最多 10 条）、`has_more`。
+    `has_more=true` 表示还有更旧记录，前端用当前最旧一条 `message_id` 作为下次 `before_id` 上滑加载更多。
 
-五、服务器返回格式（Server -> Client）
+六、服务器返回格式（Server -> Client）
 --------------------------------------
-服务器返回的数据同样封装为二进制帧结构。其 JSON 部分通常包含 `type` 字段（业务消息还会有 `content`）：
-```json
-{
-    "type": "system",
-    "content": "……纯文本内容……"
-}
-```
+服务器返回同样封装为 `Envelope`，通常包含 `type` 字段（业务消息还含 `content`）。
 
-| 响应类型 (type)       | 场景/含义                                            | content 内容示例                                        |
+| 响应类型 (type)       | 场景/含义                                            | 携带字段说明                                            |
 |-----------------------|------------------------------------------------------|--------------------------------------------------------|
-| `system`              | 通用系统提示、登录/注册结果、错误提示等              | `Login successful. Welcome, 张三! (UID 000001)` 等     |
-| `private_chat`        | 收到私聊消息                                         | `你好呀！`（另带 `sender_UID`/`sender_name`/`message_id`/`timestamp`，回复消息还带 `reply_to_message_id`/`reply_to`） |
-| `Group_Chat`          | 收到群聊消息（注意大小写 `Group_Chat`）              | 群内消息内容（另带 `sender_UID`/`sender_name`/`group_UID`/`message_id`/`timestamp`，回复消息还带 `reply_to_message_id`/`reply_to`） |
-| `history_response`    | 聊天历史分页响应                                     | 无 `content`；含 `peer_id`/`messages`/`has_more`        |
-| `delete_message`      | 消息被删除通知                                       | `content` 为空，通过 `message_id` 定位要移除的消息（群聊消息还会带 `group_UID`） |
-| `file_chunk`          | 服务器发送文件块（下载响应）                         | JSON 中包含 `file_id/filename/total_size/chunk_index/...` 元信息，文件数据在帧尾 |
-| `heartbeat_ack`       | 服务器对心跳包的应答（`content` 为 `pong`）          | `pong`                                                  |
+| `system`              | 通用系统提示、错误提示、show 列表等                  | `content` 为纯文本                                     |
+| `login_success`       | 登录成功                                             | `token`、`user{id, username}`                          |
+| `private_chat`        | 收到私聊消息                                         | `content`、`message_id`、`sender_UID`、`sender_name`、`timestamp`；回复还带 `reply_to_message_id`/`reply_to` |
+| `Group_Chat`          | 收到群聊消息（注意大小写 `Group_Chat`）              | 同私聊，另带 `group_UID`                               |
+| `history_response`    | 聊天历史分页响应                                     | `peer_id`、`messages[]`、`has_more`                    |
+| `delete_message`      | 消息被删除通知                                       | `content` 为空，`message_id` 定位消息；群聊还带 `group_UID` |
+| `file_chunk`          | 服务器发送文件块（下载响应，binary 模式）            | payload 为 `FileChunkMeta`，文件数据在帧尾             |
+| `heartbeat_ack`       | 心跳应答                                             | `content`=`pong`                                       |
 
-> 说明：`private_chat` / `Group_Chat`（含离线消息推送）的 JSON 中会携带 `message_id`（数据库唯一 ID，可用于 `delete_message`）、
-> `sender_UID` 与 `sender_name`（发送者）、`timestamp`（发送时间，格式同 `history_response` 的 `messages[].timestamp`）；
-> `content` 为**原始内容**。`Group_Chat` 还会携带 `group_UID`，便于客户端按群归类。
-> 回复消息会额外携带 `reply_to_message_id` 与被回复消息的摘要 `reply_to`（`{message_id, sender_name, content}`），只展示一层引用。
+> `private_chat` / `Group_Chat`（含离线推送）的 `content` 为**原始内容**；`message_id` 可用于 `delete_message`；
+> 回复消息额外携带 `reply_to_message_id` 与 `reply_to`（`{message_id, sender_name, content}`），只展示一层引用。
 
 ### 常见系统提示文本
 | 触发场景                 | content 内容（示例）                                          |
 |--------------------------|---------------------------------------------------------------|
-| **注册成功**             | `Registration successful. You can now log in with UID 000001.`  |
+| **注册成功**             | `Registration successful. You can now log in with UID 000001 or zhangsan@example.com.` |
 | **用户名或密码为空**     | `Username and password cannot be empty.`                      |
-| **登录成功**             | `Login successful. Welcome, <用户名>! (UID <UID>)`            |
 | **UID 不存在**           | `Account with UID [<UID>] does not exist.`                    |
 | **密码错误**             | `Incorrect password for UID [<UID>].`                         |
 | **退出系统**             | `Goodbye!`                                                    |
@@ -499,7 +296,6 @@
 | **未登录发私聊**         | `You must be logged in to send private messages.`             |
 | **目标 UID 不存在**      | `UID [<UID>] does not exist.`                                 |
 | **修改昵称成功**         | `Name updated successfully. Your new name is [<新昵称>].`      |
-| **修改昵称失败（空）**   | `Failed to update name (database unavailable).`               |
 | **私聊发送成功（回传消息ID）** | `Message sent. Message ID: <id>.`                           |
 | **删除消息成功**         | `Message [<id>] deleted.`                                     |
 | **删除消息失败（不存在）** | `Message [<id>] does not exist.`                             |
@@ -510,7 +306,6 @@
 | **设置备注成功**         | `Remark for UID [<UID>] updated successfully.`                |
 | **设置备注失败（非好友）** | `UID [<UID>] is not your friend.`                             |
 | **群名称为空**           | `The group name can't be empty`                               |
-| **创建群成功**           | `Group created successfully. Group name: [<群名>], Group UID: <群UID>.` |
 | **创建群失败**           | `Failed to create group (group name may already exist or DB unavailable).` |
 | **添加成员成功**         | `Member [<UID>] added to group [<群UID>] successfully.`        |
 | **添加成员失败**         | `Failed to add member (you are not in the group or member already exists).` |
@@ -528,12 +323,13 @@
 | **改身份失败（非群主）** | `Failed to modify member role (only owner can promote/demote).` |
 | **群成员列表**           | 每行 `UID: 群内名字`，如 `1003: 张三`                          |
 | **缺少 type 字段**       | `Invalid message format: missing 'type' field.`               |
+| **protobuf 解析失败**    | `Invalid protobuf message.`                                   |
 | **未知命令类型**         | `Unknown command type.`                                       |
 
-六、聊天列表返回格式（show）
+七、聊天列表返回格式（show）
 ----------------------------
-`show` 请求的返回同样以 `system` 类型、`content` 纯文本形式返回。格式为**每行一条记录**，行内格式为 `名称:UID`：
-*   好友记录：`<用户名>:<6位补齐的UID>`，例如 `张三:001001`；若设置了备注名则显示备注名。
+`show` 请求返回 `system` 类型、`content` 纯文本。格式为**每行一条记录**：
+*   好友记录：`<用户名>:<6位补齐的UID>`，例如 `张三:001001`；若设置备注名则显示备注名。
 *   群组记录：`<群名>(人数):<6位补齐的UID>`，例如 `我的新群聊(3):002001`。
 
 示例：
@@ -543,57 +339,51 @@
 我的新群聊(3):002001
 ```
 
-七、完整交互流程示例
+八、完整交互流程示例
 --------------------
-1.  **建立连接**：客户端连接服务器 `:8080`。
-2.  **登录**：发送 `{"type":"login","UID":1001,"password":"123456"}`，收到 `Login successful...` 后视为登录成功。
-3.  **查询列表**：发送 `{"type":"show"}`，解析返回文本得到好友/群组及对应 UID。
-4.  **私聊**：发送 `{"type":"private_chat","target_UID":1002,"message":"你好"}`。
-5.  **接收**：接收线程持续解析帧，当 `type` 为 `private_chat` / `Group_Chat` / `system` 时分别处理。
-6.  **退出**：发送 `{"type":"exit"}` 后断开连接。
+1.  **建立连接**：binary 模式连接 `:8080`；WebSocket 模式连接 `ws://<host>:8080/ws`。
+2.  **登录**：发送 Envelope（`type="login"`、`UID=1001`、`password="123456"`），收到 `login_success` 即登录成功。
+3.  **查询列表**：发送 `type="show"`，解析返回的 `content` 文本得到好友/群组及 UID。
+4.  **私聊**：发送 Envelope（`type="private_chat"`、`target_UID=1002`、`message="你好"`）。
+5.  **接收**：接收线程持续解析，按 `type` 分别处理 `private_chat` / `Group_Chat` / `system` 等。
+6.  **退出**：发送 `type="exit"` 后断开连接。
 
-八、客户端开发建议
+九、客户端开发建议
 ------------------
-1.  **独立接收线程**：服务器支持主动推送，客户端必须开启独立线程持续 `recv` 并调用帧解析逻辑（参照服务器 `receiver::process_recv_data` 的实现，用 `in_buffer` + 循环解析处理粘包/半包）。
-2.  **严格遵循帧头**：发送前务必计算 `total_len = 8 + json字节数 + file字节数` 与 `json_len`，并以网络字节序（大端）写入前 8 字节。
-3.  **登录状态控制**：在收到 `Login successful` 之前，除了 `login`（必要时 `register`）请求，不要发送其它业务请求。
-4.  **UID 而非用户名**：所有寻址均使用整数 UID，注意与历史版本（使用 `username`/`target_name` 的旧版）区分。
-5.  **文件分块**：上传/下载均基于 256KB 分块与 `file_id` 标识，客户端需自行按块组装文件并处理断点续传（当前为一次性分块传输）。
+1.  **独立接收线程**：服务器支持主动推送，客户端必须开启独立线程持续 `recv` 并调用帧解析逻辑（binary 模式参照服务器 `receiver::process_recv_data` 的粘包/半包处理；WebSocket 模式按 WS 消息边界读取）。
+2.  **严格遵循帧头（binary 模式）**：发送前计算 `total_len = 8 + payload字节数 + file字节数` 与 `payload_len`，并以大端写入前 8 字节。
+3.  **登录状态控制**：收到 `login_success` 之前，除了 `login`（必要时 `register`）请求，不要发送其它业务请求。
+4.  **UID 而非用户名**：所有寻址均使用整数 UID。
+5.  **protobuf 生成**：用 `protoc --cpp_out`（或对应语言插件）从 `src/proto/message.proto` 生成客户端消息类，字段号以该文件为准。
+6.  **文件分块（binary 模式）**：上传/下载均基于 256KB 分块与 `file_id` 标识，客户端需按块组装文件。
 
-九、附加：服务端部署与配置（供运维/联调参考）
------------------------------------------------
-以上接口与客户端开发无关，但联调前请确认服务端配置有效：
-- 服务端启动时读取**相对路径** `configure.json`，需先复制到运行目录再启动（如 `cp configure.json build/`）。
-- `configure.json` 含两部分：
-    1. 心跳：`use_heartbeat`（开关）、`heartbeat_interval`（超时秒数）。
-    2. 数据库连接池：`database` 下的 `host/port/user/password/dbname/db_conn_count`
-       （`db_conn_count` 为连接池上限，默认 4）。
-- 未读到配置文件时会使用默认值（见 readme.md / 数据库设计.txt），可能导致无法连接你的数据库。
 十、WebSocket 接入方式（可选）
 -----------------------------------------------
-服务端支持两种网络层，由 `configure.json` 的 `net_layer` 在启动时二选一，
-两种模式都监听同一端口 `8080`，同一时刻只启用一种：
+服务端支持两种网络层，由 `configure.json` 的 `net_layer` 在启动时二选一，两种模式都监听 `8080`，同一时刻只启用一种：
 
-*   `"net_layer": "binary"`（默认）：即本文档第一~九节描述的 TCP + 二进制帧协议。
+*   `"net_layer": "binary"`（默认）：本文档第二~九节描述的 TCP + 二进制帧协议。
 *   `"net_layer": "websocket"`：使用 WebSocket，地址为 `ws://<host>:8080/ws`。
 
 WebSocket 模式下的约定：
 1.  **握手**：路径必须是 `/ws`（允许带 query）。错误路径返回 `404`，非 Upgrade 请求返回 `426`。
-2.  **普通业务消息**：使用 **文本帧（text）**，payload 即完整 JSON，字段与本文档完全一致
-    （如 `{"type":"login","UID":1001,"password":"123456"}`）。
-3.  **消息类型与返回**：第 3~6 节的 type、字段、system 提示文本全部复用，无需为 WS 改动业务 JSON。
-4.  **心跳**：同样发送 `{"type":"heartbeat"}`，服务端回 `heartbeat_ack`（content 为 `pong`）。
-    当 `use_heartbeat=true` 时，服务端也会像 TCP 模式一样在空闲超过 `heartbeat_interval` 秒后主动断开。
-5.  **服务器主动推送**：使用文本帧，客户端按 `type` 处理（与 TCP 模式一致）。
+2.  **业务消息**：使用 **binary 帧**，payload = `4 字节 payload_len（大端） + protobuf Envelope`。
+3.  **消息类型与返回**：与第三~七节的 type、字段、system 提示文本完全一致，只是载体从 TCP 帧换为 WS binary 帧。
+4.  **心跳**：同样发送 `type="heartbeat"`，服务端回 `heartbeat_ack`（content=`pong`）。
+5.  **text 帧**：不再使用；若收到 text 帧，服务端返回 system 提示后继续读取。
 6.  **文件传输**：WebSocket 模式暂不支持上传/下载（返回“暂不支持”系统提示），后续版本再开放。
-7.  **大小限制**：单条消息默认上限 1 MiB，可在 `configure.json` 的 `websocket.max_message_bytes` 调整；
-    单连接待发送队列上限默认 8 MiB（`websocket.max_pending_bytes`）。
+7.  **大小限制**：单条消息默认上限 1 MiB（`websocket.max_message_bytes`）；单连接待发送队列上限默认 8 MiB（`websocket.max_pending_bytes`）。
 
-选择建议：浏览器/移动端用 WebSocket；现有桌面 TCP 客户端继续用 binary。切换后需重启服务端。
-
-WebSocket 模式还内置了静态前端服务：
+WebSocket 模式还内置静态前端服务：
 *   浏览器直接打开 `http://<host>:8080/` 即可加载聊天页（`/` 映射到 `/index.html`）。
-*   静态资源目录由 `configure.json` 的 `websocket.web_root` 指定（默认 `./web`，相对运行目录；
-    从 `build/` 运行时为 `../web`）；源码在仓库 `web/`（index.html / style.css / app.js）。
+*   静态资源目录由 `websocket.web_root` 指定（默认 `./web`，相对运行目录；从 `build/` 运行时为 `../web`）。
 *   只服务 GET/HEAD 与白名单扩展名（html/css/js/json/图片/字体），路径含 `..` 返回 400，未命中返回 404。
-*   前端与后端协议完全解耦：页面只用标准 `WebSocket` 发送本文档描述的 JSON。
+
+十一、附加：服务端部署与配置（供运维/联调参考）
+-----------------------------------------------
+*   服务端启动时读取**相对路径** `configure.json`，需先复制到运行目录（如 `cp configure.json build/`）。
+*   `configure.json` 主要配置：
+    1.  `net_layer`：`binary` 或 `websocket`。
+    2.  心跳：`use_heartbeat`、`heartbeat_interval`。
+    3.  WebSocket：`websocket.path/io_threads/max_message_bytes/max_pending_bytes/web_root`。
+    4.  数据库连接池：`database.host/port/user/password/dbname/db_conn_count`。
+*   未读到配置文件时使用默认值，可能导致无法连接数据库。

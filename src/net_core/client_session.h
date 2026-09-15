@@ -6,6 +6,7 @@
 #include "social_module.h"
 #include "repository_hub.h"
 #include "group.h"
+#include "message.pb.h"
 
 class client_session : public std::enable_shared_from_this<client_session>{
 private:
@@ -23,7 +24,7 @@ public:
     void set_transport(const std::shared_ptr<IClientTransport>& transport);
     void on_disconnected();                                     // 连接断开后的幂等在线表/会话状态清理
     // M0 暂保留现有 TCP 文件能力的业务入口，不改文件协议。
-    void upload_file(const json& meta, const std::string& file_data);
+    void upload_file(const chat_proto::FileChunkMeta& meta, const std::string& file_data);
     void download_file(const std::string& file_name);
     //===============消息处理模块===============
     std::unordered_map<std::string,std::unique_ptr<Message_handler>> handlers_; 
@@ -47,8 +48,8 @@ public:
     bool target_UID_is_exit(int target_UID);                                //校验目标UID是否存在（个人或群聊UID）
     bool target_UID_is_online(int target_UID);                              //校验目标UID是否在线（个人或群聊UID）
     //===============消息处理===============
-    // 接收驱动：由 connection::process_incoming 回调；负责解析 JSON 并策略分发到 handlers_
-    void on_message(const std::string& json_data, std::string file_data);
+    // 接收驱动：由 connection::process_incoming 回调；负责解析 protobuf 并策略分发到 handlers_
+    void on_message(const std::string& payload, std::string file_data);
     //===============业务逻辑===============
     void show_chatlist();                                                   //展示聊天对象（好友、群聊）   
     //聊天
@@ -85,6 +86,6 @@ public:
 
     void package_message(const std::string& message,std::string type);      //打包信息并等待处理
     void package_chat_message(const std::string& message,std::string type,int message_id,int group_uid = 0,int sender_uid = 0,const std::string& sender_name = "",int reply_to_message_id = 0,const std::string& reply_sender_name = "",const std::string& reply_content = "",const std::string& timestamp = ""); //打包聊天消息
-    void package_json(const json& message);                                 //直接发送一个完整 JSON（如 history_response）
+    void package_envelope(const chat_proto::Envelope& message);             //直接发送一个完整 Envelope（如 history_response）
 
 };

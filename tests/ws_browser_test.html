@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>Chat Server WebSocket 测试</title>
+<title>Chat Server WebSocket Protobuf 测试</title>
 <style>
   body { font-family: system-ui, sans-serif; margin: 16px; max-width: 900px; }
   fieldset { margin-bottom: 12px; }
@@ -19,7 +19,8 @@
 </style>
 </head>
 <body>
-<h2>Chat Server WebSocket 测试</h2>
+<h2>Chat Server WebSocket Protobuf 测试</h2>
+<p>业务帧：<code>4B payload_len（大端） + chat_proto.Envelope protobuf</code></p>
 
 <fieldset>
   <legend>连接</legend>
@@ -37,16 +38,16 @@
   <legend>账号</legend>
   <div class="row">
     <label>昵称 <input id="username" value="browser_user" size="14"></label>
+    <label>邮箱 <input id="email" value="browser_user@example.com" size="24"></label>
     <label>密码 <input id="password" value="123456" size="12"></label>
     <button onclick="register()">注册</button>
+  </div>
+  <div class="row">
     <label>UID <input id="uid" size="8"></label>
     <button onclick="login()">登录</button>
     <button onclick="logout()">登出</button>
-  </div>
-  <div class="row">
     <button onclick="send({type:'show'})">show 聊天列表</button>
     <button onclick="send({type:'heartbeat'})">心跳</button>
-    <button onclick="send({type:'refresh_offline_messages'})">刷新离线消息</button>
   </div>
 </fieldset>
 
@@ -60,21 +61,104 @@
   </div>
 </fieldset>
 
-<fieldset>
-  <legend>原始 JSON（发送任意消息）</legend>
-  <div class="row">
-    <input id="raw" value='{"type":"show"}' size="70">
-    <button onclick="sendRaw()">发送</button>
-  </div>
-</fieldset>
-
 <div class="row">
   <button onclick="document.getElementById('log').textContent=''">清空日志</button>
 </div>
 <div id="log"></div>
 
 <script>
+// 仅覆盖本测试需要的 Envelope 顶层字段；完整 schema 见 ../src/proto/message.proto。
+const NAME_BY_NUM = {
+  1: 'type', 2: 'content', 3: 'target_UID', 4: 'message', 5: 'message_id',
+  6: 'peer_id', 7: 'before_id', 8: 'has_more', 9: 'group_UID',
+  10: 'target_user_UID', 11: 'requester_UID', 12: 'group_name', 13: 'new_name',
+  14: 'promote', 15: 'friend_UID', 16: 'sender_UID', 17: 'email',
+  18: 'apply_message', 19: 'remark', 20: 'accept', 21: 'UID', 22: 'username',
+  23: 'password', 24: 'token', 25: 'user', 26: 'sender_name', 27: 'timestamp',
+  28: 'reply_to_message_id', 29: 'reply_to', 30: 'file_name', 31: 'meta', 32: 'messages',
+};
+const NUM_BY_NAME = Object.fromEntries(Object.entries(NAME_BY_NUM).map(([n, name]) => [name, Number(n)]));
+const STRING_FIELDS = new Set([1, 2, 4, 12, 13, 17, 18, 19, 22, 23, 24, 26, 27, 30]);
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
 let ws = null;
+
+function varint(value) {
+  let n = Number(value);
+  if (!Number.isSafeInteger(n) || n < 0) throw new Error('invalid non-negative integer: ' + value);
+  const out = [];
+  do {
+    let b = n % 128;
+    n = Math.floor(n / 128);
+    if (n > 0) b |= 0x80;
+    out.push(b);
+  } while (n > 0);
+  return Uint8Array.from(out);
+}
+function concat(...parts) {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let pos = 0;
+  for (const p of parts) { out.set(p, pos); pos += p.length; }
+  return out;
+}
+function encodeEnvelope(fields) {
+  const chunks = [];
+  for (const [name, value] of Object.entries(fields)) {
+    if (value == null) continue;
+    const field = NUM_BY_NAME[name];
+    if (!field) throw new Error('unknown Envelope field: ' + name);
+    if (STRING_FIELDS.has(field)) {
+      const bytes = encoder.encode(String(value));
+      chunks.push(varint(field * 8 + 2), varint(bytes.length), bytes);
+    } else {
+      chunks.push(varint(field * 8), varint(value === true ? 1 : value === false ? 0 : value));
+    }
+  }
+  return concat(...chunks);
+}
+function readVarint(bytes, state) {
+  let value = 0;
+  let shift = 0;
+  while (state.pos < bytes.length) {
+    const b = bytes[state.pos++];
+    value += (b & 0x7f) * (2 ** shift);
+    if (!(b & 0x80)) return value;
+    shift += 7;
+  }
+  throw new Error('truncated protobuf varint');
+}
+function decodeEnvelope(bytes) {
+  const out = {};
+  const state = { pos: 0 };
+  while (state.pos < bytes.length) {
+    const key = readVarint(bytes, state);
+    const field = Math.floor(key / 8);
+    const wire = key % 8;
+    const name = NAME_BY_NUM[field] || `field_${field}`;
+    if (wire === 0) {
+      out[name] = readVarint(bytes, state);
+    } else if (wire === 2) {
+      const length = readVarint(bytes, state);
+      const end = state.pos + length;
+      if (end > bytes.length) throw new Error('truncated protobuf payload');
+      const value = bytes.slice(state.pos, end);
+      state.pos = end;
+      if (STRING_FIELDS.has(field)) out[name] = decoder.decode(value);
+      else out[name] = '[nested message]';
+    } else if (wire === 1) {
+      state.pos += 8;
+    } else if (wire === 5) {
+      state.pos += 4;
+    } else {
+      throw new Error('unsupported protobuf wire type: ' + wire);
+    }
+  }
+  return out;
+}
+function frameEnvelope(fields) {
+  const body = encodeEnvelope(fields);
+  return concat(new Uint8Array([body.length >>> 24, body.length >>> 16, body.length >>> 8, body.length]), body);
+}
 
 function log(cls, text) {
   const el = document.getElementById('log');
@@ -84,8 +168,6 @@ function log(cls, text) {
 }
 function setState(s) { document.getElementById('state').textContent = s; }
 
-// 若页面通过 HTTP 提供（如宿主机访问 http://<vm-ip>:8000/...），
-// 自动把 Host 填成当前主机名/IP，避免手动改；file:// 打开时回退 127.0.0.1。
 window.addEventListener('DOMContentLoaded', () => {
   const h = location.hostname;
   if (h && h !== 'localhost') document.getElementById('host').value = h;
@@ -99,51 +181,50 @@ function connect() {
   const url = `ws://${host}:${port}${path}`;
   log('sys', '连接 ' + url);
   ws = new WebSocket(url);
-  ws.onopen    = () => { setState('已连接'); log('sys', 'WebSocket 已连接'); };
-  ws.onclose   = (e) => { setState('已断开'); log('sys', `连接关闭 code=${e.code} reason=${e.reason}`); };
-  ws.onerror   = () => log('err', 'WebSocket 错误（检查服务端是否以 net_layer=websocket 启动）');
-  ws.onmessage = (e) => {
-    if (typeof e.data === 'string') {
-      log('in', '← ' + e.data);
-      try {
-        const m = JSON.parse(e.data);
-        if (m.type === 'system' && /Registration successful.*UID (\d+)/.test(m.content)) {
-          document.getElementById('uid').value = m.content.match(/UID (\d+)/)[1];
-        }
-      } catch (_) {}
-    } else {
-      log('in', '← [二进制帧 ' + e.data.size + ' bytes]');
+  ws.binaryType = 'arraybuffer';
+  ws.onopen = () => { setState('已连接'); log('sys', 'WebSocket 已连接'); };
+  ws.onclose = (e) => { setState('已断开'); log('sys', `连接关闭 code=${e.code} reason=${e.reason}`); };
+  ws.onerror = () => log('err', 'WebSocket 错误（检查服务端是否以 net_layer=websocket 启动）');
+  ws.onmessage = async (e) => {
+    try {
+      const buffer = e.data instanceof ArrayBuffer ? e.data : await e.data.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      if (bytes.length < 4) throw new Error('binary frame too short');
+      const length = new DataView(bytes.buffer, bytes.byteOffset, 4).getUint32(0, false);
+      if (length > bytes.length - 4) throw new Error('payload length exceeds frame');
+      const msg = decodeEnvelope(bytes.slice(4, 4 + length));
+      log('in', '← ' + JSON.stringify(msg));
+      if (msg.type === 'system' && /Registration successful.*UID (\d+)/.test(msg.content || '')) {
+        document.getElementById('uid').value = msg.content.match(/UID (\d+)/)[1];
+      }
+    } catch (error) {
+      log('err', 'protobuf 解析失败：' + error.message);
     }
   };
 }
 function disconnect() { if (ws) ws.close(); }
-function sendRaw() { send(document.getElementById('raw').value, true); }
-
-function send(objOrText, isRaw) {
+function send(fields) {
   if (!ws || ws.readyState !== 1) { log('err', '未连接'); return; }
-  const text = isRaw ? objOrText : JSON.stringify(objOrText);
-  ws.send(text);
-  log('out', '→ ' + text);
+  const frame = frameEnvelope(fields);
+  ws.send(frame);
+  log('out', '→ ' + JSON.stringify(fields));
 }
 function register() {
-  send({ type: 'register',
-         username: document.getElementById('username').value,
-         password: document.getElementById('password').value });
+  send({ type: 'register', username: document.getElementById('username').value,
+         password: document.getElementById('password').value,
+         email: document.getElementById('email').value });
 }
 function login() {
-  send({ type: 'login',
-         UID: parseInt(document.getElementById('uid').value, 10),
+  send({ type: 'login', UID: parseInt(document.getElementById('uid').value, 10),
          password: document.getElementById('password').value });
 }
 function logout() { send({ type: 'logout' }); }
 function privateChat() {
-  send({ type: 'private_chat',
-         target_UID: parseInt(document.getElementById('target').value, 10),
+  send({ type: 'private_chat', target_UID: parseInt(document.getElementById('target').value, 10),
          message: document.getElementById('message').value });
 }
 function groupChat() {
-  send({ type: 'group_chat',
-         target_UID: parseInt(document.getElementById('target').value, 10),
+  send({ type: 'group_chat', target_UID: parseInt(document.getElementById('target').value, 10),
          message: document.getElementById('message').value });
 }
 </script>

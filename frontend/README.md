@@ -1,7 +1,10 @@
 # 前端（Vite + Vue 3）
 
-聊天服务器的 Web 前端。**后端与 `configure.json` 零改动**：构建产物输出到仓库根目录的 `web/`，
+聊天服务器的 Web 前端。构建产物输出到仓库根目录的 `web/`，
 由 WebSocket 服务端（`net_layer=websocket`）自带的静态文件服务提供。
+
+前后端业务消息统一使用 `src/proto/message.proto` 定义的 `chat_proto.Envelope`。前端通过 `protobufjs`
+直接读取该共享 schema，WebSocket 使用 binary 帧：`4B payload_len（大端） + protobuf Envelope`。
 
 ## 开发
 
@@ -59,6 +62,7 @@ frontend/
     ├── theme.js           # 主题定义（两色/三色）与切换
     ├── App.vue            # 左侧 rail 导航 + 主题切换 + 个人主页弹窗
     ├── chatStore.js       # WebSocket 客户端 + 会话/历史/好友/群聊状态（与 UI 解耦）
+    ├── protobufProtocol.js# Envelope 编解码 + WebSocket 4B payload_len 应用帧
     └── views/
         ├── ChatView.vue    # 主聊天界面：会话列表 + 消息 + 输入 + 群管理
         ├── FriendsView.vue # 好友页三栏：通讯录 / 添加好友·群聊 / 申请列表

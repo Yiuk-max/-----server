@@ -29,9 +29,9 @@ public:
     bool is_idle(int timeout_s) const;
 
     // ---------- IClientTransport ----------
-    void send_packet(json message, std::string file_data = {}) override;
+    void send_packet(const chat_proto::Envelope& message, std::string file_data = {}) override;
     void send_file(std::string file_name) override;
-    void accept_file_chunk(json meta, std::string file_data) override;
+    void accept_file_chunk(const chat_proto::FileChunkMeta& meta, std::string file_data) override;
     void close(CloseMode mode) override;
 
     bool has_session() const { return session_ != nullptr; }

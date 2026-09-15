@@ -34,7 +34,7 @@ void client_session::on_disconnected(){
     // 与该任务并发 reset 同一 shared_ptr；在线表已经在上面及时移除。
 }
 
-void client_session::upload_file(const json& meta, const std::string& file_data){
+void client_session::upload_file(const chat_proto::FileChunkMeta& meta, const std::string& file_data){
     if (auto transport = transport_.lock()) {
         transport->accept_file_chunk(meta, file_data);
     }
@@ -86,8 +86,8 @@ void client_session::init_(){
 
 //===============消息处理===============
 // 方案 3b：接收缓冲/切帧已在 connection::process_incoming 完成，
-// 这里只负责解析这一条完整 JSON 消息并按 type 策略分发到对应 handler。
-void client_session::on_message(const std::string& json_data, std::string file_data){
+// 这里只负责解析这一条完整 protobuf 消息并按 type 策略分发到对应 handler。
+void client_session::on_message(const std::string& payload, std::string file_data){
     {
         std::lock_guard<std::mutex> lock(lifecycle_mtx_);
         if (!online) {
@@ -95,20 +95,19 @@ void client_session::on_message(const std::string& json_data, std::string file_d
         }
     }
 
-    json msg_json;
-    try{
-        msg_json = json::parse(json_data);
-    }catch(const std::exception& e){
-        std::cerr << "Error handling message: " << e.what() << std::endl;
+    chat_proto::Envelope msg;
+    if(!msg.ParseFromString(payload)){
+        std::string fail = "Invalid protobuf message.\n";
+        package_message(fail,"system");
         return;
     }
-    if(!msg_json.contains("type")){
+    if(msg.type().empty()){
         std::string fail = "Invalid message format: missing 'type' field.\n";
         package_message(fail,"system");
         return;
     }
     //策略分发到对应的处理者
-    std::string type = msg_json["type"];
+    const std::string type = msg.type();
     // 心跳包：不进入业务，立即回复 HeartbeatAck，确认连接仍有效
     if (type == "heartbeat") {
         package_message("pong", "heartbeat_ack");
@@ -117,7 +116,7 @@ void client_session::on_message(const std::string& json_data, std::string file_d
 
     auto handler_it = handlers_.find(type);
     if (handler_it != handlers_.end()) {
-        handler_it->second->handle_message(msg_json, *this, file_data);
+        handler_it->second->handle_message(msg, *this, file_data);
     } else {
         std::string fail = "Unknown command type.\n";
         package_message(fail,"system");
@@ -247,13 +246,14 @@ void client_session::finish_login(const std::shared_ptr<account>& account, const
         old_session->kick_offline();
     }
 
-    // 返回登录成功 JSON：token + user 信息（前端保存 token 用于自动登录）
-    json resp;
-    resp["type"] = "login_success";
-    resp["token"] = token;
-    resp["user"]["id"] = UID;
-    resp["user"]["username"] = account->getName();
-    package_json(resp);
+    // 返回登录成功消息：token + user 信息（前端保存 token 用于自动登录）
+    chat_proto::Envelope resp;
+    resp.set_type("login_success");
+    resp.set_token(token);
+    auto* user = resp.mutable_user();
+    user->set_id(UID);
+    user->set_username(account->getName());
+    package_envelope(resp);
 
     show_friend_requests(); // 登录后自动查看待处理的好友申请
     // 登录后自动获取一次离线消息
@@ -743,47 +743,46 @@ client_session::~client_session(){
 }
 //===============================数据处理================================
 void client_session::package_message(const std::string& message,std::string type){
-    json msg_json;
-    msg_json["type"] = std::move(type);
-    msg_json["content"] = message;
+    chat_proto::Envelope msg;
+    msg.set_type(std::move(type));
+    msg.set_content(message);
     if (auto transport = transport_.lock()) {
-        transport->send_packet(std::move(msg_json));
+        transport->send_packet(msg);
     }
 }
 
 void client_session::package_chat_message(const std::string& message, std::string type, int message_id, int group_uid, int sender_uid, const std::string& sender_name, int reply_to_message_id, const std::string& reply_sender_name, const std::string& reply_content, const std::string& timestamp){
-    json msg_json;
-    msg_json["type"] = std::move(type);
-    msg_json["content"] = message;
-    msg_json["message_id"] = message_id;
+    chat_proto::Envelope msg;
+    msg.set_type(std::move(type));
+    msg.set_content(message);
+    msg.set_message_id(message_id);
     if (group_uid > 0) {
-        msg_json["group_UID"] = group_uid;   // 群聊消息携带群 UID，便于客户端归类
+        msg.set_group_uid(group_uid);   // 群聊消息携带群 UID，便于客户端归类
     }
     if (sender_uid > 0) {
-        msg_json["sender_UID"] = sender_uid; // 发送者 UID，便于客户端将消息路由到对应会话
+        msg.set_sender_uid(sender_uid); // 发送者 UID，便于客户端将消息路由到对应会话
     }
     if (!sender_name.empty()) {
-        msg_json["sender_name"] = sender_name; // 发送者昵称，便于客户端展示
+        msg.set_sender_name(sender_name); // 发送者昵称，便于客户端展示
     }
     if (!timestamp.empty()) {
-        msg_json["timestamp"] = timestamp;      // 发送时间，便于客户端展示
+        msg.set_timestamp(timestamp);      // 发送时间，便于客户端展示
     }
     if (reply_to_message_id > 0) {
         // 只带一层引用：直接给出被回复消息的 id + 摘要
-        msg_json["reply_to_message_id"] = reply_to_message_id;
-        json reply;
-        reply["message_id"] = reply_to_message_id;
-        reply["sender_name"] = reply_sender_name;
-        reply["content"] = reply_content;
-        msg_json["reply_to"] = std::move(reply);
+        msg.set_reply_to_message_id(reply_to_message_id);
+        auto* reply = msg.mutable_reply_to();
+        reply->set_message_id(reply_to_message_id);
+        reply->set_sender_name(reply_sender_name);
+        reply->set_content(reply_content);
     }
     if (auto transport = transport_.lock()) {
-        transport->send_packet(std::move(msg_json));
+        transport->send_packet(msg);
     }
 }
 
-// 直接发送一个完整 JSON（用于 history_response 这类非 {type,content} 结构的消息）
-void client_session::package_json(const json& message){
+// 直接发送一个完整 Envelope（用于 history_response 这类非 {type,content} 结构的消息）
+void client_session::package_envelope(const chat_proto::Envelope& message){
     if (auto transport = transport_.lock()) {
         transport->send_packet(message);
     }
@@ -865,32 +864,27 @@ void client_session::chat_history(int peer_id, int before_id){
         return;
     }
 
-    json items = json::array();
+    chat_proto::Envelope resp;
+    resp.set_type("history_response");
+    resp.set_peer_id(peer_id);
+    resp.set_has_more(has_more);
     for (const auto& m : page) {
-        json item;
-        item["message_id"]  = m.message_id;
-        item["sender_UID"]  = m.sender_UID;
-        item["sender_name"] = m.sender_name;
-        item["is_group"]    = m.is_group;
-        item["content"]     = m.content;
-        item["timestamp"]   = m.timestamp;
+        auto* item = resp.add_messages();
+        item->set_message_id(m.message_id);
+        item->set_sender_uid(m.sender_UID);
+        item->set_sender_name(m.sender_name);
+        item->set_is_group(m.is_group);
+        item->set_content(m.content);
+        item->set_timestamp(m.timestamp);
         if (m.reply_to_message_id > 0) {
-            item["reply_to_message_id"] = m.reply_to_message_id;
-            json reply;
-            reply["message_id"] = m.reply_to_message_id;
-            reply["sender_name"] = m.reply_sender_name;
-            reply["content"] = m.reply_content;
-            item["reply_to"] = std::move(reply);
+            item->set_reply_to_message_id(m.reply_to_message_id);
+            auto* reply = item->mutable_reply_to();
+            reply->set_message_id(m.reply_to_message_id);
+            reply->set_sender_name(m.reply_sender_name);
+            reply->set_content(m.reply_content);
         }
-        items.push_back(std::move(item));
     }
-
-    json resp;
-    resp["type"]     = "history_response";
-    resp["peer_id"]  = peer_id;
-    resp["messages"] = std::move(items);
-    resp["has_more"] = has_more;
-    package_json(resp);
+    package_envelope(resp);
 }
 
 // 查询并推送自 since_time 之后的离线消息（私聊/群聊）

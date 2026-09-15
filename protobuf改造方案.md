@@ -143,10 +143,11 @@ message Envelope {
 | 模式 | 现在 | 改成 |
 |---|---|---|
 | `binary` TCP 业务帧 | `4B total_len \| 4B json_len \| JSON \| file` | `4B total_len \| 4B payload_len \| protobuf bytes \| file` |
-| `websocket` 业务消息 | **text 帧**，payload = JSON 字符串 | **binary 帧**，payload = protobuf bytes（WS 自带边界） |
+| `websocket` 业务消息 | **text 帧**，payload = JSON 字符串 | **binary 帧**，payload = `4B payload_len \| protobuf` |
 | `websocket` 文件消息 | binary 帧 `4B json_len \| JSON \| file` | binary 帧 `4B payload_len \| protobuf \| file` |
 
 > 长度字段语义从 `json_len` 更名为 `payload_len`（仍是 uint32 网络字节序，值 = protobuf 字节数）。
+> WebSocket 业务消息也统一加 `4B payload_len` 头，与文件消息共用 `ws_protocol::encode_binary/decode_binary`，避免在 on_read 中区分两种 binary 帧。
 
 ---
 
@@ -159,8 +160,8 @@ message Envelope {
 **修改 `CMakeLists.txt`**：
 
 ```cmake
-# 现有已具备，保留
-find_package(protobuf REQUIRED)
+# 必须用大写 Protobuf（走 FindProtobuf 模块，提供 protobuf::libprotobuf 与 protobuf_generate_cpp）
+find_package(Protobuf REQUIRED)
 
 # 新增：生成 protobuf C++ 源文件
 set(PROTO_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/proto/message.proto)
@@ -470,31 +471,35 @@ void dispatch_to_business(std::string payload, std::string file_data);  // 原�
 `ws_session.cpp`：
 
 - `on_read()`：
-  - 去掉 text/binary 的 JSON 分支逻辑，统一把 payload 当 protobuf 字节。
-  - 原：
+  - 业务消息与文件消息统一走 `ws_protocol::decode_binary`（两者都是 `4B payload_len | protobuf | file` 的 binary 帧）。
+  - text 帧视为旧 JSON 客户端，回一条 `system` 提示后恢复读取，不关闭连接。
+  - 伪代码：
     ```cpp
-    if (is_text) json_text = std::move(payload);
-    else ws_protocol::decode_binary(...);
-    dispatch_to_business(std::move(json_text), ...);
+    if (ws_.got_text()) {
+        // 回 system：Text frames are not supported...
+        do_read();
+        return;
+    }
+    std::string body, file_data, error;
+    if (!ws_protocol::decode_binary(payload, body, file_data, error)) {
+        // 回 system：Invalid binary frame...
+        do_read();
+        return;
+    }
+    dispatch_to_business(std::move(body), std::move(file_data));
     ```
-  - 改为（若 WS 文件后续仍不实现，可先只支持纯 protobuf binary）：
-    ```cpp
-    std::string payload_bytes = std::move(payload);
-    // 文件 binary 帧保留 decode_binary 分支（当前文件传输未开放，可先不加）
-    dispatch_to_business(std::move(payload_bytes), {});
-    ```
-  - 或者保留 `ws_protocol::decode_binary` 分支，把返回的 `payload` 传给业务。
 - `send_packet(const chat_proto::Envelope& message, std::string file_data)`：
   ```cpp
-  std::string payload;
-  message.SerializeToString(&payload);
-  // 业务消息统一 binary 帧
+  std::string body;
+  message.SerializeToString(&body);
+  // 统一 binary 帧：| 4B payload_len | protobuf | file_data |
+  std::string payload = ws_protocol::encode_binary(body, file_data);
   net::post(ws_.get_executor(),
             [s, payload = std::move(payload)]() mutable {
                 s->enqueue(std::move(payload), /*is_text=*/false);
             });
   ```
-  - `do_write()` 中 `ws_.text(queue.front().second)` 改为 `ws_.binary(!queue.front().second)`（或直接把 `is_text` 字段改名为 `is_binary`）。
+  - `enqueue` 传入 `is_text=false`，`do_write()` 中 `ws_.text(false)` 即表示 binary 帧，无需改字段名。
 - `send_file` / `accept_file_chunk`：当前是「WS 暂不支持文件」，改用 protobuf `Envelope` 构造系统提示：
   ```cpp
   chat_proto::Envelope env;

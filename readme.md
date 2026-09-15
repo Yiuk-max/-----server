@@ -2,7 +2,7 @@
 
 基于 epoll + 主从 Reactor 多线程模型的 TCP 聊天服务器，支持注册/登录、私聊、群聊、好友系统、文件传输。
 另提供平行的 **Boost.Asio + Beast WebSocket 网络层**，由 `configure.json` 的 `net_layer` 在启动时二选一，两种模式复用同一套业务层。
-WebSocket 模式目前已支持注册/登录、私聊、群聊、好友、离线消息、心跳等全部即时通讯业务，**文件传输暂未支持**（后续版本）。
+两种网络模式的业务消息统一使用 `src/proto/message.proto` 定义的 protobuf `chat_proto.Envelope`；WebSocket 使用 binary 帧 `4B payload_len + protobuf`。WebSocket 模式已支持注册/登录、私聊、群聊、好友、离线消息、心跳等即时通讯业务，**文件传输暂未支持**。
 
 ## 快速开始
 
@@ -77,11 +77,11 @@ npm run build      # 产出到 ../web（index.html + assets/*.js|css）
 
 > 后端静态服务后缀白名单不含 `wasm/webp/avif/ttf`，且无 SPA fallback，因此前端用 hash 路由、字体用 woff2 或系统字体。
 
-**方式二**：低阶协议测试页 `tests/ws_browser_test.html`，可直接打开或另起静态服务：
+**方式二**：低阶 protobuf 协议测试页 `tests/ws_browser_test.html`。从仓库根目录启动静态服务，使测试页能读取共享 proto：
 
 ```bash
-python3 -m http.server 8000 --directory tests
-#  然后在浏览器打开 http://<host>:8000/ws_browser_test.html
+python3 -m http.server 8000
+# 然后打开 http://<host>:8000/tests/ws_browser_test.html
 ```
 
 页面里 Host 填服务端地址、Port `8080`、Path `/ws`，点「连接」即可注册/登录/私聊。
@@ -109,7 +109,7 @@ python3 tests/ws_chat_smoke.py 127.0.0.1 8080 /ws --idle-seconds=3
 ## 文档
 
 - **[项目说明文档.md](项目说明文档.md)** —— 技术栈、目录结构、架构与工作流程、核心模块说明、常见问题。
-- **[客户端接口文档.txt](客户端接口文档.txt)** —— 前后端 JSON / 帧协议接口规范（建议客户端开发者先读此文档）。
+- **[客户端接口文档.txt](客户端接口文档.txt)** —— 前后端 protobuf / 帧协议接口规范（建议客户端开发者先读此文档）。
 - **[frontend/README.md](frontend/README.md)** —— 前端（Vite + Vue 3）开发与构建说明。
 - **[WebSocket接入代码改动文档.md](WebSocket接入代码改动文档.md)** —— WebSocket 接入方案与 M0~M2 实施记录。
 - **[数据库设计.txt](数据库设计.txt)** —— 数据库表结构、UID 分配与连接池接入说明。
@@ -124,6 +124,7 @@ server/
 │   ├── net_core/           # 网络核心层：epoller / client_session / message_handler / notice_service / group_manager / receiver_sender / session_manager
 │   ├── net_common/         # 传输抽象：IClientTransport（让业务层不依赖具体 TCP/WS）
 │   ├── net_core_ws/        # WebSocket 网络层：ws_server / ws_session / ws_protocol（Boost.Asio + Beast，含静态前端服务）
+│   ├── proto/              # protobuf 协议唯一来源：message.proto
 │   ├── logic/              # 业务逻辑层：account / group / social_module
 │   ├── db/                 # 数据库分层：mysql(连接池) / repo_interface(接口契约) / repo(MySQL 实现)
 │   └── utils/              # 线程池 + server_config（读 configure.json）

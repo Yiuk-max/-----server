@@ -1,4 +1,5 @@
 import { reactive, computed } from 'vue';
+import { decodeEnvelope, encodeEnvelope } from '@/protobufProtocol.js';
 
 // ============================================================
 // 与 UI 解耦的聊天状态/客户端。
@@ -31,6 +32,7 @@ const state = reactive({
 
 let ws = null;
 let heartbeatTimer = null;
+let receiveChain = Promise.resolve();
 let tempSeq = 0;
 const pendingQueue = [];   // 待解析的 system 响应类型队列（按发送顺序消费）
 const historyWaiters = {};   // peer -> resolve(history)
@@ -56,6 +58,7 @@ function connect() {
   log(`连接 ${url}`);
   state.connecting = true;
   ws = new WebSocket(url);
+  ws.binaryType = 'arraybuffer';
   ws.onopen = () => { state.connected = true; state.connecting = false; startHeartbeat(); log('已连接'); tryTokenLogin(); };
   ws.onclose = (e) => {
     state.connected = false; state.connecting = false; stopHeartbeat();
@@ -63,7 +66,11 @@ function connect() {
     ws = null;
   };
   ws.onerror = () => log('WebSocket 错误：确认服务端 net_layer=websocket');
-  ws.onmessage = onMessage;
+  ws.onmessage = (ev) => {
+    receiveChain = receiveChain
+      .then(() => onMessage(ev))
+      .catch((error) => log(`协议解析失败：${error.message}`));
+  };
 }
 
 function disconnect() { if (ws) ws.close(); }
@@ -87,8 +94,13 @@ function stopHeartbeat() {
 
 function send(obj) {
   if (!ws || ws.readyState !== WebSocket.OPEN) { log('未连接，无法发送'); return false; }
-  ws.send(JSON.stringify(obj));
-  return true;
+  try {
+    ws.send(encodeEnvelope(obj));
+    return true;
+  } catch (error) {
+    log(`消息编码失败：${error.message}`);
+    return false;
+  }
 }
 
 // 发送一个会返回 system 文本的请求，并把解析类型入队（按发送顺序消费）
@@ -98,10 +110,8 @@ function sendWithPending(obj, action, ctx) {
 
 // ---------- 接收 ----------
 
-function onMessage(ev) {
-  if (typeof ev.data !== 'string') return;   // 文件二进制帧暂不处理
-  let msg;
-  try { msg = JSON.parse(ev.data); } catch { log(ev.data); return; }
+async function onMessage(ev) {
+  const msg = await decodeEnvelope(ev.data);
   switch (msg.type) {
     case 'system':           return onSystem(msg.content ?? '');
     case 'heartbeat_ack':    return;

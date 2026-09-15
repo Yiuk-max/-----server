@@ -1,5 +1,7 @@
 #include "receiver_sender.h"
 #include "epoller.h"
+#include <algorithm>
+#include <cstring>
 #include <arpa/inet.h>
 void sender::add_to_out_buffer(const std::string &message)
 {
@@ -80,31 +82,34 @@ void sender::send_file(const std::string &file_name)
         std::string buf(this_chunk, '\0');
         file.read(buf.data(), this_chunk);
 
-        // 构造JSON头
-        nlohmann::json meta;
-        meta["type"]        = "file_chunk";
-        meta["file_id"]     = file_id;
-        meta["filename"]    = file_name;
-        meta["total_size"]  = total_size;
-        meta["chunk_index"] = i;
-        meta["chunk_count"] = chunk_count;
-        meta["chunk_size"]  = this_chunk;
-        meta["offset"]      = offset;
-        
+        // 构造文件分块元信息
+        chat_proto::FileChunkMeta meta;
+        meta.set_type("file_chunk");
+        meta.set_file_id(file_id);
+        meta.set_filename(file_name);
+        meta.set_total_size(total_size);
+        meta.set_chunk_index(static_cast<uint32_t>(i));
+        meta.set_chunk_count(static_cast<uint32_t>(chunk_count));
+        meta.set_chunk_size(static_cast<uint32_t>(this_chunk));
+        meta.set_offset(offset);
+
         process_file_data(meta, buf);
     }
 }
-void sender::process_file_data(json &msg_json, std::string &data)
+void sender::process_file_data(const chat_proto::FileChunkMeta& meta, std::string &data)
 {
-    // 构造出标准消息结构体，以便发送
-    Standard_Message result;
-    uint32_t net_total_len = htonl(8 + msg_json.dump().size() + data.size());
-    uint32_t net_json_len = htonl(msg_json.dump().size());
+    std::string payload;
+    if (!meta.SerializeToString(&payload)) {
+        return;
+    }
+
+    uint32_t net_total_len    = htonl(static_cast<uint32_t>(8 + payload.size() + data.size()));
+    uint32_t net_payload_len  = htonl(static_cast<uint32_t>(payload.size()));
 
     std::string packet;
     packet.append(reinterpret_cast<const char*>(&net_total_len), 4);
-    packet.append(reinterpret_cast<const char*>(&net_json_len), 4);
-    packet += msg_json.dump();
+    packet.append(reinterpret_cast<const char*>(&net_payload_len), 4);
+    packet += payload;
     packet += data; // 文件数据部分
 
     add_to_out_buffer(packet);
@@ -132,20 +137,20 @@ Standard_Message receiver::process_recv_data(std::string raw_message)
             return result; // 半包，等待更多数据
         }
 
-        uint32_t net_json_len;
-        std::memcpy(&net_json_len, in_buffer.data() + 4, sizeof(net_json_len));
-        uint32_t json_len = ntohl(net_json_len);
-        if (json_len > total_len - 8)
+        uint32_t net_payload_len;
+        std::memcpy(&net_payload_len, in_buffer.data() + 4, sizeof(net_payload_len));
+        uint32_t payload_len = ntohl(net_payload_len);
+        if (payload_len > total_len - 8)
         {
             in_buffer.erase(0, total_len);
             return result;
         }
 
-        result.json_part = in_buffer.substr(8, json_len);
-        uint32_t file_len = total_len - 8 - json_len;
+        result.payload = in_buffer.substr(8, payload_len);
+        uint32_t file_len = total_len - 8 - payload_len;
         if (file_len > 0)
         {
-            result.file_part = in_buffer.substr(8 + json_len, file_len);
+            result.file_part = in_buffer.substr(8 + payload_len, file_len);
         }
 
         result.is_valid = true;
@@ -155,16 +160,16 @@ Standard_Message receiver::process_recv_data(std::string raw_message)
 
     return result;
 }
-void receiver::upload_file(const json &meta, const std::string &data)
+void receiver::upload_file(const chat_proto::FileChunkMeta& meta, const std::string &data)
 {
     // 这里可以根据meta中的信息（如file_id、chunk_index等）来处理文件数据
-    std::cout << "Received file chunk: " << meta.dump() << ", data size: " << data.size() << std::endl;
-    std::string file_id    = meta["file_id"];
-    std::string filename   = meta["filename"];
-    size_t      offset     = meta["offset"];
-    size_t      chunk_size = meta["chunk_size"];
-    size_t      chunk_count = meta["chunk_count"];
-    size_t      total_size  = meta["total_size"];
+    std::cout << "Received file chunk: " << meta.DebugString() << ", data size: " << data.size() << std::endl;
+    std::string file_id     = meta.file_id();
+    std::string filename    = meta.filename();
+    size_t      offset      = meta.offset();
+    size_t      chunk_size  = meta.chunk_size();
+    size_t      chunk_count = meta.chunk_count();
+    size_t      total_size  = meta.total_size();
 
     // 1. 第一块到达时，初始化文件
     if (transfers.find(file_id) == transfers.end()) {

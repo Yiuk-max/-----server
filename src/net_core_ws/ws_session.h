@@ -43,9 +43,9 @@ public:
     void run();
 
     // ---------- IClientTransport ----------
-    void send_packet(nlohmann::json message, std::string file_data = {}) override;
+    void send_packet(const chat_proto::Envelope& message, std::string file_data = {}) override;
     void send_file(std::string file_name) override;
-    void accept_file_chunk(nlohmann::json meta, std::string file_data) override;
+    void accept_file_chunk(const chat_proto::FileChunkMeta& meta, std::string file_data) override;
     void close(CloseMode mode) override;
 
 private:
@@ -57,7 +57,7 @@ private:
     void on_accept(boost::beast::error_code ec);
     void do_read();
     void on_read(boost::beast::error_code ec, std::size_t bytes);
-    void dispatch_to_business(std::string json_text, std::string file_data);
+    void dispatch_to_business(std::string payload, std::string file_data);
     void on_business_done();
 
     // 空闲超时：与 binary 层 use_heartbeat / heartbeat_interval 行为对齐。

@@ -1,5 +1,7 @@
 # WebSocket 接入代码改动文档
 
+> **历史设计记录（已过时）**：本文记录的是 WebSocket JSON/text 协议阶段的接入过程；当前实际协议已切换为 `src/proto/message.proto` 定义的 protobuf binary 帧，请以《客户端接口文档.txt》和当前源码为准。
+>
 > 文档状态：评审稿，仅描述改动，不修改业务代码。  
 > 适用代码版本：当前 `master`（`fa32983`）。  
 > 关联草稿：`WebSocket接入方案.md`。本文在该草稿“Boost.Asio + Beast 独立网络层、运行时二选一”的方向上，补齐真实代码改动点和并发/生命周期细节。

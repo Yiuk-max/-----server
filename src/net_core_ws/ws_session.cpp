@@ -234,37 +234,41 @@ void WsSession::on_read(beast::error_code ec, std::size_t /*bytes*/) {
     }
     touch();
 
-    const bool is_text = ws_.got_text();
     std::string payload = beast::buffers_to_string(buffer_.data());
     buffer_.consume(buffer_.size());
 
-    std::string json_text;
-    std::string file_data;
-
-    if (is_text) {
-        json_text = std::move(payload);
-    } else {
-        std::string error;
-        if (!ws_protocol::decode_binary(payload, json_text, file_data, error)) {
-            // 协议错误：提示后恢复读取，不关闭连接。
-            send_packet({{"type", "system"},
-                         {"content", "Invalid binary frame: " + error + ".\n"}},
-                        {});
-            do_read();
-            return;
-        }
+    // 新协议只接受 binary 帧（protobuf），text 帧为旧 JSON 客户端，直接提示并恢复读取。
+    if (ws_.got_text()) {
+        chat_proto::Envelope env;
+        env.set_type("system");
+        env.set_content("Text frames are not supported; please send protobuf binary frames.\n");
+        send_packet(env, {});
+        do_read();
+        return;
     }
 
-    dispatch_to_business(std::move(json_text), std::move(file_data));
+    std::string body;
+    std::string file_data;
+    std::string error;
+    if (!ws_protocol::decode_binary(payload, body, file_data, error)) {
+        chat_proto::Envelope env;
+        env.set_type("system");
+        env.set_content("Invalid binary frame: " + error + ".\n");
+        send_packet(env, {});
+        do_read();
+        return;
+    }
+
+    dispatch_to_business(std::move(body), std::move(file_data));
 }
 
-void WsSession::dispatch_to_business(std::string json_text, std::string file_data) {
+void WsSession::dispatch_to_business(std::string payload, std::string file_data) {
     auto self = shared_from_this();
     try {
         business_pool_->submit_task(
-            [self, json_text = std::move(json_text), file_data = std::move(file_data)]() mutable {
+            [self, payload = std::move(payload), file_data = std::move(file_data)]() mutable {
                 if (self->session_) {
-                    self->session_->on_message(json_text, file_data);
+                    self->session_->on_message(payload, file_data);
                 }
                 // 业务处理完成后回到本连接的 strand，再发起下一次读。
                 net::post(self->ws_.get_executor(), [self]() { self->on_business_done(); });
@@ -314,38 +318,40 @@ void WsSession::schedule_idle_check() {
 
 // ---------------- IClientTransport ----------------
 
-void WsSession::send_packet(nlohmann::json message, std::string file_data) {
-    const bool is_text = file_data.empty();
-    std::string payload;
-    try {
-        payload = is_text ? message.dump() : ws_protocol::encode_binary(message, file_data);
-    } catch (const std::exception& e) {
-        std::cerr << "[WsSession] encode failed: " << e.what() << std::endl;
+void WsSession::send_packet(const chat_proto::Envelope& message, std::string file_data) {
+    std::string body;
+    if (!message.SerializeToString(&body)) {
+        std::cerr << "[WsSession] serialize failed" << std::endl;
         return;
     }
+
+    // 统一使用 binary 帧：| 4B payload_len | protobuf | file_data |
+    std::string payload = ws_protocol::encode_binary(body, file_data);
 
     auto s = self();
     if (!s) {
         return;
     }
     net::post(ws_.get_executor(),
-              [s, payload = std::move(payload), is_text]() mutable {
-                  s->enqueue(std::move(payload), is_text);
+              [s, payload = std::move(payload)]() mutable {
+                  s->enqueue(std::move(payload), /*is_text=*/false);
               });
 }
 
 void WsSession::send_file(std::string /*file_name*/) {
     // M1 暂不支持 WebSocket 文件下载，M3 再实现二进制块协议。
-    send_packet({{"type", "system"},
-                 {"content", "File transfer is not supported over WebSocket yet.\n"}},
-                {});
+    chat_proto::Envelope env;
+    env.set_type("system");
+    env.set_content("File transfer is not supported over WebSocket yet.\n");
+    send_packet(env, {});
 }
 
-void WsSession::accept_file_chunk(nlohmann::json /*meta*/, std::string /*file_data*/) {
+void WsSession::accept_file_chunk(const chat_proto::FileChunkMeta& /*meta*/, std::string /*file_data*/) {
     // M1 暂不支持 WebSocket 文件上传，M3 再实现二进制块协议。
-    send_packet({{"type", "system"},
-                 {"content", "File transfer is not supported over WebSocket yet.\n"}},
-                {});
+    chat_proto::Envelope env;
+    env.set_type("system");
+    env.set_content("File transfer is not supported over WebSocket yet.\n");
+    send_packet(env, {});
 }
 
 void WsSession::close(CloseMode mode) {

@@ -19,6 +19,10 @@ export default defineConfig({
     assetsInlineLimit: 4096,
   },
   server: {
+    // 允许开发模式读取仓库根目录的 src/proto/message.proto（生产构建不受此项影响）。
+    fs: {
+      allow: [fileURLToPath(new URL('..', import.meta.url))],
+    },
     // 开发模式：Vite 起在 5173，把 /ws 代理到后端 8080，前端仍按 location.host 连接即可
     proxy: {
       '/ws': { target: 'ws://127.0.0.1:8080', ws: true },

@@ -102,7 +102,7 @@ void connection::process_incoming() {
             break;
         }
         if (session_) {
-            session_->on_message(recv_result.json_part, recv_result.file_part);
+            session_->on_message(recv_result.payload, recv_result.file_part);
         }
     }
 }
@@ -111,21 +111,24 @@ Standard_Message connection::next_frame() {
     return receiver_->process_recv_data("");
 }
 
-void connection::send_packet(json message, std::string file_data) {
-    std::string json_str = message.dump();
-    const std::size_t frame_size = 8 + json_str.size() + file_data.size();
+void connection::send_packet(const chat_proto::Envelope& message, std::string file_data) {
+    std::string payload;
+    if (!message.SerializeToString(&payload)) {
+        return;
+    }
+    const std::size_t frame_size = 8 + payload.size() + file_data.size();
     if (frame_size > UINT32_MAX) {
         return;
     }
 
-    uint32_t total_len = htonl(static_cast<uint32_t>(frame_size));
-    uint32_t json_len  = htonl(static_cast<uint32_t>(json_str.size()));
+    uint32_t total_len    = htonl(static_cast<uint32_t>(frame_size));
+    uint32_t payload_len  = htonl(static_cast<uint32_t>(payload.size()));
 
     std::string packet;
     packet.reserve(frame_size);
     packet.append(reinterpret_cast<const char*>(&total_len), sizeof(total_len));
-    packet.append(reinterpret_cast<const char*>(&json_len), sizeof(json_len));
-    packet += json_str;
+    packet.append(reinterpret_cast<const char*>(&payload_len), sizeof(payload_len));
+    packet += payload;
     packet += file_data;
 
     // 与 close() 共用生命周期锁，保证“检查连接状态 + 入发送队列”不可被关闭穿插。
@@ -140,6 +143,6 @@ void connection::send_file(std::string file_name) {
     sender_->send_file(file_name);
 }
 
-void connection::accept_file_chunk(json meta, std::string file_data) {
+void connection::accept_file_chunk(const chat_proto::FileChunkMeta& meta, std::string file_data) {
     receiver_->upload_file(meta, file_data);
 }

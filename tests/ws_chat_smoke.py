@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""M2 WebSocket 聊天与通知端到端冒烟测试（仅标准库）。
+"""M2 WebSocket 聊天与通知端到端冒烟测试（纯标准库 + tests/proto_codec.py）。
+
+协议说明：
+  - 服务端 net_layer=websocket，连接 /ws。
+  - 业务消息为 WebSocket binary 帧：
+        | 4 字节 payload_len (网络序) | payload_len 字节 protobuf Envelope |
+  - Envelope 定义见 src/proto/message.proto；本测试用 tests/proto_codec.py
+    纯标准库编码/解码顶层标量字段。
 
 覆盖：
   1. 注册 / 登录（两个客户端）
@@ -20,13 +27,15 @@
 """
 import base64
 import hashlib
-import json
 import os
 import re
 import socket
 import struct
 import sys
 import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from proto_codec import decode_envelope, encode_envelope  # noqa: E402
 
 GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
@@ -36,7 +45,7 @@ class WSError(Exception):
 
 
 class WSClient:
-    """最小 WebSocket 客户端：握手、掩码帧、text 收发。"""
+    """最小 WebSocket 客户端：握手、掩码帧、binary 收发。"""
 
     def __init__(self, host, port, path, timeout=5.0):
         self.host = host
@@ -146,12 +155,18 @@ class WSClient:
 
     # ---------- 业务层 ----------
 
-    def send_json(self, obj):
-        self._send_frame(0x1, json.dumps(obj).encode("utf-8"))
+    def send_envelope(self, **fields):
+        body = encode_envelope(**fields)
+        payload = struct.pack("!I", len(body)) + body
+        self._send_frame(0x2, payload)
 
-    def recv_json(self, timeout=None):
+    def recv_envelope(self, timeout=None):
         self.sock.settimeout(self.timeout if timeout is None else timeout)
-        return json.loads(self._read_message().decode("utf-8"))
+        payload = self._read_message()
+        if len(payload) < 4:
+            raise WSError("short binary frame")
+        (body_len,) = struct.unpack("!I", payload[:4])
+        return decode_envelope(payload[4:4 + body_len])
 
     def recv_until(self, pred, timeout=None):
         deadline = time.time() + (self.timeout if timeout is None else timeout)
@@ -159,7 +174,7 @@ class WSClient:
             remaining = deadline - time.time()
             if remaining <= 0:
                 raise WSError("timeout waiting for matching message")
-            msg = self.recv_json(timeout=remaining)
+            msg = self.recv_envelope(timeout=remaining)
             if pred(msg):
                 return msg
 
@@ -168,7 +183,7 @@ class WSClient:
         deadline = time.time() + timeout
         try:
             while time.time() < deadline:
-                self.recv_json(timeout=deadline - time.time())
+                self.recv_envelope(timeout=deadline - time.time())
         except WSError:
             return True
         raise WSError("expected connection close")
@@ -210,8 +225,8 @@ def expect(cond, label):
 
 def register(client, name, password):
     # 新用户注册必须带邮箱（不校验格式，仅要求唯一）
-    client.send_json({"type": "register", "username": name,
-                      "password": password, "email": f"{name}@example.com"})
+    client.send_envelope(type="register", username=name,
+                         password=password, email=f"{name}@example.com")
     msg = client.recv_until(lambda m: is_system(m, "Registration successful"))
     m = re.search(r"UID (\d+)", content(msg))
     if not m:
@@ -220,8 +235,8 @@ def register(client, name, password):
 
 
 def login(client, uid, password):
-    client.send_json({"type": "login", "UID": uid, "password": password})
-    client.recv_until(lambda m: is_system(m, "Login successful"))
+    client.send_envelope(type="login", UID=uid, password=password)
+    client.recv_until(lambda m: m.get("type") == "login_success")
 
 
 def connect(host, port, path, timeout=5.0):
@@ -246,22 +261,22 @@ def run(host, port, path, idle_seconds=None):
     ok(f"login over WebSocket ok (uid {uid_a}, {uid_b})")
 
     print("[2] 好友申请 / 接受")
-    a.send_json({"type": "add_friend", "email": f"{name_b}@example.com", "apply_message": "hi"})
+    a.send_envelope(type="add_friend", email=f"{name_b}@example.com", apply_message="hi")
     b.recv_until(lambda m: is_system(m, "wants to be friend with you"))
     ok("friend request notification delivered to B")
-    b.send_json({"type": "accept_friend", "sender_UID": uid_a})
+    b.send_envelope(type="accept_friend", sender_UID=uid_a)
     a.recv_until(lambda m: is_system(m, "You are now friends with"))
     ok("friend accepted; A notified")
 
     print("[3] 私聊实时投递")
     chat_text = f"hello-m2-{suffix}"
-    a.send_json({"type": "private_chat", "target_UID": uid_b, "message": chat_text})
+    a.send_envelope(type="private_chat", target_UID=uid_b, message=chat_text)
     recv = b.recv_until(lambda m: m.get("type") == "private_chat" and chat_text in content(m))
     expect("message_id" in recv, "private chat carries message_id")
     ok("B received private chat")
 
     print("[4] 建群 / 拉人 / 群聊广播")
-    a.send_json({"type": "create_group", "group_name": f"M2G{suffix}"})
+    a.send_envelope(type="create_group", group_name=f"M2G{suffix}")
     created = a.recv_until(lambda m: is_system(m, "Group created successfully"))
     g = re.search(r"Group UID: (\d+)", content(created))
     if not g:
@@ -269,22 +284,24 @@ def run(host, port, path, idle_seconds=None):
     group_uid = int(g.group(1))
     ok(f"group created: {group_uid}")
 
-    a.send_json({"type": "group_add_client", "group_UID": group_uid,
-                 "target_user_UID": uid_b})
+    a.send_envelope(type="group_add_client", group_UID=group_uid,
+                    target_user_UID=uid_b)
     b.recv_until(lambda m: is_system(m, "You have been added to group"))
     ok("B notified of being added to group")
 
     gchat = f"group-m2-{suffix}"
-    a.send_json({"type": "group_chat", "target_UID": group_uid, "message": gchat})
+    a.send_envelope(type="group_chat", target_UID=group_uid, message=gchat)
     grecv = b.recv_until(lambda m: m.get("type") == "Group_Chat" and gchat in content(m))
     expect(grecv.get("group_UID") == group_uid, "group chat carries group_UID")
     ok("B received group broadcast")
 
     print("[5] 离线消息")
     b.close()
-    time.sleep(0.5)  # 等待服务端处理断线
+    # Account.last_login_time 与 message.timestamp 都是秒级；确保离线消息晚于登录时间，
+    # 避免两者落在同一秒时被 since_time 查询边界排除。
+    time.sleep(1.1)
     off_text = f"offline-m2-{suffix}"
-    a.send_json({"type": "private_chat", "target_UID": uid_b, "message": off_text})
+    a.send_envelope(type="private_chat", target_UID=uid_b, message=off_text)
     a.recv_until(lambda m: is_system(m, "Message sent."))
     ok("offline message stored while B offline")
 
@@ -300,7 +317,7 @@ def run(host, port, path, idle_seconds=None):
     a.recv_until(lambda m: is_system(m, "kicked offline"), timeout=5.0)
     ok("first connection received kick-offline notice")
     # 新连接仍可用
-    a2.send_json({"type": "heartbeat"})
+    a2.send_envelope(type="heartbeat")
     a2.recv_until(lambda m: m.get("type") == "heartbeat_ack")
     ok("new connection remains usable after kick")
 

@@ -17,15 +17,20 @@ find_package(nlohmann_json REQUIRED)
 # 因此同一二进制始终包含 WS 代码，Boost 为编译期依赖。
 find_package(Boost 1.74 REQUIRED COMPONENTS system)
 find_package(Threads REQUIRED)
-find_package(protobuf REQUIRED)
+find_package(Protobuf REQUIRED)
+
+# 生成 protobuf C++ 源文件（message.pb.h / message.pb.cc）
+set(PROTO_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/proto/message.proto)
+protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${PROTO_FILES})
 
 include_directories(/usr/include/mysql-cppconn)
 # MySQL Connector/C++ 的 JDBC 头在 jdbc 子目录（mysql_driver.h / cppconn/...）
 include_directories(/usr/include/mysql-cppconn/jdbc)
 
-add_executable(server src/main.cpp ${NET_SRC} ${WS_NET_SRC} ${LOGIC_SRC} ${UTILS} ${REPO_SRC} ${REPO_INTERFACE_SRC} ${MYSQL_SRC})
+add_executable(server src/main.cpp ${NET_SRC} ${WS_NET_SRC} ${LOGIC_SRC} ${UTILS} ${REPO_SRC} ${REPO_INTERFACE_SRC} ${MYSQL_SRC} ${PROTO_SRCS})
 
 target_include_directories(server PRIVATE 
+    ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/src/net_common
     ${CMAKE_CURRENT_SOURCE_DIR}/src/net_core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/net_core_ws
@@ -69,16 +74,17 @@ if(SERVER_BUILD_TESTS)
 
     add_executable(test_tcp_protocol
         tests/test_tcp_protocol.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/net_core/receiver_sender.cpp)
-    target_include_directories(test_tcp_protocol PRIVATE ${SERVER_TEST_INCLUDES})
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/net_core/receiver_sender.cpp
+        ${PROTO_SRCS})
+    target_include_directories(test_tcp_protocol PRIVATE ${SERVER_TEST_INCLUDES} ${CMAKE_CURRENT_BINARY_DIR})
     target_link_libraries(test_tcp_protocol PRIVATE nlohmann_json::nlohmann_json Threads::Threads protobuf::libprotobuf)
     add_test(NAME tcp_protocol COMMAND test_tcp_protocol)
 
     # 在线表测试需要 client_session 完整实现，因此复用除 main.cpp 外的全部源文件。
     add_executable(test_session_manager
         tests/test_session_manager.cpp
-        ${NET_SRC} ${LOGIC_SRC} ${UTILS} ${REPO_SRC} ${REPO_INTERFACE_SRC} ${MYSQL_SRC})
-    target_include_directories(test_session_manager PRIVATE ${SERVER_TEST_INCLUDES})
+        ${NET_SRC} ${LOGIC_SRC} ${UTILS} ${REPO_SRC} ${REPO_INTERFACE_SRC} ${MYSQL_SRC} ${PROTO_SRCS})
+    target_include_directories(test_session_manager PRIVATE ${SERVER_TEST_INCLUDES} ${CMAKE_CURRENT_BINARY_DIR})
     target_link_libraries(test_session_manager PRIVATE nlohmann_json::nlohmann_json mysqlcppconn Threads::Threads protobuf::libprotobuf)
     add_test(NAME session_manager COMMAND test_session_manager)
 
