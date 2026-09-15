@@ -38,6 +38,14 @@ cd ../build && ./server      # configure.json: net_layer=websocket, web_root=../
 2. **后缀白名单**：仅 `html/htm/css/js/json/svg/png/jpg/jpeg/gif/ico/woff/woff2/map`。
    不要引入 `wasm / webp / avif / ttf / otf / mp4`，否则 404。字体请用 woff2 或系统字体。
 
+## 协议实现
+
+- `src/proto/message.proto` 是前后端共享的唯一 schema，前端不维护字段副本。
+- `src/protobufProtocol.js` 使用 `protobufjs` 的 `keepCase` 解析选项，保留现有 `UID/group_UID/sender_UID` 字段名。
+- 发送：普通对象 → `Envelope` → protobuf bytes → 4 字节大端长度头 → WebSocket binary 帧。
+- 接收：`ArrayBuffer/Blob` → 校验 4 字节长度头 → `Envelope` → 普通对象；嵌套 `user/reply_to/messages` 会完整恢复。
+- `chatStore.js` 串行处理异步解码结果，保证服务器推送顺序不因 Blob/ArrayBuffer 转换而变化。
+
 ## 已接入功能
 
 - 连接 / 心跳 / 自动重登；注册、登录（UID 或邮箱）、登出、改昵称、设置邮箱

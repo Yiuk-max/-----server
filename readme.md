@@ -34,8 +34,8 @@ cd build
 3. 数据库连接池：`database` 下的 `host / port / user / password / dbname / db_conn_count`
    （`db_conn_count` 为连接池上限，默认 4）。
 
-> WebSocket 依赖 Boost（`Boost::system`，需 `libboost-dev`/`libboost-system-dev`）。`net_layer` 是运行时选择，
-> 因此同一个二进制总是包含 WebSocket 代码，Boost 为编译期依赖。
+> 后端构建依赖 Boost 与 protobuf（`libboost-dev`、`libboost-system-dev`、`libprotobuf-dev`、`protobuf-compiler`）。`net_layer` 是运行时选择，
+> 因此同一个二进制总是包含两套网络代码；前端依赖 `protobufjs`，由 `npm install` 安装。
 
 未读到配置文件时使用默认值（连接信息见《数据库设计.txt》），可能连不上你的数据库。
 
@@ -47,7 +47,7 @@ cd build
 
 - **用 WebSocket**：设置 `"net_layer": "websocket"`，浏览器 / WebSocket 客户端连 `ws://<host>:8080/ws`。
   同一端口还会以 HTTP 提供前端页面：浏览器直接打开 `http://<host>:8080/` 即可（静态资源目录由 `websocket.web_root` 指定）。
-- **切回 TCP 老模式**：把 `net_layer` 改成 `"binary"`（或直接删掉该字段，默认就是 `binary`）再启动，用原来的 TCP 客户端连 `:8080`。
+- **使用 TCP binary 模式**：把 `net_layer` 改成 `"binary"`（或直接删掉该字段，默认就是 `binary`）再启动，TCP 客户端需遵循当前 protobuf 帧协议连接 `:8080`。
   此时不再提供 HTTP 页面（binary 模式没有 HTTP 处理）。
 
 > 切错协议会立刻连不上，这是预期的：websocket 模式只接受 WS 握手（错误路径返回 404，非升级请求返回 426）；
@@ -77,7 +77,7 @@ npm run build      # 产出到 ../web（index.html + assets/*.js|css）
 
 > 后端静态服务后缀白名单不含 `wasm/webp/avif/ttf`，且无 SPA fallback，因此前端用 hash 路由、字体用 woff2 或系统字体。
 
-**方式二**：低阶 protobuf 协议测试页 `tests/ws_browser_test.html`。从仓库根目录启动静态服务，使测试页能读取共享 proto：
+**方式二**：低阶 protobuf 协议测试页 `tests/ws_browser_test.html`。从仓库根目录启动静态服务：
 
 ```bash
 python3 -m http.server 8000
@@ -111,7 +111,8 @@ python3 tests/ws_chat_smoke.py 127.0.0.1 8080 /ws --idle-seconds=3
 - **[项目说明文档.md](项目说明文档.md)** —— 技术栈、目录结构、架构与工作流程、核心模块说明、常见问题。
 - **[客户端接口文档.txt](客户端接口文档.txt)** —— 前后端 protobuf / 帧协议接口规范（建议客户端开发者先读此文档）。
 - **[frontend/README.md](frontend/README.md)** —— 前端（Vite + Vue 3）开发与构建说明。
-- **[WebSocket接入代码改动文档.md](WebSocket接入代码改动文档.md)** —— WebSocket 接入方案与 M0~M2 实施记录。
+- **[protobuf改造方案.md](protobuf改造方案.md)** —— JSON → protobuf 的设计、落地文件与验证矩阵。
+- **[WebSocket接入代码改动文档.md](WebSocket接入代码改动文档.md)** —— WebSocket 接入历史记录（正文包含旧 JSON/text 阶段，当前协议以接口文档为准）。
 - **[数据库设计.txt](数据库设计.txt)** —— 数据库表结构、UID 分配与连接池接入说明。
 - **[开发日志.txt](开发日志.txt)** —— 待办清单与开发日志（含历次架构重构与问题修复记录）。
 
@@ -138,4 +139,4 @@ server/
 └── build/                  # 构建输出
 ```
 
-> 说明：本仓库仅包含**服务器端**源代码。
+> 说明：仓库同时包含后端、Vue 前端、protobuf schema 与测试客户端。

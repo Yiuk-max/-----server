@@ -14,7 +14,7 @@
 2. 新增平行的 `Boost.Asio + Boost.Beast` WebSocket 网络层。
 3. 启动时读取 `configure.json` 的 `net_layer`，只启动 `binary` 或 `websocket` 其中一个监听器，两者继续使用端口 `8080`。
 4. 在业务会话和具体连接之间增加 `IClientTransport`，让 `client_session` 不再直接依赖 `connection`。
-5. 普通业务消息使用 WebSocket 文本消息，文件块使用 WebSocket 二进制消息。
+5. **历史初版**普通业务消息使用 WebSocket 文本消息；该协议已在 2026-09-15 迁移为 protobuf binary，当前普通业务和文件预留格式见第 6.6 节。
 6. WebSocket IO 只在 Asio 线程执行；数据库和业务处理放到业务线程池；同一连接一次只处理一条业务消息，保证消息顺序。
 7. WebSocket 写入必须经过单连接发送队列，任意业务线程只能投递发送任务，不能直接调用 Beast 的 `async_write`。
 
@@ -46,7 +46,7 @@ logic / client_session
 适合复用的部分：
 
 - `client_session` 的注册、登录、私聊、群聊、好友等业务。
-- `message_handler` 的 JSON `type` 分发。
+- `message_handler` 的 `type` 分发（当前输入为 protobuf `chat_proto::Envelope`）。
 - `NoticeService` 和 `session_manager` 的按 UID 推送语义。
 - `logic/*`、`db/*` 和仓储接口。
 
@@ -88,7 +88,7 @@ file_len = total_len - 8 - json_len;
 erase(total_len);
 ```
 
-WebSocket 文本消息不复用该 TCP 总长度字段。WebSocket 文件二进制负载只保留一个 4 字节 JSON 长度，见第 6 节。
+WebSocket 不复用该 TCP 总长度字段。当前 WebSocket 所有业务 binary 帧统一使用 `4B payload_len + protobuf`；旧 JSON/text 格式仅作为历史设计保留。
 
 ### 3.2 登录会话在异常断线时可能残留（P0）
 
@@ -208,6 +208,8 @@ public:
 
 ## 6. WebSocket 应用协议
 
+> 本节为 JSON/text 阶段的历史设计。当前协议已改为 protobuf binary：所有业务帧均为 `4B payload_len（大端） + chat_proto.Envelope`；文件帧预留为 `4B payload_len + protobuf + file_data`。当前规范见《客户端接口文档.txt》。
+
 ### 6.1 地址
 
 ```text
@@ -269,7 +271,18 @@ file_size <= SEND_CHUNK_SIZE
 
 `WsSession` 调用 Beast 的 `read_message_max()`。超过读限制使用 close code `too_big`；发送队列超过限制使用 `policy_error` 并关闭连接，防止慢客户端无限占用内存。
 
-### 6.5 心跳
+### 6.6 当前实际 protobuf 协议（2026-09-15）
+
+当前有效协议不再是本节前文描述的 JSON/text 方案，具体以《客户端接口文档.txt》和 `src/proto/message.proto` 为准：
+
+- 业务 schema：`chat_proto.Envelope`；文件块元信息：`chat_proto.FileChunkMeta`。
+- 客户端和服务端发送的普通 WS 消息均为 binary 帧：`4 字节 payload_len（网络字节序） + protobuf Envelope`。
+- 文件协议预留格式为：`4 字节 payload_len + protobuf + file_data`；WS 文件上传/下载当前仍返回“不支持”，TCP binary 文件传输已使用 protobuf meta。
+- `text` 帧不再作为业务协议；收到旧 JSON text 帧时服务端返回 system 提示并继续读取。
+- C++ 传输接口为 `send_packet(const chat_proto::Envelope&, ...)` 与 `accept_file_chunk(const chat_proto::FileChunkMeta&, ...)`。
+- Vue 前端 `frontend/src/protobufProtocol.js` 使用 `protobufjs` 读取共享 proto；Python 冒烟测试使用 `tests/proto_codec.py`，不依赖第三方 Python protobuf 包。
+
+### 6.7 心跳
 
 第一阶段继续使用现有应用层消息：
 
@@ -653,11 +666,12 @@ target_link_libraries(server PRIVATE
 
 ### 8.1 收消息
 
+当前实际链路：
+
 ```text
 WsSession::async_read
-  -> Beast 完成 WS 消息重组
-  -> text: 直接取 JSON
-     binary: ws_protocol 拆 JSON + 文件数据
+  -> Beast 完成 WS binary 消息重组
+  -> ws_protocol 拆 4B payload_len + protobuf + 可选文件数据
   -> 提交 business_pool
   -> client_session::on_message
   -> handler / repo / NoticeService
@@ -711,10 +725,10 @@ Asio IO 线程不执行 MySQL 查询。一个连接的消息不会并行业务�
 
 ### M1：WebSocket 骨架
 
-改动：
+历史改动：
 
 - 新增 `ws_protocol`、`WsSession`、`WsServer`。
-- 完成 `/ws` 握手、text JSON 收发、close、消息大小限制、发送队列。
+- 初版完成 `/ws` 握手、text JSON 收发、close、消息大小限制、发送队列；2026-09-15 已由 protobuf binary 协议替换。
 - 配置和 main 分流。
 
 验收：注册、登录、heartbeat、show 可以通过 WS 完成。
@@ -753,6 +767,8 @@ Asio IO 线程不执行 MySQL 查询。一个连接的消息不会并行业务�
 
 ## 10. 测试清单
 
+> 以下清单中的“文本协议/JSON”条目属于历史 M1 测试设计；当前应按 protobuf Envelope 和 payload_len binary 帧执行，实际可执行冒烟为 `tests/ws_chat_smoke.py`，低阶页面为 `tests/ws_browser_test.html`。
+
 建议至少覆盖：
 
 | 类别 | 用例 |
@@ -760,8 +776,8 @@ Asio IO 线程不执行 MySQL 查询。一个连接的消息不会并行业务�
 | 构建 | 干净目录 CMake configure/build 成功 |
 | 配置 | 缺少 `net_layer` 默认 binary；非法值启动失败 |
 | 握手 | `/ws` 成功；错误 path/普通 HTTP 被拒绝 |
-| 文本协议 | 合法 JSON、非法 JSON、缺 type、字段类型错误 |
-| 二进制协议 | 小于 4 字节、json_len 越界、非法 JSON、块大小不符 |
+| protobuf 业务协议 | 合法 Envelope、解析失败、空 type、未知 type、字段默认值 |
+| 二进制应用帧 | 小于 4 字节、payload_len 越界、payload 解析失败、文件块大小不符 |
 | 顺序 | 同连接连续发送 login + show，show 必须在 login 后执行 |
 | 并发 | 多连接并发登录、私聊、群聊，IO 线程不阻塞 DB |
 | 推送 | 业务线程向 WS 连接推送，多次写严格有序且无并行 write |
@@ -915,7 +931,7 @@ ctest --test-dir build --output-on-failure
 
 - 错误路径 `/nope` → `404`；`/ws` 握手返回合法 `Sec-WebSocket-Accept`。
 - `heartbeat` → `heartbeat_ack/pong`；未知命令与缺少 `type` 正常提示。
-- binary 非法帧（json_len 越界）→ 返回 `Invalid binary frame` 且连接保持。
+- binary 非法帧（payload_len 越界）→ 返回 `Invalid binary frame` 且连接保持。
 - 注册、登录、`show` 均可通过 WS 完成。
 - 顶号：第二个 WS 登录后第一个收到顶号通知；第二个连接不受第一个断线影响。
 - `close` 握手正常；`SIGTERM` 可干净退出。
@@ -1048,7 +1064,7 @@ GET /ws (Upgrade) -> 101 Switching Protocols
 
 聊天业务回归（`tests/ws_chat_smoke.py`）仍全部通过；`node --check web/app.js` 语法通过。
 
-## 17. 前端重构为 Vite + Vue 3（后端零改动）
+## 17. 前端重构为 Vite + Vue 3（历史：当时后端零改动）
 
 第 16 节的原生 HTML/CSS/JS 前端（`web/index.html` + `style.css` + `app.js`）已替换为 **Vite + Vue 3** 工程，源码放到 `frontend/`，构建产物仍输出到 `web/`，因此**后端 C++ 与 `configure.json` 零改动**。
 
@@ -1075,7 +1091,9 @@ frontend/
 - **同源** → 生产构建 `base:'./'`，浏览器在 `http://<host>:8080/` 打开，WS 连 `ws://<host>:8080/ws`。
 - **开发** → `vite.config.js` 把 `/ws` 代理到 `127.0.0.1:8080`，`npm run dev` 即可联调。
 
-### 17.3 业务逻辑（从原生版迁移，未改动协议）
+### 17.3 业务逻辑与当前协议
+
+2026-09-15 前端协议层已改为 protobuf：新增 `frontend/src/protobufProtocol.js`，通过 `protobufjs` 直接读取共享 `src/proto/message.proto`；`chatStore.js` 的 UI 对象结构不变，WebSocket 收发改为 `4B payload_len + Envelope` binary 帧。
 
 - `chatStore.js` 负责：登录后 `show` → 每个会话 `history_request` 预加载最近 10 条；
   上滑用最旧 `message_id` 作 `before_id` 拉更旧一页；按 `message_id` 去重；

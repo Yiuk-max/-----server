@@ -1,5 +1,7 @@
 # 网络消息体 JSON → Protobuf 改造方案（方案 A）
 
+> **实施状态：已完成（2026-09-15）。** 后端两种网络模式、Vue 前端、TCP/WS 协议单测、WebSocket 端到端冒烟和低阶浏览器测试页均已切换到 protobuf；当前线上字段与帧格式以 `src/proto/message.proto` 和《客户端接口文档.txt》为准。
+
 ## 0. 目标与范围
 
 - **目标**：把 `binary`（epoll/TCP）与 `websocket`（Boost.Asio/Beast）两种网络模式中，作为消息体使用的 JSON 全部替换为 protobuf。
@@ -532,7 +534,7 @@ void dispatch_to_business(std::string payload, std::string file_data);  // 原�
 
 ---
 
-## 6. 实施步骤（建议按此顺序，每步可独立编译验证）
+## 6. 实施步骤（已按此顺序完成）
 
 1. **proto + CMake**：新增 `src/proto/message.proto`，改 `CMakeLists.txt` 生成 `${PROTO_SRCS}`，确认 `protoc` 能生成 `message.pb.h/.pb.cc` 且链接通过。
 2. **传输接口与两个传输实现**：改 `client_transport.h` → `connection.*` → `receiver_sender.*` → `ws_protocol.*` → `ws_session.*`，先把「JSON 序列化」换成「protobuf 序列化」。
@@ -546,12 +548,16 @@ void dispatch_to_business(std::string payload, std::string file_data);  // 原�
 
 ## 7. 测试与验证
 
-需要同步更新的测试：
+已同步更新的测试：
 
 - `tests/test_tcp_protocol.cpp`：帧体从 JSON 文本改为 protobuf 字节；`make_frame` 的 `json_text` 改为 `payload`，断言相应调整。
 - `tests/test_ws_protocol.cpp`：`ws_protocol::encode_binary/decode_binary` 入参从 `nlohmann::json` 改为 `std::string payload`。
-- `tests/test_session_manager.cpp`：如构造 JSON 消息，改为构造 `Envelope` 并序列化。
-- `tests/ws_chat_smoke.py`、`tests/ws_browser_test.html`：端到端脚本/页面按 protobuf 协议重写（或临时替换为新的 protobuf 测试客户端）。
+- `tests/test_session_manager.cpp`：继续验证会话替换/断线语义，并链接生成的 protobuf 源文件。
+- `tests/ws_chat_smoke.py`：用纯标准库 `tests/proto_codec.py` 发送/接收 protobuf binary 帧，覆盖注册、登录、好友、私聊、群聊、离线消息与顶号。
+- `tests/ws_browser_test.html`：低阶浏览器测试页改为 protobuf binary 帧，不再发送 text JSON。
+- `frontend/src/protobufProtocol.js`：Vue 前端通过 `protobufjs` 读取共享 schema，完整处理 `user/reply_to/messages` 等嵌套消息。
+
+实际验证：后端与前端生产构建成功；TCP/WS/session_manager 单测通过；WebSocket 端到端冒烟全流程通过。
 
 验证矩阵：
 
@@ -570,7 +576,7 @@ void dispatch_to_business(std::string payload, std::string file_data);  // 原�
 1. **`type` 必须保留字符串**：否则 `handlers_` map 分发、心跳判断全部要重写。
 2. **protobuf3 默认值语义**：缺失字段返回默认值，不再像 JSON 那样可严格区分「缺失/非法」。现有业务基本把缺失当空值处理，影响很小；唯一注意 `login` 的邮箱判断改为 `!email().empty()`。
 3. **WebSocket 帧类型变化**：业务消息从 text 帧改为 binary 帧，`ws_.text()` → `ws_.binary(true)`，否则浏览器/客户端按 text 解析 protobuf 会失败。
-4. **旧客户端不兼容**：这是破坏性变更，测试客户端、`web/` 前端、文档需同步更新；如需灰度，需另做版本协商（本次不做）。
+4. **旧客户端不兼容**：这是破坏性变更；测试客户端、`web/` 前端与当前文档已同步更新。旧 JSON 客户端不会兼容，如需灰度需另做版本协商。
 5. **字段命名风格**：proto 使用 snake_case 访问器（`target_uid()`），原 JSON key 是 `target_UID`，需要逐处对照，避免漏改。
 6. **`send_packet` 的 `file_data` 参数**：当前业务路径实际从未传非空 `file_data`（文件走 `send_file`/`accept_file_chunk`），可保留参数但需在 `connection`/`ws_session` 中正确处理序列化边界。
 7. **生成头文件 include 路径**：`message.pb.h` 默认生成在 `CMAKE_CURRENT_BINARY_DIR`，需把该目录加入 `target_include_directories`。

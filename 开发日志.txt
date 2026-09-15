@@ -530,3 +530,19 @@ interface 层怎么还留着account的空占位实现，看着只做了数据库
     导致「删除好友后重新申请/踢出后重新入群」时处理失败）。
   * show_group_requests 增加 receiver_uid 群主校验（入群申请 receiver_UID 即群主）。
 - 文档：客户端接口文档更新 add_friend(email)、聊天消息 timestamp；frontend/README、项目说明文档同步。
+
+2026-09-15 协议迁移：binary / WebSocket 网络消息 JSON 全量切换为 protobuf（方案 A）
+- Schema：新增 src/proto/message.proto，以 chat_proto::Envelope 作为请求/响应大信封；
+  UserInfo / ReplyTo / ChatItem / FileChunkMeta 作为嵌套消息，type 保持 string 以复用现有 handler 分发。
+- 构建：CMake 使用 FindProtobuf + protobuf_generate_cpp 生成 message.pb.h/.cc；网络消息不再依赖
+  nlohmann/json，configure.json 与 Account.settings 的 JSON 读取继续保留。
+- binary/TCP：帧格式改为 |4B total_len|4B payload_len|protobuf|file|，粘包/半包逻辑不变；
+  文件上传 meta 与下载 file_chunk 头改为 FileChunkMeta。
+- WebSocket：业务消息统一改为 binary 帧 |4B payload_len|protobuf Envelope|；text JSON 不再兼容；
+  WS 文件格式预留为 |4B payload_len|protobuf|file|，当前仍返回不支持提示。
+- 前端：新增 frontend/src/protobufProtocol.js，protobufjs 直接读取共享 proto；chatStore 保持原 UI 对象字段，
+  只替换 WebSocket 编解码并串行处理接收消息；npm run build 已更新 web/ 构建产物。
+- 测试：更新 TCP/WS 协议单测；新增 tests/proto_codec.py；ws_chat_smoke.py 与 ws_browser_test.html
+  改为 protobuf binary。实际冒烟通过注册/登录、好友、私聊、群聊、离线消息、顶号全流程。
+- 文档：客户端接口文档改为 protobuf 字段号/类型规范；readme、项目说明、frontend/README、
+  protobuf 改造方案同步；WebSocket 接入文档标记 JSON/text 内容为历史记录。

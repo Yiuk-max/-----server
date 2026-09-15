@@ -1,7 +1,7 @@
 {
 	"InstallScripts" : 
 	[
-		"/home/ubuntu/Desktop/server/build/cmake_install.cmake"
+		"/home/ubuntu/project/server/build/cmake_install.cmake"
 	],
 	"Parallel" : false
 }
