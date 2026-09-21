@@ -79,18 +79,18 @@ private:
     boost::beast::flat_buffer buffer_;                              // WebSocket 读缓冲区，绑定到独立 strand 上
     boost::beast::http::request<boost::beast::http::string_body> request_; // 握手阶段的 HTTP 请求，绑定到独立 strand 上
 
-    std::shared_ptr<ThreadPool> business_pool_;// 业务线程池由外部持有并共享，保证生命周期覆盖所有会话
+    std::shared_ptr<ThreadPool> business_pool_;                     // 业务线程池由外部持有并共享，保证生命周期覆盖所有会话
     std::shared_ptr<client_session> session_;
 
     std::deque<std::pair<std::string, bool>> write_queue_;  // {payload, is_text}
-    std::size_t pending_bytes_ = 0;
-    bool write_in_progress_    = false;
-    bool closing_after_write_  = false;
-    bool closed_               = false;
+    std::size_t pending_bytes_ = 0;     
+    bool write_in_progress_    = false;     //  是否正在发送信息
+    bool closing_after_write_  = false;     //  是否在写完队列后关闭连接
+    bool closed_               = false;     //  是否已关闭连接（close() 已调用，或对端已关闭）
     bool disconnected_         = false;
 
     std::string path_;
-    std::size_t max_message_bytes_;
-    std::size_t max_pending_bytes_;
-    std::string web_root_;   // 静态前端资源根目录（非升级请求）
+    std::size_t max_message_bytes_;         // 单条消息最大字节数（含 payload + file_data） 读取
+    std::size_t max_pending_bytes_;         // 待发送队列最大字节数（含 payload + file_data）发送
+    std::string web_root_;                  // 静态前端资源根目录（非升级请求）
 };

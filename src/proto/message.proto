@@ -39,7 +39,7 @@ message FileChunkMeta {
   uint64 offset      = 8;
 }
 
-// 顶层信封（方案 A：一个 message 承载所有请求/响应字段）
+// 顶层信封（一个 message 承载所有请求/响应字段）
 message Envelope {
   string type    = 1;  // 对应原 JSON type，保留字符串便于 handlers_ 分发
   string content = 2;  // 对应原 JSON content

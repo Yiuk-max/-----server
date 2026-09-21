@@ -37,14 +37,14 @@ WsServer::WsServer(net::io_context& ioc,
     if (ec) {
         throw std::runtime_error("ws acceptor open failed: " + ec.message());
     }
-
+//---------协议、设置、绑定、监听-------
     // IPv6 监听同时接受 IPv4（与现有 TCP 网络层行为一致）。
     if (endpoint.protocol() == tcp::v6()) {
         acceptor_.set_option(net::ip::v6_only(false), ec);
         ec = {};  // 某些平台不支持双栈时忽略，继续按 v6-only 运行
     }
 
-    acceptor_.set_option(net::socket_base::reuse_address(true), ec);
+    acceptor_.set_option(net::socket_base::reuse_address(true), ec);//进行一些端口复用
     if (ec) {
         throw std::runtime_error("ws acceptor reuse_address failed: " + ec.message());
     }
@@ -61,7 +61,7 @@ WsServer::WsServer(net::io_context& ioc,
 }
 
 void WsServer::run() {
-    do_accept();
+    do_accept();//开始回调地狱☠️，读写数据和ws_server都是回调了，来不及写协程了
 }
 
 void WsServer::do_accept() {

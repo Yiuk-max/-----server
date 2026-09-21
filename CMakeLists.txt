@@ -15,7 +15,9 @@ find_package(nlohmann_json REQUIRED)
 
 # WebSocket 网络层（Boost.Asio + Beast）。net_layer 是运行时选择，
 # 因此同一二进制始终包含 WS 代码，Boost 为编译期依赖。
-find_package(Boost 1.74 REQUIRED COMPONENTS system)
+# CMake 3.30+ 已移除 FindBoost 模块，Boost 1.70+ 自带 BoostConfig.cmake，
+# 显式走 config 模式以消除 CMP0167 开发警告。
+find_package(Boost 1.74 REQUIRED COMPONENTS system CONFIG)
 find_package(Threads REQUIRED)
 find_package(Protobuf REQUIRED)
 

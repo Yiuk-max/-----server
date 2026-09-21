@@ -2,15 +2,23 @@
   "configurations": [
     {
       "name": "linux-gcc-x64",
+      "compilerPath": "/usr/bin/g++",
+      "compileCommands": "${workspaceFolder}/build/compile_commands.json",
       "includePath": [
-        "${workspaceFolder}/**"
+        "${workspaceFolder}/src",
+        "${workspaceFolder}/src/**",
+        "${workspaceFolder}/include",
+        "${workspaceFolder}/build",
+        "/usr/include",
+        "/usr/include/mysql-cppconn",
+        "/usr/include/mysql-cppconn/jdbc"
       ],
-      "compilerPath": "/usr/bin/gcc",
-      "cStandard": "${default}",
-      "cppStandard": "${default}",
+      "cStandard": "c17",
+      "cppStandard": "c++17",
       "intelliSenseMode": "linux-gcc-x64",
+      "defines": [],
       "compilerArgs": [
-        ""
+        "-std=c++17"
       ]
     }
   ],
