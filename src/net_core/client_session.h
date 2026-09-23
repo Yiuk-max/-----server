@@ -7,6 +7,7 @@
 #include "repository_hub.h"
 #include "group.h"
 #include "message.pb.h"
+#include "memory_pool.h"
 
 class client_session : public std::enable_shared_from_this<client_session>{
 private:
@@ -31,6 +32,11 @@ public:
     //初始化消息处理器，后续可以根据需要添加更多类型的消息处理器
     void init_();
     public:
+    //===============内存池===============
+    // client_session 对象的分配/回收统一走按类型池化的 ClassMemoryPool，
+    // 池耗尽时自动回退到全局 ::operator new/delete（仅单个对象路径，数组 new 仍走全局）。
+    static void* operator new(std::size_t size);
+    static void operator delete(void* p) noexcept;
     //===============构造、析构函数===============
     client_session(){ init_(); };                                           // 会话由具体传输创建并绑定
     ~client_session();

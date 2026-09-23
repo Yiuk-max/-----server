@@ -36,7 +36,8 @@ void sub_reactor::add_connect(int new_client_fd)
     fcntl(new_client_fd, F_SETFL, O_NONBLOCK);
 
     auto conn = std::make_shared<connection>(epoller_fd_, new_client_fd);
-    auto session = std::make_shared<client_session>();
+    // 走 client_session::operator new 从 ClassMemoryPool 分配；池耗尽会自动回退全局 new。
+    auto session = std::shared_ptr<client_session>(new client_session());
     session->set_transport(conn);           // 会话只依赖抽象传输端口
     conn->attach_session(session);          // connection 持有会话（决定其生命周期）
 

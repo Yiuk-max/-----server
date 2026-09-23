@@ -737,6 +737,31 @@ void client_session::show_group_members(int group_UID){
 //====================================================================================
 //====================================================================================
 
+//===============内存池===============
+// 池子参数：每 chunk 256 个块、最多 32 个 chunk（即最多 8192 个会话对象）。
+// chunk 按需扩容；达到上限且无空闲块时 allocate() 返回 nullptr，这里回退到全局 new。
+void* client_session::operator new(std::size_t size) {
+    // 防御：只接管本类型大小的单个对象分配，其它（如潜在派生类）走全局。
+    if (size != sizeof(client_session)) {
+        return ::operator new(size);
+    }
+    void* p = ClassMemoryPool<client_session, 256, 32>::allocate();
+    if (!p) {
+        p = ::operator new(size);  // 池耗尽，回退全局 new
+    }
+    return p;
+}
+
+void client_session::operator delete(void* p) noexcept {
+    if (!p) {
+        return;
+    }
+    // 先尝试归还池子；不是池子分配的（回退出去的）再走全局 delete。
+    if (!ClassMemoryPool<client_session, 256, 32>::deallocate(p)) {
+        ::operator delete(p);
+    }
+}
+
 //===============析构函数===============
 client_session::~client_session(){
     // 在线映射由 logout()/on_disconnected()/顶号路径显式按对象身份移除。

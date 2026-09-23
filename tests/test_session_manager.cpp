@@ -14,8 +14,8 @@ bool running = true;
 int main() {
     auto& manager = session_manager::get_instance();
 
-    auto first = std::make_shared<client_session>();
-    auto second = std::make_shared<client_session>();
+    auto first = std::shared_ptr<client_session>(new client_session());
+    auto second = std::shared_ptr<client_session>(new client_session());
 
     assert(manager.replace_online(1001, first) == nullptr);
     assert(manager.find_session(1001) == first);

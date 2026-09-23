@@ -60,7 +60,8 @@ WsSession::WsSession(tcp::socket&& socket,
       max_pending_bytes_(max_pending_bytes),
       web_root_(std::move(web_root)) {
     // client_session 只依赖 IClientTransport，实际协议由本类负责。
-    session_ = std::make_shared<client_session>();
+    // 走 client_session::operator new 从 ClassMemoryPool 分配；池耗尽会自动回退全局 new。
+    session_ = std::shared_ptr<client_session>(new client_session());
 }
 
 std::shared_ptr<WsSession> WsSession::self() {          //注入到 client_session 中，供其回调使用发送、关闭等操作
