@@ -95,10 +95,16 @@ void sub_reactor::pool_add_task(std::string received_data, int fd)
     }
     // 先把原始字节追加进 connection 的接收缓冲，再把切帧+业务处理提交到线程池
     conn->append_raw_data(received_data);
-    pool->submit_task([conn]()
-                   {
-                        conn->process_incoming();
-                   });
+    try {
+        pool->submit_task([conn]()
+                       {
+                            conn->process_incoming();
+                       });
+    } catch (const std::exception& e) {
+        // 任务队列已满/线程池已停：无法继续处理该连接，主动断开作为背压，避免数据无限堆积。
+        std::cerr << "[sub_reactor] submit task failed fd=" << fd << ": " << e.what() << std::endl;
+        remove_client(fd);
+    }
 }
 void sub_reactor::remove_client(int fd)
 {
