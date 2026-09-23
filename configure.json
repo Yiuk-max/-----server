@@ -2,6 +2,7 @@
     "net_layer": "websocket",
     "use_heartbeat": false,
     "heartbeat_interval": 60,
+    "max_connections": 10000,
     "websocket": {
         "path": "/ws",
         "io_threads": 4,

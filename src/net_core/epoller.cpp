@@ -10,6 +10,7 @@ epoller::~epoller()
     }
 }
 main_reactor::main_reactor(int fd, int sub_count) : server_fd_(fd){
+    max_connections_ = ServerConfig::get_instance().max_connections();
     for(int i = 0; i < sub_count; ++i){
         auto pool = std::make_shared<ThreadPool>(8);
         pools_.push_back(pool);                       // 强引用持有，保证线程池存活
@@ -26,6 +27,13 @@ void main_reactor::add_connect()
     int client_fd = accept(server_fd_, (struct sockaddr *)&client_addr, &len);
     if (client_fd != -1)
     {
+        // 连接数上限：达到上限直接关闭新连接，避免 fd 耗尽
+        if (g_connection_count.load() >= max_connections_)
+        {
+            ::close(client_fd);
+            return;
+        }
+        g_connection_count.fetch_add(1);
         int choose = (select_num) % sub_reactors_.size();
         select_num++;
         sub_reactors_[choose]->add_connect(client_fd); // shared_ptr 元素，用 -> 访问

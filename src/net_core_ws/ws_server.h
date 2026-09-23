@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -25,7 +26,8 @@ public:
              std::string path,                        // WebSocket 连接路径（如 /ws）
              std::size_t max_message_bytes,           // 每个连接的最大消息字节数    接收
              std::size_t max_pending_bytes,           // 每个连接的最大待发送字节数  发送
-             std::string web_root);                   // 静态前端资源目录（非升级请求时服务）
+             std::string web_root,                    // 静态前端资源目录（非升级请求时服务）
+             int max_connections);                    // 最大并发连接数，达到后拒绝新连接
 
     void run();
 
@@ -40,6 +42,8 @@ private:
     std::size_t max_message_bytes_;           // 每个连接的最大消息字节数    接收
     std::size_t max_pending_bytes_;           // 每个连接的最大待发送字节数  发送
     std::string web_root_;                    // 静态前端资源目录
+    std::shared_ptr<std::atomic<int>> connections_;  // 当前活跃连接数（accept +1，teardown -1）
+    int max_connections_;                     // 最大并发连接数
 };
 
 // 阻塞运行 WebSocket 服务器（读取 ServerConfig），直到收到 SIGINT/SIGTERM,优雅退出

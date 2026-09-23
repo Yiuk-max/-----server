@@ -1,6 +1,8 @@
 #include "connection.h"
 #include "client_session.h"
 
+std::atomic<int> g_connection_count{0};
+
 connection::connection(int epoll_fd, int fd)
     : client_fd_(fd), epoll_fd_(epoll_fd) {
     receiver_ = std::make_unique<receiver>(epoll_fd_, fd);
@@ -57,6 +59,7 @@ void connection::close(CloseMode mode) {
     if (fd_to_close >= 0) {
         ::shutdown(fd_to_close, SHUT_RDWR);
         ::close(fd_to_close);
+        g_connection_count.fetch_sub(1);   // 真正关闭 fd 后释放连接名额（对应 accept 时的 fetch_add）
         finish_close(fd_to_close);
     }
 }

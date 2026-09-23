@@ -30,6 +30,7 @@ public:
 
     bool use_heartbeat() const;
     int  heartbeat_interval() const;   // 活动超时秒数
+    int  max_connections() const;      // 最大并发连接数（binary 与 websocket 共用）
 
     // ---- WebSocket 配置 ----
     std::string ws_path() const;                 // 握手路径，默认 "/ws"
@@ -53,6 +54,7 @@ private:
     std::string net_layer_ = "binary";
     bool use_heartbeat_          = false;
     int  heartbeat_interval_     = 60;
+    int  max_connections_        = 10000;   // 最大并发连接数，达到后拒绝新连接
 
     // WebSocket 配置
     std::string ws_path_             = "/ws";

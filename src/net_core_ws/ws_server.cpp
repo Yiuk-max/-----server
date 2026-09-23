@@ -23,14 +23,17 @@ WsServer::WsServer(net::io_context& ioc,
                    std::string path,
                    std::size_t max_message_bytes,
                    std::size_t max_pending_bytes,
-                   std::string web_root)
+                   std::string web_root,
+                   int max_connections)
     : ioc_(ioc),
       acceptor_(net::make_strand(ioc)),
       pool_(std::move(pool)),
       path_(std::move(path)),
       max_message_bytes_(max_message_bytes),
       max_pending_bytes_(max_pending_bytes),
-      web_root_(std::move(web_root)) {
+      web_root_(std::move(web_root)),
+      connections_(std::make_shared<std::atomic<int>>(0)),
+      max_connections_(max_connections) {
     beast::error_code ec;
 
     acceptor_.open(endpoint.protocol(), ec);// 监听器必须在独立 strand 上创建，保证所有 IO 串行。
@@ -79,9 +82,17 @@ void WsServer::on_accept(beast::error_code ec, tcp::socket socket) {
             std::cerr << "[ws] accept: " << ec.message() << std::endl;
         }
     } else {
-        std::make_shared<WsSession>(std::move(socket), pool_, path_,
-                                    max_message_bytes_, max_pending_bytes_, web_root_)
-            ->run();
+        // 连接数上限：达到上限直接关闭新连接，避免 fd 耗尽（MVP 不发 503）
+        if (connections_->load() >= max_connections_) {
+            beast::error_code ec2;
+            socket.close(ec2);
+        } else {
+            connections_->fetch_add(1);
+            std::make_shared<WsSession>(std::move(socket), pool_, path_,
+                                        max_message_bytes_, max_pending_bytes_, web_root_,
+                                        connections_)
+                ->run();
+        }
     }
     do_accept();//循环调用，继续接受新连接
 }
@@ -99,7 +110,8 @@ int run_websocket_server(unsigned short port) {
                                                  cfg.ws_path(),
                                                  cfg.ws_max_message_bytes(),
                                                  cfg.ws_max_pending_bytes(),
-                                                 cfg.ws_web_root());
+                                                 cfg.ws_web_root(),
+                                                 cfg.max_connections());
         server->run();
 
         std::cout << "[ws] WebSocket server listening on port " << port

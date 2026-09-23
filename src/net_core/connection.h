@@ -10,6 +10,10 @@
 // connection 持有 client_session，会话通过 weak_ptr<IClientTransport> 回指，避免引用环。
 class client_session;
 
+// 全局活跃连接计数（binary 模式）：accept 时 +1，connection::close() 真正关闭 fd 时 -1。
+// 定义于 connection.cpp；main_reactor 用它限制最大连接数（见 epoller.cpp）。
+extern std::atomic<int> g_connection_count;
+
 class connection : public IClientTransport {
 public:
     connection(int epoll_fd, int fd);

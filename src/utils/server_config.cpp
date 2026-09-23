@@ -18,6 +18,7 @@ void ServerConfig::load(const std::string& path) {
         if (cfg.contains("net_layer"))           net_layer_ = cfg["net_layer"].get<std::string>();
         if (cfg.contains("use_heartbeat"))       use_heartbeat_  = cfg["use_heartbeat"].get<bool>();
         if (cfg.contains("heartbeat_interval"))  heartbeat_interval_ = cfg["heartbeat_interval"].get<int>();
+        if (cfg.contains("max_connections"))     max_connections_  = cfg["max_connections"].get<int>();
         // WebSocket 配置（嵌套于 "websocket" 对象）
         if (cfg.contains("websocket") && cfg["websocket"].is_object()) {
             auto& w = cfg["websocket"];
@@ -48,6 +49,7 @@ void ServerConfig::load(const std::string& path) {
     if (ws_max_pending_bytes_ == 0) ws_max_pending_bytes_ = 8 * 1024 * 1024;
     if (db_conn_count_ < 1)         db_conn_count_ = 1;
     if (heartbeat_interval_ < 1)    heartbeat_interval_ = 1;
+    if (max_connections_ < 1)       max_connections_ = 1;
 
     std::cout << "[ServerConfig] net_layer=" << net_layer_
               << ", use_heartbeat=" << (use_heartbeat_ ? "true" : "false")
@@ -55,6 +57,7 @@ void ServerConfig::load(const std::string& path) {
               << ", ws_path=" << ws_path_
               << ", ws_io_threads=" << ws_io_threads_
               << ", ws_web_root=" << ws_web_root_
+              << ", max_connections=" << max_connections_
               << ", db_conn_count=" << db_conn_count_ << std::endl;
 }
 
@@ -71,6 +74,11 @@ bool ServerConfig::use_heartbeat() const {
 int ServerConfig::heartbeat_interval() const {
     std::lock_guard<std::mutex> lock(mtx_);
     return heartbeat_interval_;
+}
+
+int ServerConfig::max_connections() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return max_connections_;
 }
 
 std::string ServerConfig::ws_path() const {

@@ -50,7 +50,8 @@ WsSession::WsSession(tcp::socket&& socket,
                      std::string path,
                      std::size_t max_message_bytes,
                      std::size_t max_pending_bytes,
-                     std::string web_root)
+                     std::string web_root,
+                     std::shared_ptr<std::atomic<int>> connections)
     : ws_(std::move(socket)),
       idle_timer_(ws_.get_executor()),                  //绑定到独立 strand 上
       last_active_(std::chrono::steady_clock::now()),   //上次活跃时间初始化为当前时间
@@ -58,7 +59,8 @@ WsSession::WsSession(tcp::socket&& socket,
       path_(std::move(path)),                           //保存 WebSocket 路径
       max_message_bytes_(max_message_bytes),            
       max_pending_bytes_(max_pending_bytes),
-      web_root_(std::move(web_root)) {
+      web_root_(std::move(web_root)),
+      connections_(std::move(connections)) {
     // client_session 只依赖 IClientTransport，实际协议由本类负责。
     // 走 client_session::operator new 从 ClassMemoryPool 分配；池耗尽会自动回退全局 new。
     session_ = std::shared_ptr<client_session>(new client_session());
@@ -456,6 +458,9 @@ void WsSession::teardown() {// 关闭连接，清理状态，通知 session_。
         return;
     }
     disconnected_ = true;
+    if (connections_) {
+        connections_->fetch_sub(1);   // 释放连接名额（与 WsServer::on_accept 的 fetch_add 对应）
+    }
     closed_ = true;
     write_queue_.clear();
     pending_bytes_ = 0;

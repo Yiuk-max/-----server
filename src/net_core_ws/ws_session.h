@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <deque>
@@ -37,7 +38,8 @@ public:
               std::string path,
               std::size_t max_message_bytes,
               std::size_t max_pending_bytes,
-              std::string web_root);
+              std::string web_root,
+              std::shared_ptr<std::atomic<int>> connections);
 
     // 开始握手与读循环（构造后由 WsServer 调用一次）。
     void run();
@@ -83,6 +85,7 @@ private:
 
     std::shared_ptr<ThreadPool> business_pool_;                     // 业务线程池由外部持有并共享，保证生命周期覆盖所有会话
     std::shared_ptr<client_session> session_;
+    std::shared_ptr<std::atomic<int>> connections_;                 // 活跃连接计数（WsServer 持有，teardown 时 -1）
 
     std::deque<std::pair<std::string, bool>> write_queue_;  // {payload, is_text}
     std::size_t pending_bytes_ = 0;     

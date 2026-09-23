@@ -33,6 +33,7 @@ public:
 private:
     int select_num = 0;
     int server_fd_;
+    int max_connections_ = 10000;   // 最大并发连接数（来自 ServerConfig），达到后拒绝新连接
     // 每个 sub_reactor 配套一个独立线程池。sub_reactor 内部只持有 weak_ptr，
     // 必须由 main_reactor 持有强引用，否则临时 shared_ptr 析构时线程池会被销毁，
     // 导致 sub_reactor::pool_add_task() 报 "ThreadPool is no longer available."
