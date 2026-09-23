@@ -93,5 +93,12 @@ public:
     void package_message(const std::string& message,std::string type);      //打包信息并等待处理
     void package_chat_message(const std::string& message,std::string type,int message_id,int group_uid = 0,int sender_uid = 0,const std::string& sender_name = "",int reply_to_message_id = 0,const std::string& reply_sender_name = "",const std::string& reply_content = "",const std::string& timestamp = ""); //打包聊天消息
     void package_envelope(const chat_proto::Envelope& message);             //直接发送一个完整 Envelope（如 history_response）
+    void send_serialized_packet(const std::string& payload);                //发送已序列化的 protobuf（供广播复用同一份 payload）
 
 };
+
+// 构造聊天消息 Envelope：把单发(package_chat_message)与广播(NoticeService)共用的字段填充逻辑收敛到一处。
+void build_chat_envelope(chat_proto::Envelope& env, const std::string& type, const std::string& message,
+                         int message_id, int group_uid, int sender_uid, const std::string& sender_name,
+                         int reply_to_message_id, const std::string& reply_sender_name,
+                         const std::string& reply_content, const std::string& timestamp);

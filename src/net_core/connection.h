@@ -30,6 +30,7 @@ public:
 
     // ---------- IClientTransport ----------
     void send_packet(const chat_proto::Envelope& message, std::string file_data = {}) override;
+    void send_serialized(const std::string& payload) override;
     void send_file(std::string file_name) override;
     void accept_file_chunk(const chat_proto::FileChunkMeta& meta, std::string file_data) override;
     void close(CloseMode mode) override;
@@ -39,6 +40,7 @@ public:
 private:
     Standard_Message next_frame();
     void finish_close(int fd);
+    void send_framed(const std::string& payload, const std::string& file_data);
 
     std::atomic<int>              client_fd_;
     int                           epoll_fd_;

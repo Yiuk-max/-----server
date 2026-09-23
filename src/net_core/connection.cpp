@@ -116,6 +116,14 @@ void connection::send_packet(const chat_proto::Envelope& message, std::string fi
     if (!message.SerializeToString(&payload)) {
         return;
     }
+    send_framed(payload, file_data);
+}
+
+void connection::send_serialized(const std::string& payload) {
+    send_framed(payload, {});
+}
+
+void connection::send_framed(const std::string& payload, const std::string& file_data) {
     const std::size_t frame_size = 8 + payload.size() + file_data.size();
     if (frame_size > UINT32_MAX) {
         return;
@@ -131,7 +139,7 @@ void connection::send_packet(const chat_proto::Envelope& message, std::string fi
     packet += payload;
     packet += file_data;
 
-    // 与 close() 共用生命周期锁，保证“检查连接状态 + 入发送队列”不可被关闭穿插。
+    // 与 close() 共用生命周期锁，保证"检查连接状态 + 入发送队列"不可被关闭穿插。
     std::lock_guard<std::mutex> lock(lifecycle_mtx_);
     if (closed_ || closing_after_write_) {
         return;

@@ -44,6 +44,7 @@ public:
 
     // ---------- IClientTransport ----------
     void send_packet(const chat_proto::Envelope& message, std::string file_data = {}) override;
+    void send_serialized(const std::string& payload) override;
     void send_file(std::string file_name) override;
     void accept_file_chunk(const chat_proto::FileChunkMeta& meta, std::string file_data) override;
     void close(CloseMode mode) override;
@@ -64,6 +65,7 @@ private:
     void touch();
     void schedule_idle_check();
 
+    void post_binary_frame(const std::string& body, std::string file_data);
     void enqueue(std::string payload, bool is_text);
     void do_write();
     void on_write(boost::beast::error_code ec, std::size_t bytes);

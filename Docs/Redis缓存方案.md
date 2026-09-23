@@ -367,7 +367,6 @@ RepositoryHub（组合根，repository_hub.cpp）
 **问题**：
 - 线程数**硬编码**，无法按 CPU/负载调优；WS 模式全服只有一个 8 线程池。
 - `ThreadPool::submit_task` 与 `ThreadPool::run` 共用**一把锁 + 一个条件变量 + 一条队列**（`th_pool_mtx_`/`cv_`/`tasks`）。高并发下所有连接的消息入队/出队都争同一把锁。
-- 队列**无上限**，任务洪峰时堆积（见 B1）。
 
 ### A2. MySQL 连接池：默认 4 + 阻塞等待 + 每消息写库
 
@@ -425,22 +424,6 @@ RepositoryHub（组合根，repository_hub.cpp）
 
 ## B. 稳定性瓶颈
 
-### B1. 无界任务队列 → 内存暴涨 / OOM（高）
-
-`ThreadPool::tasks` 是 `std::queue` 无上限。DB 变慢或流量洪峰时，任务堆积只涨不降，最终 OOM。
-
-**建议**：队列加容量上限；满时按策略处理（拒绝新连接/回压力/丢最旧）。
-
-### B2. 业务任务异常未捕获 → std::terminate（最高，隐蔽）
-
-**位置**：`ThreadPool::run()` 中 `task();` 无 try/catch；`std::thread` 入口函数若以异常退出，进程直接 `std::terminate`。
-
-- WS：`dispatch_to_business` 只 catch 了 `submit_task` 的异常，业务 lambda 内部 `session_->on_message(...)` 抛异常不会被捕获。
-- binary：`pool_add_task` 的 lambda `conn->process_incoming()` 同样无 catch。
-- repo 层大多只 catch `sql::SQLException`，`std::bad_alloc`、protobuf/JSON 意外异常都可能穿透。
-
-**建议**：`ThreadPool::run()` 对每个 task 包一层 `try/catch(...)` 并打日志，绝不让异常逃出 worker 线程。这是**最优先要修**的稳定性问题。
-
 ### B3. 发送缓冲上限不一致（中）
 
 - **WS**：`max_pending_bytes` 8 MiB 超限 `teardown`，有保护。
@@ -472,7 +455,7 @@ accept 无限，无 max connections。fd 耗尽后 accept 仅打日志；异常�
 
 ### B9. 内存池超限退化（低）
 
-`ClassMemoryPool` 达 8192 上限后 `allocate` 返回 nullptr → `operator new` 回退全局 new，功能正确但池化失效；属于设计行为，压测时观测即可（见压测方案 S3）。
+`ClassMemoryPool` 达 8192 上限后 `allocate` 返回 nullptr → `operator new` 回退全局 new，功能正确但池化失效；属于设计行为，压测时观测即可（见压测方案 S3）。这是计划的一部分🤫
 
 ---
 
@@ -480,8 +463,6 @@ accept 无限，无 max connections。fd 耗尽后 accept 仅打日志；异常�
 
 | 优先级 | 问题 | 动作 | 与缓存的关系 |
 |---|---|---|---|
-| **P0** | B2 业务异常 terminate | `ThreadPool::run` 包 try/catch | 缓存层异常也要能被吞掉，否则降级失效 |
-| **P0** | B1 无界队列 | 队列上限 + 回压/拒绝策略 | 缓存命中后 DB 压力下降，队列堆积概率降低 |
 | **P1** | A2 MySQL 连接池/DB 写 | 接入 Redis 缓存（C1/C2/C5）卸载读 | 本方案核心 |
 | **P1** | B3 binary 发送缓冲无上限 | 加 max_pending_bytes | — |
 | **P1** | B5 DB 无超时 | statement 超时 + 连接池等待超时 | 与缓存降级配合 |

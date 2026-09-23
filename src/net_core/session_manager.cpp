@@ -36,3 +36,15 @@ std::shared_ptr<client_session> session_manager::find_session(int UID) {
     }
     return nullptr;
 }
+
+std::vector<std::shared_ptr<client_session>> session_manager::find_sessions(
+    const std::vector<int>& uids) {
+    std::shared_lock<std::shared_mutex> lock(sessions_mutex);
+    std::vector<std::shared_ptr<client_session>> result;
+    result.reserve(uids.size());
+    for (int uid : uids) {
+        auto it = sessions_.find(uid);
+        result.push_back(it != sessions_.end() ? it->second : nullptr);
+    }
+    return result;
+}

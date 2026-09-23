@@ -776,9 +776,12 @@ void client_session::package_message(const std::string& message,std::string type
     }
 }
 
-void client_session::package_chat_message(const std::string& message, std::string type, int message_id, int group_uid, int sender_uid, const std::string& sender_name, int reply_to_message_id, const std::string& reply_sender_name, const std::string& reply_content, const std::string& timestamp){
-    chat_proto::Envelope msg;
-    msg.set_type(std::move(type));
+// 构造聊天消息 Envelope（单发与广播共用），把字段填充逻辑收敛到一处。
+void build_chat_envelope(chat_proto::Envelope& msg, const std::string& type, const std::string& message,
+                         int message_id, int group_uid, int sender_uid, const std::string& sender_name,
+                         int reply_to_message_id, const std::string& reply_sender_name,
+                         const std::string& reply_content, const std::string& timestamp) {
+    msg.set_type(type);
     msg.set_content(message);
     msg.set_message_id(message_id);
     if (group_uid > 0) {
@@ -801,6 +804,12 @@ void client_session::package_chat_message(const std::string& message, std::strin
         reply->set_sender_name(reply_sender_name);
         reply->set_content(reply_content);
     }
+}
+
+void client_session::package_chat_message(const std::string& message, std::string type, int message_id, int group_uid, int sender_uid, const std::string& sender_name, int reply_to_message_id, const std::string& reply_sender_name, const std::string& reply_content, const std::string& timestamp){
+    chat_proto::Envelope msg;
+    build_chat_envelope(msg, type, message, message_id, group_uid, sender_uid, sender_name,
+                        reply_to_message_id, reply_sender_name, reply_content, timestamp);
     if (auto transport = transport_.lock()) {
         transport->send_packet(msg);
     }
@@ -810,6 +819,13 @@ void client_session::package_chat_message(const std::string& message, std::strin
 void client_session::package_envelope(const chat_proto::Envelope& message){
     if (auto transport = transport_.lock()) {
         transport->send_packet(message);
+    }
+}
+
+// 发送已序列化的 protobuf（供 NoticeService 广播复用同一份 payload，跳过重复序列化）
+void client_session::send_serialized_packet(const std::string& payload){
+    if (auto transport = transport_.lock()) {
+        transport->send_serialized(payload);
     }
 }
 

@@ -325,7 +325,14 @@ void WsSession::send_packet(const chat_proto::Envelope& message, std::string fil
         std::cerr << "[WsSession] serialize failed" << std::endl;
         return;
     }
+    post_binary_frame(body, std::move(file_data));
+}
 
+void WsSession::send_serialized(const std::string& payload) {
+    post_binary_frame(payload, {});
+}
+
+void WsSession::post_binary_frame(const std::string& body, std::string file_data) {
     // 统一使用 binary 帧：| 4B payload_len | protobuf | file_data |
     std::string payload = ws_protocol::encode_binary(body, file_data);
 

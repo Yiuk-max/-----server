@@ -24,4 +24,6 @@ class session_manager{
         // 仅当 UID 仍指向 expected 时删除，避免旧连接的迟到断线清掉新登录。
         void remove_online_if_same(int UID, const client_session* expected);
         std::shared_ptr<client_session> find_session(int UID);
+        // 批量查找：一次共享锁返回 uid_list 对应的所有在线会话（离线为 nullptr，保持输入顺序）。
+        std::vector<std::shared_ptr<client_session>> find_sessions(const std::vector<int>& uids);
 };
