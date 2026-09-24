@@ -1,5 +1,15 @@
 build/
 
+# Python 字节码缓存
+__pycache__/
+*.pyc
+
+# 前端构建产物（由 frontend/ npm run build 生成）
+web/
+
+# IDE 缓存（VS Code IntelliSense 数据库，体积大且自动重建）
+.vscode/browse.vc.db*
+
 *.obj
 *.o
 *.a

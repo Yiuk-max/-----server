@@ -6,6 +6,19 @@
 
 ---
 
+## 0. 实现状态
+
+| 缓存点 | 状态 | key | 说明 |
+|---|---|---|---|
+| C1 群成员列表 | ✅ 已实现 | `chat:g:members:{gid}` SET | `group_repo` 读回填 / 写 DEL |
+| C2 账号信息 | ✅ 已实现 | `chat:a:{uid}` HASH + 1h TTL | `account_repo` 读回填 / 写 DEL |
+| C3 token→uid | ⬜ 未实现 | `chat:t:{token}` STRING + 7d | 待做（见 §3 C3） |
+| C4 邮箱→uid | ✅ 已实现 | `chat:e:{email}` STRING + 24h TTL | `account_email_repo` 读回填 / 换绑 DEL 旧 |
+| C5 历史索引 | ⬜ 未实现 | `chat:h:*` ZSET | 待做（较重，双写） |
+| C6 好友列表 | ⬜ 未实现 | `chat:f:{uid}` SET | 待做 |
+
+---
+
 ## 1. 背景与目标
 
 ### 1.1 现状
@@ -42,23 +55,22 @@
 - **写**：先写 MySQL 成功，再**失效或刷新** Redis。**绝不**先写 Redis 再写 MySQL。
 - **降级**：Redis 任何异常/超时一律吞掉打日志，回退 MySQL 路径（现有代码已普遍有 `nullptr/空` 兜底）。
 
-### 2.2 分层与装配（关键）
+### 2.2 分层与装配
 
-沿用现有「接口 + 组合根」架构，用**装饰器**实现缓存，业务层零改动：
+实际实现采用**「repo 内部直连 RedisCache」**（比装饰器改动更小，业务层零改动）：
 
 ```
-RepositoryHub（组合根，repository_hub.cpp）
-   ├─ 不启用缓存：装配 account_repo / group_repo / ...（现状）
-   └─ 启用缓存 ：装配 CachedAccountRepo(account_repo, cache)
-                             CachedGroupRepo(group_repo, cache)
-                             CachedFriendRepo(friend_repo, cache)
-                             CachedMessageRepo(message_repo, cache)
-                             CachedEmailRepo(account_email_repo, cache)
+业务层（client_session / social_module）
+        ↓ RepositoryHub::accounts()/groups()/emails()（接口不变）
+repo 实现（account_repo / group_repo / account_email_repo / ...）
+        ↓ 内部先查 RedisCache，未命中查 MySQL 后回填；写路径调用失效函数
+RedisCache（src/utils/redis_cache.*：key 规范 + 命令封装 + 失效函数）
+        ↓
+RedisPool（src/utils/redis_client.*：持有 sw::redis::Redis，自带连接池）
 ```
 
-- 所有装饰器共享同一个 `CacheClient`（单例，封装 Redis 命令 + key 规范 + 失效函数）。
-- 失效跨表（如注销要同时清 account/email/token 缓存）由 `CacheClient` 提供的失效函数统一处理。
-- 开关放 `configure.json` 的 `redis.enabled`，`false` 时装配原 repo，完全回到现状。
+- `RedisCache` 单例集中封装「key 规范 + 命令 + 失效函数」，跨表失效由各 repo 调用其失效函数完成。
+- 开关放 `configure.json` 的 `redis.enabled`；`false` 时 `RedisPool` 不建连接，所有缓存方法退化为 no-op/未命中，业务自动回退 MySQL（等价原现状，无需换装配）。
 
 ### 2.3 Key 规范
 
@@ -69,7 +81,7 @@ RepositoryHub（组合根，repository_hub.cpp）
 | `chat:g:members:{gid}` | SET | 群成员 uid | 无 TTL（靠主动失效）+ 可选 24h 兜底 |
 | `chat:a:{uid}` | HASH | 账号字段 | 1h 兜底 + 主动失效 |
 | `chat:t:{token}` | STRING | uid | 7d（滑动刷新） |
-| `chat:e:{email}` | STRING | uid | 无 TTL + 主动失效（可选 24h） |
+| `chat:e:{email}` | STRING | uid | 24h 兜底 + 主动失效 |
 | `chat:h:1:{gid}` | ZSET | 群聊会话消息 id 索引 | 7d（对齐消息保留期） |
 | `chat:h:0:{min}:{max}` | ZSET | 私聊会话消息 id 索引 | 7d |
 | `chat:m:{id}` | HASH | 单条消息（可选） | 7d |
@@ -83,8 +95,12 @@ RepositoryHub（组合根，repository_hub.cpp）
 
 ### 2.5 基础设施：RedisPool + ServerConfig
 
-- 新增 `RedisPool` 单例（对标 `MySQL_Conn_Pool`）：连接池、`get/return`、`init/shutdown`。
-- C++17 客户端：`redis-plus-plus`（基于 hiredis，自带连接池与同步/异步 API）。
+- `src/utils/redis_client.{h,cpp}`：`RedisPool` 单例，持有 `sw::redis::Redis`
+  （`ConnectionOptions` + `ConnectionPoolOptions`），池满 `wait_timeout=50ms` 快速失败
+  （缓存层捕获后降级，不阻塞业务线程）。
+- C++17 客户端：`redis-plus-plus`（基于 hiredis），经 CMake `FetchContent` 拉取
+  `hiredis v1.4.1` + `redis-plus-plus 1.3.15` 静态链接；`server` 与 `test_session_manager` 均链接
+  `redis++::redis++_static`。
 - `configure.json` 增加 `redis` 段：
 
 ```json
@@ -107,7 +123,7 @@ RepositoryHub（组合根，repository_hub.cpp）
 
 > 每项含：现状代码位置 / Redis 结构 / 读写流程 / 失效点 / 降级。
 
-### C1 群成员列表（最高优先级 ⭐）
+### C1 群成员列表（最高优先级 ⭐）✅ 已实现
 
 **现状**
 - `client_session::group_chat()` → `repo_hub_->groups()->get_group_members(group_uid)` → `group_repo::get_group_members()`：
@@ -133,7 +149,7 @@ RepositoryHub（组合根，repository_hub.cpp）
 
 ---
 
-### C2 账号信息缓存（高优先级 ⭐）
+### C2 账号信息缓存（高优先级 ⭐）✅ 已实现
 
 **现状**
 - `account_repo::load_account(uid)`：`SELECT UID,password,nickname,settings,language,token FROM Account WHERE UID = ?`
@@ -186,25 +202,25 @@ RepositoryHub（组合根，repository_hub.cpp）
 
 ---
 
-### C4 email → uid
+### C4 email → uid ✅ 已实现
 
 **现状**
 - `account_email_repo::find_uid_by_email(email)`：`SELECT UID FROM account_email WHERE email = ?`
 - 调用点：注册预检查、`login_by_email`、`send_friend_request`。
 
 **Redis**
-- `chat:e:{email}` = STRING uid
-- 绑定/换绑 `set_email` 成功 → `SET`；注销 → `DEL`。
+- `chat:e:{email}` = STRING uid + 24h 兜底 TTL
+- 绑定/换绑 `set_email` 成功 → `SET` 新映射 + `DEL` 旧映射；注销暂靠 24h TTL 自愈（见难点）。
 
 **失效点**
 | 写操作 | 函数 | 动作 |
 |---|---|---|
-| 绑定/换绑 | `account_email_repo::set_email` | `SET` 新映射（换绑时同时 `DEL` 旧 email，需传入旧 email） |
-| 注销 | `account_repo::remove_account` | `DEL`（见下方难点） |
+| 绑定/换绑 | `account_email_repo::set_email` | 先 SELECT 旧邮箱，成功后 `SET` 新 + `DEL` 旧 |
+| 注销 | `account_repo::remove_account` | 暂不处理，靠 24h TTL 自愈（见下方难点） |
 
-**难点**：`remove_account` 只 `DELETE FROM Account`，邮箱由外键 CASCADE 删除，repo 层拿不到 email。两个方案：
-- **方案 1（推荐）**：`remove_account` 删除前先 `emails()->get_email(uid)` 拿到 email，删除成功后 `DEL chat:e:{email}`。
-- **方案 2**：不主动 DEL，靠兜底 TTL（如 24h）自愈。风险是注销后 24h 内该邮箱映射脏数据（但 `load_account` 会因账号已删返回 nullptr，业务层有兜底，影响很小）。
+**难点（实际采用方案 2）**：`remove_account` 只 `DELETE FROM Account`，邮箱由外键 CASCADE 删除，repo 层拿不到 email。
+- `remove_account` 当前仅在注册回滚路径调用（此时 `set_email` 已失败，邮箱缓存本就不存在），无实际脏数据窗口。
+- 未来若加「注销账号」业务，再在 `remove_account` 补 `email_invalidate`（先查 email 再 DEL）。
 
 **负结果**：邮箱不存在（-1）不缓存，避免污染；仅缓存正映射。
 
@@ -276,7 +292,7 @@ RepositoryHub（组合根，repository_hub.cpp）
 |---|---|---|
 | `account_repo::update_account` | a:{uid} | DEL |
 | `account_repo::update_token` | a:{uid}.token, t:{old}, t:{new} | HSET / DEL 旧 / SET 新 |
-| `account_repo::remove_account` | a:{uid}, e:{email}, f:{uid} | DEL（email 先查再删） |
+| `account_repo::remove_account` | a:{uid} | DEL（email 靠 24h TTL 自愈，见 C4） |
 | `account_email_repo::set_email` | e:{old}, e:{new} | DEL 旧 / SET 新 |
 | `friend_repo::add_friend` | f:{a}, f:{b} | DEL 双方 |
 | `friend_repo::remove_friend` | f:{a}, f:{b} | DEL 双方 |
@@ -307,10 +323,10 @@ RepositoryHub（组合根，repository_hub.cpp）
 
 | 阶段 | 内容 | 交付 |
 |---|---|---|
-| **P0** | `RedisPool` + `ServerConfig` redis 段 + `CacheClient` 骨架；C1 群成员缓存（收益最大、结构最简单） | 群聊场景 DB 读下降，冒烟通过 |
-| **P1** | C2 账号缓存 + C3 token + C4 email | 登录/私聊/加好友 DB 读下降 |
-| **P2** | C5 历史索引（+ 可选 C5+ 消息缓存）+ C6 好友列表 | 历史/登录读下降 |
-| **P3** | 压测对比（开/关缓存）+ 失效矩阵回归 + 文档基线 | 压测报告 |
+| **P0** | ✅ 已完成：RedisPool + ServerConfig redis 段 + RedisCache 骨架 + C1 群成员缓存 | 群聊场景 DB 读下降，冒烟通过 |
+| **P1** | 🔶 部分完成：C2 账号缓存 + C4 email 已完成；C3 token 待做 | 登录/私聊/加好友 DB 读下降 |
+| **P2** | ⬜ C5 历史索引（+ 可选 C5+ 消息缓存）+ C6 好友列表 | 历史/登录读下降 |
+| **P3** | ⬜ 压测对比（开/关缓存）+ 失效矩阵回归 + 文档基线 | 压测报告 |
 
 每个阶段都用 `redis.enabled=false` 回归一次，保证关掉缓存后行为与现状一致。
 
@@ -318,15 +334,17 @@ RepositoryHub（组合根，repository_hub.cpp）
 
 ## 7. 测试与验证
 
-1. **单元**：`CacheClient` 各 key 操作；装饰器「命中/未命中回源/写后失效」。
-2. **功能回归**：`tests/ws_chat_smoke.py` 在 `enabled=true/false` 下全量通过。
-3. **一致性验证**（针对性）：
-   - 改昵称后对方 show_friends 立即看到新昵称；
-   - 踢人后对方 show_group_members 立即看不到被踢者；
-   - 删好友后立即私聊被拒（is_friend 走 DB 或缓存都正确）；
-   - 注销后原 email 无法再注册/登录。
-4. **降级验证**：停掉 Redis，冒烟脚本仍全量通过。
-5. **性能对比**：用 `Docs/压力测试方案.md` 的群聊/私聊场景，对比开/关缓存的 DB 连接占用与 P95。
+**已执行（C1/C2/C4）**：
+- ✅ `tests/ws_chat_smoke.py` 在 `redis.enabled=true/false` 下全量通过。
+- ✅ C1：群聊广播回填成员、拉人 DEL、下次群聊回填新成员（`test_group_broadcast.py` + redis-cli 验证）。
+- ✅ C2：加好友触发 `load_account` 回填；`change_name` 后 key 被 DEL；`show` 再回填新昵称。
+- ✅ C4：注册回填、换绑 DEL 旧/SET 新、负结果不缓存、新邮箱登录。
+- ✅ 降级：`redis.enabled=false` 时 `[RedisPool] disabled`，冒烟全通过。
+
+**待做（P3）**：
+- 性能对比：用 `Docs/压力测试方案.md` 的群聊/私聊场景，对比开/关缓存的 DB 连接占用与 P95。
+- 失效矩阵回归：C5/C6 落地后补齐。
+- 单元测试：`RedisCache` 各 key 操作（命中/未命中/写后失效）。
 
 ---
 
@@ -345,18 +363,20 @@ RepositoryHub（组合根，repository_hub.cpp）
 
 ## 9. 交付物
 
-1. `src/db/redis/redis_conn_pool.{h,cpp}`（连接池）
-2. `src/cache/redis_cache.{h,cpp}`（`CacheClient`：key 规范 + 命令封装 + 失效函数）
-3. 5 个装饰器 repo：`CachedAccountRepo / CachedGroupRepo / CachedFriendRepo / CachedMessageRepo / CachedEmailRepo`
-4. `RepositoryHub` 按 `redis.enabled` 装配
-5. `configure.json` + `ServerConfig` 增加 `redis` 段
-6. 单测 + 一致性测试 + 压测对比报告
+1. `src/utils/redis_client.{h,cpp}`（RedisPool：redis-plus-plus 封装 + 连接池）
+2. `src/utils/redis_cache.{h,cpp}`（RedisCache：key 规范 + 命令封装 + 失效函数，已含 C1/C2/C4）
+3. `src/db/repo/group_repo.cpp`（C1 接入）、`account_repo.cpp`（C2 接入）、`account_email_repo.cpp`（C4 接入）
+4. `configure.json` + `ServerConfig` 增加 `redis` 段
+5. CMakeLists：FetchContent(hiredis + redis-plus-plus) + 链接 `redis++::redis++_static`
+6. 一致性验证（C1/C2/C4）+ `enabled=false` 降级回归；压测对比报告待 P3
 
 ---
 
 # 附录：并发与稳定性瓶颈分析
 
 > 本文档在「缓存方案」之外，补充对当前服务器的**并发**与**稳定性**瓶颈梳理，作为缓存落地与压测的对照清单。每条标注代码位置与影响面，最后给出优化优先级。
+>
+> 已修复（2026-09-23，见开发日志）：B1 无界队列、B2 异常 terminate、A4 群聊广播放大、B6 连接数/fd 上限。
 
 ## A. 并发瓶颈
 
@@ -388,7 +408,7 @@ RepositoryHub（组合根，repository_hub.cpp）
 - `find_session` 每次 `shared_lock`；**群聊广播 N 个成员 = N 次 find_session = N 次锁获取/释放**。
 - `replace_online` / `remove_online_if_same` 用 `unique_lock`，登录/顶号/断线会短暂阻塞所有 `find_session`。
 
-### A4. 群聊广播 CPU 放大：同一消息 N 次序列化 + N 次查表
+### A4. 群聊广播 CPU 放大：同一消息 N 次序列化 + N 次查表 ✅ 已修复
 
 **位置**：`client_session::group_chat()` → `NoticeService::send_to_users_with_id()` → 循环 `package_chat_message()`。
 
@@ -439,7 +459,7 @@ RepositoryHub（组合根，repository_hub.cpp）
 
 JDBC `PreparedStatement::execute*` 无 statement 超时。DB 慢/锁等待时，业务线程被长时间占用；8 线程全卡 = 全服无响应。
 
-### B6. 连接数 / fd 无上限（中）
+### B6. 连接数 / fd 无上限（中）✅ 已修复
 
 accept 无限，无 max connections。fd 耗尽后 accept 仅打日志；异常连接可能耗光资源。
 
@@ -463,12 +483,15 @@ accept 无限，无 max connections。fd 耗尽后 accept 仅打日志；异常�
 
 | 优先级 | 问题 | 动作 | 与缓存的关系 |
 |---|---|---|---|
+| ✅ 已修 | B1/B2 无界队列/异常 terminate | 队列上限 + run() try/catch | — |
+| ✅ 已修 | A4 群聊广播放大 | 序列化一次 + find_sessions 批量 | 广播路径优化 |
+| ✅ 已修 | B6 连接数/fd 上限 | 各网络层加连接数上限 | — |
 | **P1** | A2 MySQL 连接池/DB 写 | 接入 Redis 缓存（C1/C2/C5）卸载读 | 本方案核心 |
 | **P1** | B3 binary 发送缓冲无上限 | 加 max_pending_bytes | — |
 | **P1** | B5 DB 无超时 | statement 超时 + 连接池等待超时 | 与缓存降级配合 |
-| **P2** | A4 群聊广播放大 | 序列化复用 + find_session 批量 | C1 群成员缓存落地后再做 |
 | **P2** | A1 线程池硬编码 | 线程数可配置（进 configure.json） | 压测调参依据 |
 | **P2** | A3 session_manager 锁 | 分片 map / 批量查询 | — |
-| **P3** | B4 限流 / B6 连接上限 / B7 日志 | 按需加固 | — |
+| **P3** | B4 限流 / B7 日志 | 按需加固 | — |
 
-> 结论：**B2（异常 terminate）和 B1（无界队列）是必须先修的稳定地基**，否则压测打高并发时一个 `bad_alloc` 或一次洪峰就能让整个进程崩溃，缓存做得再好也白搭。缓存（尤其 C1/C2/C5）是缓解 A2 及 DB 压力的主力手段，两者互补。
+> 结论：截止 2026-09-23，B1/B2/A4/B6 已修复；剩余 P1（A2/B3/B5）与 P2/P3 待按表推进。
+> 缓存（C1/C2/C4 已落地，C5 待做）是缓解 A2 及 DB 压力的主力手段，两者互补。
