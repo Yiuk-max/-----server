@@ -1,5 +1,6 @@
 #include "group_repo.h"
 #include "mysql_conn_pool.h"
+#include "redis_cache.h"
 #include <memory>
 #include <iostream>
 #include <nlohmann/json.hpp>
@@ -65,6 +66,7 @@ std::shared_ptr<group> group_repo::create_group(int owner_uid, const std::string
         
         auto grp = std::make_shared<group>(owner_uid, group_name, group_id);
         grp->set_member_count(1); // 刚建群只有群主一人
+        RedisCache::get_instance().group_members_invalidate(group_id);
         return grp;
     } catch (const sql::SQLException& e) {
         std::cerr << "[group_repo] create_group failed: " << e.what()
@@ -98,6 +100,7 @@ bool group_repo::delete_group(int group_uid, int requester_uid) {
         delete_pstmt->setInt(1, group_uid);
         delete_pstmt->execute();
         
+        RedisCache::get_instance().group_members_invalidate(group_uid);
         return true;
     } catch (const sql::SQLException& e) {
         std::cerr << "[group_repo] delete_group failed: " << e.what()
@@ -178,6 +181,12 @@ std::shared_ptr<group> group_repo::load_group(int group_uid) {
 }
 
 std::vector<int> group_repo::get_group_members(int group_uid) {
+    // 缓存优先：命中直接返回，避免每条群消息都查 Groupmember
+    auto cached = RedisCache::get_instance().group_members_get(group_uid);
+    if (cached) {
+        return *cached;
+    }
+
     ConnGuard guard;
     std::vector<int> members;
     if (!guard) {
@@ -193,6 +202,8 @@ std::vector<int> group_repo::get_group_members(int group_uid) {
         while (rs->next()) {
             members.push_back(rs->getInt("member_UID"));
         }
+        // 回填缓存（禁用/连接不可用时内部 no-op）
+        RedisCache::get_instance().group_members_set(group_uid, members);
         return members;
     } catch (const sql::SQLException& e) {
         std::cerr << "[group_repo] get_group_members failed: " << e.what()
@@ -320,7 +331,11 @@ bool group_repo::member_add_group(int group_uid, int requester_uid, int new_memb
                 "SELECT ?, UID, nickname, 'member' FROM Account WHERE UID = ?"));
         pstmt->setInt(1, group_uid);
         pstmt->setInt(2, new_member_uid);
-        return pstmt->executeUpdate() > 0;
+        const bool ok = pstmt->executeUpdate() > 0;
+        if (ok) {
+            RedisCache::get_instance().group_members_invalidate(group_uid);
+        }
+        return ok;
     } catch (const sql::SQLException& e) {
         std::cerr << "[group_repo] member_add_group failed: " << e.what()
                   << " (ERRNO=" << e.getErrorCode() << ")" << std::endl;
@@ -358,6 +373,7 @@ bool group_repo::remove_group_member(int group_uid, int requester_uid, int targe
         pstmt->setInt(1, group_uid);
         pstmt->setInt(2, target_uid);
         pstmt->executeUpdate();
+        RedisCache::get_instance().group_members_invalidate(group_uid);
         return true;
     } catch (const sql::SQLException& e) {
         std::cerr << "[group_repo] remove_group_member failed: " << e.what()

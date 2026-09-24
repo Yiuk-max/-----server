@@ -47,6 +47,15 @@ public:
     std::string db_name() const;
     int  db_conn_count() const;        // 连接池内连接数量（默认 4）
 
+    // ---- Redis 缓存配置 ----
+    bool        redis_enabled() const;    // 是否启用缓存（默认 false）
+    std::string redis_host() const;
+    int         redis_port() const;
+    std::string redis_password() const;
+    int         redis_db() const;
+    int         redis_pool_size() const; // 连接池大小（默认 4）
+    int         redis_timeout_ms() const;// 单次命令超时（默认 200ms）
+
 private:
     ServerConfig() = default;
 
@@ -70,4 +79,13 @@ private:
     std::string db_password_ = "Chat_123!";
     std::string db_name_     = "chat_server";
     int         db_conn_count_ = 4;
+
+    // Redis 缓存配置
+    bool        redis_enabled_    = false;
+    std::string redis_host_       = "127.0.0.1";
+    int         redis_port_       = 6379;
+    std::string redis_password_   = "";
+    int         redis_db_         = 0;
+    int         redis_pool_size_  = 4;
+    int         redis_timeout_ms_ = 200;
 };

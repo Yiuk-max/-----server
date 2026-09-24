@@ -17,5 +17,14 @@
         "password": "Chat_123!",
         "dbname": "chat_server",
         "db_conn_count": 4
+    },
+    "redis": {
+        "enabled": true,
+        "host": "127.0.0.1",
+        "port": 6379,
+        "password": "",
+        "db": 0,
+        "pool_size": 4,
+        "timeout_ms": 200
     }
 }

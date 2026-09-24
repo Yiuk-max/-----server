@@ -1,5 +1,6 @@
 #include "account_email_repo.h"
 #include "mysql_conn_pool.h"
+#include "redis_cache.h"
 #include <iostream>
 #include <memory>
 
@@ -50,6 +51,18 @@ bool account_email_repo::set_email(int uid, const std::string& email) {
             }
         }
 
+        // 1.5 取出该 UID 当前的旧邮箱（换绑时用于失效旧映射缓存）
+        std::string old_email;
+        {
+            std::unique_ptr<sql::PreparedStatement> pstmt(
+                conn->prepareStatement("SELECT email FROM account_email WHERE UID = ?"));
+            pstmt->setInt(1, uid);
+            std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
+            if (rs->next()) {
+                old_email = rs->getString("email");
+            }
+        }
+
         // 2. 删掉该 UID 的旧绑定（换绑），再插入新绑定
         {
             std::unique_ptr<sql::PreparedStatement> pstmt(
@@ -67,6 +80,12 @@ bool account_email_repo::set_email(int uid, const std::string& email) {
 
         conn->commit();
         conn->setAutoCommit(true);
+
+        // 缓存：SET 新映射；换绑时 DEL 旧映射（禁用/异常时内部 no-op）
+        RedisCache::get_instance().email_set(email, uid);
+        if (!old_email.empty() && old_email != email) {
+            RedisCache::get_instance().email_invalidate(old_email);
+        }
         return true;
     } catch (const sql::SQLException& e) {
         try { conn->rollback(); } catch (...) {}
@@ -79,6 +98,11 @@ bool account_email_repo::set_email(int uid, const std::string& email) {
 
 // 按邮箱查 UID；不存在返回 -1
 int account_email_repo::find_uid_by_email(const std::string& email) {
+    // 缓存优先：命中直接返回 uid，避免注册预检查/邮箱登录/加好友反复查 DB
+    if (auto uid = RedisCache::get_instance().email_get_uid(email)) {
+        return *uid;
+    }
+
     ConnGuard guard;
     if (!guard) {
         std::cerr << "[account_email_repo] find_uid_by_email: no DB connection." << std::endl;
@@ -90,7 +114,9 @@ int account_email_repo::find_uid_by_email(const std::string& email) {
         pstmt->setString(1, email);
         std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
         if (rs->next()) {
-            return rs->getInt("UID");
+            const int uid = rs->getInt("UID");
+            RedisCache::get_instance().email_set(email, uid);  // 只回填正映射，负结果不缓存
+            return uid;
         }
         return -1;
     } catch (const sql::SQLException& e) {

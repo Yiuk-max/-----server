@@ -7,6 +7,7 @@
 #include "server_config.h"
 #include "mysql_conn_pool.h"
 #include "ws_server.h"
+#include "redis_client.h"
 #include <cerrno>
 
 
@@ -64,6 +65,9 @@ int main(){
 
     // 初始化 MySQL 连接池（两套网络层共用）
     MySQL_Conn_Pool::get_instance().init();
+
+    // 初始化 Redis 连接池（缓存层用；enabled=false 时为空操作）
+    RedisPool::get_instance().init();
 
     const std::string net_layer = ServerConfig::get_instance().net_layer();
     if (net_layer == "websocket") {

@@ -1,5 +1,6 @@
 #include "account_repo.h"
 #include "mysql_conn_pool.h"
+#include "redis_cache.h"
 #include <memory>
 #include <iostream>
 #include <nlohmann/json.hpp>
@@ -129,6 +130,7 @@ void account_repo::remove_account(int uid) {
             guard.get()->prepareStatement("DELETE FROM Account WHERE UID = ?"));
         pstmt->setInt(1, uid);
         pstmt->executeUpdate();
+        RedisCache::get_instance().account_invalidate(uid);
     } catch (const sql::SQLException& e) {
         std::cerr << "[account_repo] remove failed: " << e.what()
                   << " (ERRNO=" << e.getErrorCode() << ")" << std::endl;
@@ -137,6 +139,17 @@ void account_repo::remove_account(int uid) {
 
 // 加载：按 UID 查询账户（含设置项 settings/language）
 std::shared_ptr<account> account_repo::load_account(int uid) {
+    // 缓存优先：命中直接重建对象，避免高频 load_account（show_friends 等）反复打 DB
+    if (auto cached = RedisCache::get_instance().account_get(uid)) {
+        auto acc = std::make_shared<account>(uid, cached->nickname, cached->password);
+        acc->set_settings_json(cached->settings);
+        acc->set_theme(parse_theme(cached->settings));
+        acc->set_language(cached->language);
+        acc->set_last_login_time(parse_last_login_time(cached->settings));
+        if (!cached->token.empty()) acc->set_token(cached->token);
+        return acc;
+    }
+
     ConnGuard guard;
     if (!guard) {
         std::cerr << "[account_repo] load: no DB connection." << std::endl;
@@ -161,6 +174,15 @@ std::shared_ptr<account> account_repo::load_account(int uid) {
         acc->set_language(rs->getString("language"));
         acc->set_last_login_time(parse_last_login_time(settings_json));
         if (!rs->isNull("token")) acc->set_token(rs->getString("token"));
+
+        // 回填缓存（禁用/异常时内部 no-op）
+        AccountCache c;
+        c.nickname = acc->getName();
+        c.password = acc->passwd_raw();
+        c.settings = acc->get_settings_json();
+        c.language = acc->get_language();
+        c.token    = acc->get_token();
+        RedisCache::get_instance().account_set(uid, c);
         return acc;
     } catch (const sql::SQLException& e) {
         std::cerr << "[account_repo] load failed: " << e.what()
@@ -181,7 +203,11 @@ bool account_repo::update_token(int uid, const std::string& token) {
             guard.get()->prepareStatement("UPDATE Account SET token = ? WHERE UID = ?"));
         pstmt->setString(1, token);
         pstmt->setInt(2, uid);
-        return pstmt->executeUpdate() > 0;
+        const bool ok = pstmt->executeUpdate() > 0;
+        if (ok) {
+            RedisCache::get_instance().account_invalidate(uid);
+        }
+        return ok;
     } catch (const sql::SQLException& e) {
         std::cerr << "[account_repo] update_token failed: " << e.what()
                   << " (ERRNO=" << e.getErrorCode() << ")" << std::endl;
@@ -245,7 +271,11 @@ bool account_repo::update_account(const std::shared_ptr<account>& acc) {
                                              acc->get_last_login_time()));
         pstmt->setString(4, acc->get_language());
         pstmt->setInt(5, acc->getUID());
-        return pstmt->executeUpdate() > 0;
+        const bool ok = pstmt->executeUpdate() > 0;
+        if (ok) {
+            RedisCache::get_instance().account_invalidate(acc->getUID());
+        }
+        return ok;
     } catch (const sql::SQLException& e) {
         // 常见失败：DB 不可用等（昵称允许重复，不再因重名失败）
         std::cerr << "[account_repo] update failed: " << e.what()

@@ -38,6 +38,17 @@ void ServerConfig::load(const std::string& path) {
             if (d.contains("dbname"))        db_name_       = d["dbname"].get<std::string>();
             if (d.contains("db_conn_count")) db_conn_count_ = d["db_conn_count"].get<int>();
         }
+        // Redis 缓存配置（嵌套于 "redis" 对象）
+        if (cfg.contains("redis") && cfg["redis"].is_object()) {
+            auto& r = cfg["redis"];
+            if (r.contains("enabled"))    redis_enabled_    = r["enabled"].get<bool>();
+            if (r.contains("host"))       redis_host_       = r["host"].get<std::string>();
+            if (r.contains("port"))       redis_port_       = r["port"].get<int>();
+            if (r.contains("password"))   redis_password_   = r["password"].get<std::string>();
+            if (r.contains("db"))         redis_db_         = r["db"].get<int>();
+            if (r.contains("pool_size"))  redis_pool_size_  = r["pool_size"].get<int>();
+            if (r.contains("timeout_ms")) redis_timeout_ms_ = r["timeout_ms"].get<int>();
+        }
     } catch (const std::exception& e) {
         std::cerr << "[ServerConfig] parse error: " << e.what()
                   << ", fallback to defaults." << std::endl;
@@ -50,6 +61,9 @@ void ServerConfig::load(const std::string& path) {
     if (db_conn_count_ < 1)         db_conn_count_ = 1;
     if (heartbeat_interval_ < 1)    heartbeat_interval_ = 1;
     if (max_connections_ < 1)       max_connections_ = 1;
+    if (redis_pool_size_ < 1)       redis_pool_size_ = 1;
+    if (redis_timeout_ms_ < 1)      redis_timeout_ms_ = 200;
+    if (redis_port_ < 1)            redis_port_ = 6379;
 
     std::cout << "[ServerConfig] net_layer=" << net_layer_
               << ", use_heartbeat=" << (use_heartbeat_ ? "true" : "false")
@@ -129,4 +143,33 @@ std::string ServerConfig::db_name() const {
 int ServerConfig::db_conn_count() const {
     std::lock_guard<std::mutex> lock(mtx_);
     return db_conn_count_;
+}
+
+bool ServerConfig::redis_enabled() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return redis_enabled_;
+}
+std::string ServerConfig::redis_host() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return redis_host_;
+}
+int ServerConfig::redis_port() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return redis_port_;
+}
+std::string ServerConfig::redis_password() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return redis_password_;
+}
+int ServerConfig::redis_db() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return redis_db_;
+}
+int ServerConfig::redis_pool_size() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return redis_pool_size_;
+}
+int ServerConfig::redis_timeout_ms() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return redis_timeout_ms_;
 }
