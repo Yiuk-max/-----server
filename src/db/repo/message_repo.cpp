@@ -34,7 +34,7 @@ message make_message(sql::ResultSet* rs) {
     m.sender_UID   = rs->getInt("sender_UID");
     m.receiver_UID = rs->getInt("receiver_UID");
     m.content      = rs->getString("content");
-    m.is_group     = (rs->getInt("type") == 2); // type: 1=私聊 2=群聊
+    m.type         = rs->getString("type"); // "private" / "group" / "channel"
     m.timestamp    = rs->getString("send_time");
     return m;
 }
@@ -50,10 +50,11 @@ message make_history_message(sql::ResultSet* rs) {
 }
 } // namespace
 
-// 存储消息：type=2 群聊 / 1 私聊；私聊 receiver_UID=对方UID，群聊 receiver_UID=group_UID
+// 存储消息：type='private' 私聊 / 'group' 普通群聊 / 'channel' 社区频道；
+// 私聊 receiver_UID=对方UID，群聊/频道 receiver_UID=group_UID/频道id
 // 成功返回数据库分配的 message_id，失败返回 -1
 int message_repo::store_message(int sender_UID, int receiver_UID,
-                                const std::string& content, bool is_group,
+                                const std::string& content, const std::string& type,
                                 int reply_to_message_id, std::string* out_timestamp) {
     ConnGuard guard;
     if (!guard) {
@@ -67,7 +68,7 @@ int message_repo::store_message(int sender_UID, int receiver_UID,
                 is_reply
                     ? "INSERT INTO message (type, sender_UID, receiver_UID, content, reply_to_message_id) VALUES (?, ?, ?, ?, ?)"
                     : "INSERT INTO message (type, sender_UID, receiver_UID, content) VALUES (?, ?, ?, ?)"));
-        pstmt->setInt(1, is_group ? 2 : 1);
+        pstmt->setString(1, type);
         pstmt->setInt(2, sender_UID);
         pstmt->setInt(3, receiver_UID);
         pstmt->setString(4, content);
@@ -179,9 +180,14 @@ std::vector<message> message_repo::get_offline_messages(int receiver_UID, const 
                 "LEFT JOIN Account a  ON a.UID = m.sender_UID "
                 "LEFT JOIN message r  ON r.id = m.reply_to_message_id "
                 "LEFT JOIN Account ra ON ra.UID = r.sender_UID "
-                "WHERE ((m.type = 1 AND m.receiver_UID = ? AND m.sender_UID != ?) "
-                "   OR (m.type = 2 AND m.receiver_UID IN "
+                "WHERE ((m.type = 'private' AND m.receiver_UID = ? AND m.sender_UID != ?) "
+                "   OR (m.type = 'group' AND m.receiver_UID IN "
                 "         (SELECT group_UID FROM Groupmember WHERE member_UID = ?) "
+                "       AND m.sender_UID != ?) "
+                "   OR (m.type = 'channel' AND m.receiver_UID IN "
+                "         (SELECT ch.id FROM community_member cm "
+                "          JOIN community ch ON ch.core_channel_id = cm.community_id "
+                "          WHERE cm.user_UID = ? AND ch.is_core = 0) "
                 "       AND m.sender_UID != ?)) "
                 "  AND m.send_time > ? "
                 "ORDER BY m.id ASC"));
@@ -189,7 +195,9 @@ std::vector<message> message_repo::get_offline_messages(int receiver_UID, const 
         pstmt->setInt(2, receiver_UID);
         pstmt->setInt(3, receiver_UID);
         pstmt->setInt(4, receiver_UID);
-        pstmt->setString(5, since);
+        pstmt->setInt(5, receiver_UID);
+        pstmt->setInt(6, receiver_UID);
+        pstmt->setString(7, since);
         std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
         while (rs->next()) {
             result.push_back(make_history_message(rs.get()));
@@ -203,7 +211,7 @@ std::vector<message> message_repo::get_offline_messages(int receiver_UID, const 
 
 // 游标分页查聊天历史：按 id 倒序取 limit+1 条，多出的一条用于判断 has_more，
 // 最后反转为时间正序（旧→新）返回。id 倒序即时间倒序（id 自增保持发送顺序）。
-bool message_repo::get_history_page(int self_uid, int peer_uid, bool is_group,
+bool message_repo::get_history_page(int self_uid, int peer_uid, const std::string& type,
                                     int before_id, int limit,
                                     std::vector<message>& out, bool& has_more) {
     out.clear();
@@ -222,16 +230,7 @@ bool message_repo::get_history_page(int self_uid, int peer_uid, bool is_group,
         return false;
     }
 
-    const char* sql_group =
-        "SELECT m.id, m.type, m.sender_UID, m.receiver_UID, m.content, m.send_time, "
-        "       a.nickname AS sender_name, "
-        "       m.reply_to_message_id, ra.nickname AS reply_sender_name, r.content AS reply_content "
-        "FROM message m "
-        "LEFT JOIN Account a  ON a.UID = m.sender_UID "
-        "LEFT JOIN message r  ON r.id = m.reply_to_message_id "
-        "LEFT JOIN Account ra ON ra.UID = r.sender_UID "
-        "WHERE m.type = 2 AND m.receiver_UID = ? AND m.id < ? "
-        "ORDER BY m.id DESC LIMIT ?";
+    // 私聊：双向会话；群聊/频道：按 receiver_UID 定位（结构相同，仅 type 不同）
     const char* sql_private =
         "SELECT m.id, m.type, m.sender_UID, m.receiver_UID, m.content, m.send_time, "
         "       a.nickname AS sender_name, "
@@ -240,24 +239,36 @@ bool message_repo::get_history_page(int self_uid, int peer_uid, bool is_group,
         "LEFT JOIN Account a  ON a.UID = m.sender_UID "
         "LEFT JOIN message r  ON r.id = m.reply_to_message_id "
         "LEFT JOIN Account ra ON ra.UID = r.sender_UID "
-        "WHERE m.type = 1 "
+        "WHERE m.type = 'private' "
         "  AND ((m.sender_UID = ? AND m.receiver_UID = ?) "
         "    OR (m.sender_UID = ? AND m.receiver_UID = ?)) "
         "  AND m.id < ? "
         "ORDER BY m.id DESC LIMIT ?";
+    const char* sql_group_like =
+        "SELECT m.id, m.type, m.sender_UID, m.receiver_UID, m.content, m.send_time, "
+        "       a.nickname AS sender_name, "
+        "       m.reply_to_message_id, ra.nickname AS reply_sender_name, r.content AS reply_content "
+        "FROM message m "
+        "LEFT JOIN Account a  ON a.UID = m.sender_UID "
+        "LEFT JOIN message r  ON r.id = m.reply_to_message_id "
+        "LEFT JOIN Account ra ON ra.UID = r.sender_UID "
+        "WHERE m.type = ? AND m.receiver_UID = ? AND m.id < ? "
+        "ORDER BY m.id DESC LIMIT ?";
 
     try {
+        const bool is_private = (type == "private");
         std::unique_ptr<sql::PreparedStatement> pstmt(
-            guard.get()->prepareStatement(is_group ? sql_group : sql_private));
+            guard.get()->prepareStatement(is_private ? sql_private : sql_group_like));
         int idx = 1;
-        if (is_group) {
+        if (is_private) {
+            pstmt->setInt(idx++, self_uid);
             pstmt->setInt(idx++, peer_uid);
+            pstmt->setInt(idx++, peer_uid);
+            pstmt->setInt(idx++, self_uid);
             pstmt->setInt64(idx++, cursor);
         } else {
-            pstmt->setInt(idx++, self_uid);
+            pstmt->setString(idx++, type); // 'group' 或 'channel'
             pstmt->setInt(idx++, peer_uid);
-            pstmt->setInt(idx++, peer_uid);
-            pstmt->setInt(idx++, self_uid);
             pstmt->setInt64(idx++, cursor);
         }
         pstmt->setInt(idx++, limit + 1); // 多取一条判断 has_more

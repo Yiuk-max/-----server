@@ -25,3 +25,6 @@ class File_handler : public Message_handler{
 class Base_handler : public Message_handler{
     void handle_message(const chat_proto::Envelope& message, client_session& session, std::string &file_data) override;
 };
+class Community_handler : public Message_handler{
+    void handle_message(const chat_proto::Envelope& message, client_session& session, std::string &file_data) override;
+};

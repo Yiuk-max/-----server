@@ -83,8 +83,8 @@ void send_offline_messages(client_session& s, const std::string& since_time) {
         if (sender) {
             sender_name = sender->getName();
         }
-        std::string type = m.is_group ? "Group_Chat" : "private_chat";
-        int group_uid = m.is_group ? m.receiver_UID : 0;
+        std::string type = (m.type == "group") ? "Group_Chat" : (m.type == "channel" ? "Channel_Chat" : "private_chat");
+        int group_uid = (m.type == "private") ? 0 : m.receiver_UID;
         s.package_chat_message(m.content, type, m.message_id, group_uid, m.sender_UID, sender_name,
                                m.reply_to_message_id, m.reply_sender_name, m.reply_content, m.timestamp);
     }

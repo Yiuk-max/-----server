@@ -5,6 +5,7 @@
 #include "friend_repository.h"
 #include "group_repository.h"
 #include "message_repository.h"
+#include "community_repository.h"
 
 // ============================================================
 // RepositoryHub：仓储门面（Facade / 组合根）
@@ -47,11 +48,16 @@ public:
     // 允许运行时替换实现（便于测试注入 mock / 未来切换数据源），业务层默认无需调用
     void set_message_repo(std::shared_ptr<I_message_repo> repo) { message_repo_ = std::move(repo); }
 
+    // 社区仓储（接口），默认已装配 repo 层真实 MySQL 实现
+    std::shared_ptr<I_community_repo> communities() const { return community_repo_; }
+    void set_community_repo(std::shared_ptr<I_community_repo> repo) { community_repo_ = std::move(repo); }
+
 private:
     std::shared_ptr<I_account_repo> account_repo_;          // 账户仓储（构造时装配真实 MySQL 实现）
     std::shared_ptr<I_account_email_repo> email_repo_;      // 账户邮箱仓储（构造时装配真实 MySQL 实现）
     std::shared_ptr<I_friend_repo>  friend_repo_;           // 好友仓储（构造时装配真实 MySQL 实现）
     std::shared_ptr<I_group_repo>    group_repo_;           // 群聊仓储（构造时装配真实 MySQL 实现）
     std::shared_ptr<I_message_repo>  message_repo_;         // 消息仓储（构造时装配真实 MySQL 实现）
+    std::shared_ptr<I_community_repo> community_repo_;      // 社区仓储（构造时装配真实 MySQL 实现）
 };
 

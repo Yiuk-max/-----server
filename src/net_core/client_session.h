@@ -61,6 +61,11 @@ public:
     void remove_friend_from_list(int friend_UID);
     void add_group_to_list(int group_UID);
     void remove_group_from_list(int group_UID);
+    void add_community_to_list(int community_id);
+    void remove_community_from_list(int community_id);
+    void add_channel_to_list(int channel_id);
+    void remove_channel_from_list(int channel_id);
+    void reload_community_state();
 
     //===============消息分发===============
     // 接收驱动：由 connection::process_incoming 回调；负责解析 protobuf 并策略分发到 handlers_

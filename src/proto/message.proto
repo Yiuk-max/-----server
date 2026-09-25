@@ -39,6 +39,31 @@ message FileChunkMeta {
   uint64 offset      = 8;
 }
 
+// 社区（核心频道）信息
+message CommunityInfo {
+  int32  community_id = 1;
+  string name         = 2;
+  string description  = 3;
+  string avatar       = 4;  // file_id，预留
+  string category     = 5;  // 预留：社区所属分区
+  string my_role      = 6;  // owner/admin/member
+}
+
+// 社区普通频道信息
+message ChannelInfo {
+  int32  channel_id   = 1;
+  int32  community_id = 2;
+  string name         = 3;
+  string category     = 4;  // 频道分区
+}
+
+// 社区成员信息
+message MemberInfo {
+  int32  user_uid = 1;
+  string nickname = 2;  // 社区昵称（空则前端用全局昵称）
+  string role     = 3;
+}
+
 // 顶层信封（一个 message 承载所有请求/响应字段）
 message Envelope {
   string type    = 1;  // 对应原 JSON type，保留字符串便于 handlers_ 分发
@@ -89,4 +114,16 @@ message Envelope {
 
   // 历史响应
   repeated ChatItem messages = 32;
+
+  // 社区/频道（编号从 33 起）
+  int32  community_id = 33;  // 社区 id（=核心频道 id）
+  int32  channel_id   = 34;  // 频道 id
+  string category     = 35;  // 频道分区
+  string description  = 36;  // 社区简介
+  string avatar       = 37;  // 头像 file_id（预留）
+  string role         = 38;  // 成员角色 owner/admin/member
+  bool   is_channel   = 39;  // history_request 时标记频道历史
+  repeated CommunityInfo communities = 40;
+  repeated ChannelInfo   channels    = 41;
+  repeated MemberInfo    members     = 42;
 }

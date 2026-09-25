@@ -15,6 +15,10 @@ social_module::social_module(int UID, std::shared_ptr<RepositoryHub> hub)
     friend_relations = repo_hub_->friends()->get_friend_list(UID);
     friend_groups = repo_hub_->groups()->get_user_groups(UID);
 
+    // 社区与社区频道列表（社区/频道在独立表，直接存 id，无需 group_manager 缓存）
+    communities = repo_hub_->communities()->get_user_communities(UID);
+    channels = repo_hub_->communities()->get_user_channels(UID);
+
     // 注入群聊仓储，并尝试加载该用户的所有群聊（已加载跳过，未加载加载）
     group_manager::get_instance().set_group_repo(repo_hub_->groups());
     group_manager::get_instance().load_groups_for_user(friend_groups);
@@ -92,6 +96,10 @@ bool social_module::has_group(int group_UID) const {
     return std::find(friend_groups.begin(), friend_groups.end(), group_UID) != friend_groups.end();
 }
 
+bool social_module::has_channel(int channel_uid) const {
+    return std::find(channels.begin(), channels.end(), channel_uid) != channels.end();
+}
+
 // 仅把群加入内存列表（不写库），用于被拉入群/申请通过后同步其会话
 void social_module::add_group_to_list(int group_UID){
     if (std::find(friend_groups.begin(), friend_groups.end(), group_UID) == friend_groups.end()) {
@@ -107,6 +115,37 @@ void social_module::remove_group_from_list(int group_UID){
         friend_groups.erase(new_end, friend_groups.end());
         group_manager::get_instance().unload(group_UID); // 释放内存引用
     }
+}
+
+void social_module::add_community_to_list(int community_id){
+    if (std::find(communities.begin(), communities.end(), community_id) == communities.end()) {
+        communities.push_back(community_id);
+    }
+}
+
+void social_module::remove_community_from_list(int community_id){
+    auto new_end = std::remove(communities.begin(), communities.end(), community_id);
+    if (new_end != communities.end()) {
+        communities.erase(new_end, communities.end());
+    }
+}
+
+void social_module::add_channel_to_list(int channel_id){
+    if (std::find(channels.begin(), channels.end(), channel_id) == channels.end()) {
+        channels.push_back(channel_id);
+    }
+}
+
+void social_module::remove_channel_from_list(int channel_id){
+    auto new_end = std::remove(channels.begin(), channels.end(), channel_id);
+    if (new_end != channels.end()) {
+        channels.erase(new_end, channels.end());
+    }
+}
+
+void social_module::reload_community_state(){
+    communities = repo_hub_->communities()->get_user_communities(user_UID_);
+    channels = repo_hub_->communities()->get_user_channels(user_UID_);
 }
 
 // 发送好友申请（按邮箱定位接收方）：解析邮箱→UID 后落库（relation_apply, apply_type=1, status=0）+ 通知接收方

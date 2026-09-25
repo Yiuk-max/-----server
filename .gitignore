@@ -21,3 +21,16 @@ web/
 *.d
 *.gcda
 *.gcno
+build/cmake_install.cmake
+build/CMakeFiles/Makefile.cmake
+build/CMakeFiles/Makefile.cmake
+build/CMakeFiles/4.3.1/CMakeCCompiler.cmake
+build/CMakeFiles/4.3.1/CMakeCXXCompiler.cmake
+build/CMakeFiles/4.3.1/CMakeSystem.cmake
+build/CMakeFiles/4.3.1/CMakeCCompiler.cmake
+build/CMakeFiles/server.dir/progress.make
+build/CMakeFiles/server.dir/link.txt
+build/CMakeFiles/server.dir/flags.make
+build/CMakeFiles/server.dir/DependInfo.cmake
+build/CMakeFiles/server.dir/compiler_depend.make
+build/CMakeFiles/InstallScripts.json

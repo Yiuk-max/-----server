@@ -2,8 +2,8 @@
 -- 聊天服务器 数据库建表脚本（以当前数据库实际结构为准）
 -- 数据库：MySQL 8.0（当前库 collate 为 utf8mb4_0900_ai_ci）
 -- 字符集：utf8mb4（必须，否则中文/emoji 会乱码或插入失败）
--- 本脚本与线上 chat_server 库的结构一致，包含 7 张表：
---   Account / account_email / friend_relation / relation_apply / `Group` / Groupmember / message
+-- 本脚本与线上 chat_server 库的结构一致，包含 9 张表：
+--   Account / account_email / community / community_member / friend_relation / relation_apply / `Group` / Groupmember / message
 -- 说明：
 --   1. friend_relation 采用"双向同步"（应用层在事务内双写两行）
 --   2. friend_request 已更名扩展为 relation_apply（apply_type 区分好友/群聊申请），
@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS Account (
     settings    JSON               NULL                    COMMENT '账号设置(主题/语言/通知开关等,JSON序列化)',
     language    VARCHAR(16)        NOT NULL DEFAULT 'Chinese' COMMENT '语言',
     token       VARCHAR(64)        NULL                    COMMENT '登录令牌(自动登录用,可空)',
+    avatar_file_id VARCHAR(128)    NULL                    COMMENT '用户头像文件ID(预留,二期文件传输)',
     create_time DATETIME           NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '注册时间',
     birthday    DATE               NULL                    COMMENT '生日(可空)',
 
@@ -133,17 +134,17 @@ CREATE TABLE IF NOT EXISTS Groupmember (
 
 -- ------------------------------------------------------------
 -- 6. 聊天记录表 message
---    需求：持久化私聊/群聊消息，用于历史记录/离线补发。
---    设计：type=1 私聊 / type=2 群聊
+--    需求：持久化私聊/普通群聊/社区频道消息，用于历史记录/离线补发。
+--    设计：type=private 私聊 / group 普通群聊 / channel 社区频道
 --          私聊时只写一条 (sender, receiver)，查询两人会话用
 --              WHERE ((sender=:me AND receiver=:other) OR (sender=:other AND receiver=:me))
---          群聊时写一条 (sender, receiver=group_UID)
+--          群聊/频道时写一条 (sender, receiver=group_UID/频道id)
 --    id：自增主键保持发送顺序，方便按 id 分页拉取历史。
 --    说明：不做文件表（本次需求明确"补消息不补文件"）。
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS message (
     id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '消息自增ID(保持顺序)',
-    type         TINYINT         NOT NULL                COMMENT '1=私聊 2=群聊',
+    type         ENUM('private','group','channel') NOT NULL DEFAULT 'private' COMMENT 'private=私聊 group=普通群聊 channel=社区频道',
     sender_UID   BIGINT UNSIGNED NOT NULL                COMMENT '发送者',
     receiver_UID BIGINT UNSIGNED NOT NULL                COMMENT '接收方(私聊=对方UID;群聊=group_UID)',
     content      TEXT            NOT NULL                COMMENT '消息内容',
@@ -153,7 +154,7 @@ CREATE TABLE IF NOT EXISTS message (
     PRIMARY KEY (id),
     -- 私聊会话查询索引
     KEY idx_private (sender_UID, receiver_UID, id),
-    -- 群聊历史索引
+    -- 群聊/频道历史索引
     KEY idx_group (receiver_UID, id),
     KEY idx_sender (sender_UID)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='聊天记录表';
@@ -176,6 +177,47 @@ CREATE TABLE IF NOT EXISTS account_email (
     CONSTRAINT fk_email_uid
         FOREIGN KEY (UID) REFERENCES Account(UID) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='账户邮箱绑定表';
+
+-- ------------------------------------------------------------
+-- 8. 社区表 community（独立表：核心频道 + 普通频道）
+--    社区 = is_core=1 的核心频道（隐藏不展示，承载社区描述/头像/拥有者）
+--    普通频道 = is_core=0 且 core_channel_id 指向核心频道
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS community (
+    id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '社区/频道ID',
+    name            VARCHAR(64)     NOT NULL                COMMENT '社区名(core)/频道名(channel)',
+    core_channel_id BIGINT UNSIGNED NULL                    COMMENT '普通频道→核心频道id；核心频道为NULL',
+    is_core         TINYINT(1)      NOT NULL DEFAULT 0      COMMENT '1=核心频道(社区,隐藏不展示)',
+    description     VARCHAR(255)    NULL                    COMMENT '社区简介(仅核心频道)',
+    avatar          VARCHAR(128)    NULL                    COMMENT '社区头像文件ID(仅核心频道,预留,二期文件传输)',
+    owner_UID       BIGINT UNSIGNED NULL                    COMMENT '社区拥有者(仅核心频道)',
+    category        VARCHAR(64)     NULL                    COMMENT '频道分区(普通频道,可空)',
+    create_time     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+
+    PRIMARY KEY (id),
+    KEY idx_core_channel (core_channel_id),
+    CONSTRAINT fk_community_core
+        FOREIGN KEY (core_channel_id) REFERENCES community(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='社区表(核心频道+普通频道)';
+
+-- ------------------------------------------------------------
+-- 9. 社区成员表 community_member（独立表）
+--    社区成员挂在核心频道上（community_id = 核心频道id），一份共享给所有普通频道。
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS community_member (
+    community_id BIGINT UNSIGNED NOT NULL COMMENT '所属社区(核心频道id)',
+    user_UID     BIGINT UNSIGNED NOT NULL COMMENT '成员UID',
+    nickname     VARCHAR(64)     NULL COMMENT '社区内昵称(NULL=用全局昵称)',
+    role         ENUM('owner','admin','member') NOT NULL DEFAULT 'member' COMMENT '社区角色',
+    join_time    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '加入时间',
+
+    PRIMARY KEY (community_id, user_UID),
+    KEY idx_user (user_UID),
+    CONSTRAINT fk_cm_community
+        FOREIGN KEY (community_id) REFERENCES community(id) ON DELETE CASCADE,
+    CONSTRAINT fk_cm_user
+        FOREIGN KEY (user_UID) REFERENCES Account(UID) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='社区成员表';
 
 -- ============================================================
 -- 【应用层双向同步实现】参考（friend_relation 双写）

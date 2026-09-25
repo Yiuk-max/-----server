@@ -95,6 +95,24 @@ void client_session::init_(){
     handlers_["modify_member_role"]     = std::make_unique<Group_handler>();// 修改成员身份
     handlers_["show_group_requests"]    = std::make_unique<Group_handler>();// 查看待处理入群申请
     handlers_["show_group_members"]     = std::make_unique<Group_handler>();// 查看群成员
+    //社区/频道相关
+    handlers_["create_community"]             = std::make_unique<Community_handler>();
+    handlers_["delete_community"]             = std::make_unique<Community_handler>();
+    handlers_["modify_community"]             = std::make_unique<Community_handler>();
+    handlers_["show_communities"]             = std::make_unique<Community_handler>();
+    handlers_["show_community_channels"]      = std::make_unique<Community_handler>();
+    handlers_["show_community_members"]       = std::make_unique<Community_handler>();
+    handlers_["create_channel"]               = std::make_unique<Community_handler>();
+    handlers_["delete_channel"]               = std::make_unique<Community_handler>();
+    handlers_["modify_channel"]               = std::make_unique<Community_handler>();
+    handlers_["channel_chat"]                 = std::make_unique<Community_handler>();
+    handlers_["join_community"]               = std::make_unique<Community_handler>();
+    handlers_["handle_community_join_request"] = std::make_unique<Community_handler>();
+    handlers_["community_add_member"]         = std::make_unique<Community_handler>();
+    handlers_["community_remove_member"]      = std::make_unique<Community_handler>();
+    handlers_["leave_community"]              = std::make_unique<Community_handler>();
+    handlers_["show_community_requests"]      = std::make_unique<Community_handler>();
+    handlers_["modify_community_member_role"] = std::make_unique<Community_handler>();
     //文件相关
     handlers_["download_file"]          = std::make_unique<File_handler>();
     handlers_["upload_file"]            = std::make_unique<File_handler>();
@@ -199,6 +217,36 @@ void client_session::add_group_to_list(int group_UID){
 void client_session::remove_group_from_list(int group_UID){
     if (social_manager_) {
         social_manager_->remove_group_from_list(group_UID);
+    }
+}
+
+void client_session::add_community_to_list(int community_id){
+    if (social_manager_) {
+        social_manager_->add_community_to_list(community_id);
+    }
+}
+
+void client_session::remove_community_from_list(int community_id){
+    if (social_manager_) {
+        social_manager_->remove_community_from_list(community_id);
+    }
+}
+
+void client_session::add_channel_to_list(int channel_id){
+    if (social_manager_) {
+        social_manager_->add_channel_to_list(channel_id);
+    }
+}
+
+void client_session::remove_channel_from_list(int channel_id){
+    if (social_manager_) {
+        social_manager_->remove_channel_from_list(channel_id);
+    }
+}
+
+void client_session::reload_community_state(){
+    if (social_manager_) {
+        social_manager_->reload_community_state();
     }
 }
 

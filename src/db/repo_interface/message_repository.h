@@ -7,11 +7,14 @@
 struct message {
     int message_id;         // 消息 ID（自增主键）
     int sender_UID;        // 发送者 UID
-    int receiver_UID;      // 接收者 UID（私聊）或群聊 UID（群聊）
+    int receiver_UID;      // 接收者 UID（私聊）或群聊/频道 ID（群聊/频道）
     std::string content;   // 消息内容
-    bool is_group;         // 是否为群聊消息
+    std::string type;      // 消息类型："private" / "group" / "channel"
     std::string timestamp; // 时间戳
     std::string sender_name; // 发送者昵称（仅历史查询时填充，便于前端展示）
+
+    // 是否为群聊型消息（group / channel）
+    bool is_group() const { return type != "private"; }
 
     // 回复：本条消息回复的原消息 id（0=非回复）；
     // reply_sender_name / reply_content 为原消息摘要（历史查询时 JOIN 填充）。
@@ -29,7 +32,7 @@ public:
     // 存储消息：成功返回数据库分配的 message_id，失败返回 -1。
     // reply_to_message_id > 0 表示本条是回复该 id 的消息（只支持一层直接引用）。
     virtual int store_message(int sender_UID, int receiver_UID, const std::string& message,
-                              bool is_group, int reply_to_message_id = 0,
+                              const std::string& type, int reply_to_message_id = 0,
                               std::string* out_timestamp = nullptr) = 0;
 
     virtual bool delete_message(int message_id) = 0;
@@ -44,14 +47,14 @@ public:
 
     // 游标分页查聊天历史（用 message.id 作游标，供前端"上滑加载更多"）。
     //   self_uid  ：当前登录用户
-    //   peer_uid  ：对方 UID（私聊）或群 UID（群聊）
-    //   is_group  ：peer_uid 是否为群（true 走 type=2，false 走 type=1）
+    //   peer_uid  ：对方 UID（私聊）或群/频道 ID（群聊/频道）
+    //   type      ：消息类型 'private' / 'group' / 'channel'
     //   before_id ：只取 id < before_id 的记录；<=0 表示取最新一页（登录后首屏）
     //   limit     ：本页最多返回多少条
     //   out       ：按时间正序（id 升序，旧→新）返回
     //   has_more  ：是否还有更旧的记录（前端据此决定是否还能上滑加载）
     // 成功返回 true。
-    virtual bool get_history_page(int self_uid, int peer_uid, bool is_group,
+    virtual bool get_history_page(int self_uid, int peer_uid, const std::string& type,
                                   int before_id, int limit,
                                   std::vector<message>& out, bool& has_more) = 0;
 

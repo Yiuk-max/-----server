@@ -25,7 +25,7 @@ void group_chat(client_session& s, int target_uid, const std::string& message, i
     }
     // 先存储消息（含 reply_to_message_id），取回数据库分配的 message_id 与发送时间
     std::string msg_timestamp;
-    int msg_id = s.repo_hub()->messages()->store_message(acc->getUID(), target_uid, message, true, reply_to_message_id, &msg_timestamp);
+    int msg_id = s.repo_hub()->messages()->store_message(acc->getUID(), target_uid, message, "group", reply_to_message_id, &msg_timestamp);
     // 回复的原消息摘要（可能不在当前分页里，单独按 id 查）
     std::string reply_name, reply_content;
     if (reply_to_message_id > 0) logic::load_reply_summary(s, reply_to_message_id, reply_name, reply_content);
@@ -64,7 +64,7 @@ void private_chat(client_session& s, int target_uid, const std::string& message,
 
     // 3. 先落库（无论对方是否在线；离线消息由对方上线时离线拉取）
     std::string msg_timestamp;
-    int msg_id = s.repo_hub()->messages()->store_message(acc->getUID(), target_uid, message, false, reply_to_message_id, &msg_timestamp);
+    int msg_id = s.repo_hub()->messages()->store_message(acc->getUID(), target_uid, message, "private", reply_to_message_id, &msg_timestamp);
     // 回复的原消息摘要（可能不在当前分页里，单独按 id 查）
     std::string reply_name, reply_content;
     if (reply_to_message_id > 0) logic::load_reply_summary(s, reply_to_message_id, reply_name, reply_content);
@@ -116,11 +116,17 @@ void delete_message(client_session& s, int message_id) {
     }
     s.package_message("Message [" + std::to_string(message_id) + "] deleted.\n", "system");
 
-    // 通知在线且会收到该消息的人（群聊删除时携带 group_UID）
-    if (msg.is_group) {
+    // 通知在线且会收到该消息的人（群聊/频道删除时携带 group_UID/channel_id）
+    if (msg.type == "group") {
         auto members = s.repo_hub()->groups()->get_group_members(msg.receiver_UID);
         for (int uid : members) {
             if (uid == acc->getUID()) continue; // 跳过删除者自己
+            NoticeService::get_instance().send_to_user_with_id(uid, "", "delete_message", message_id, msg.receiver_UID);
+        }
+    } else if (msg.type == "channel") {
+        auto members = s.repo_hub()->communities()->get_channel_members(msg.receiver_UID);
+        for (int uid : members) {
+            if (uid == acc->getUID()) continue;
             NoticeService::get_instance().send_to_user_with_id(uid, "", "delete_message", message_id, msg.receiver_UID);
         }
     } else {
@@ -130,21 +136,21 @@ void delete_message(client_session& s, int message_id) {
 
 // 聊天历史：message.id 作游标分页。登录后首屏不传 before_id（<=0 取最新一页），
 // 前端上滑加载更多时把当前最旧一条的 message_id 作为 before_id 传回。
-void chat_history(client_session& s, int peer_id, int before_id) {
+void chat_history(client_session& s, int peer_id, int before_id, bool is_channel) {
     auto acc = s.current_account();
     if (!acc) {
         s.package_message("You must be logged in to view chat history.\n", "system");
         return;
     }
     const int self_uid = acc->getUID();
-    // 内存群列表判断 peer 是群还是用户（UID 与群 UID 共用编号空间，靠 is_group 区分 type）
+    // is_channel 由协议明确标记；否则靠内存群列表判断是群还是用户
     auto social = s.social_manager();
-    const bool is_group = social && social->has_group(peer_id);
+    const std::string type = is_channel ? "channel" : (social && social->has_group(peer_id) ? "group" : "private");
 
     constexpr int kPageSize = 10;   // 每页 10 条
     std::vector<message> page;
     bool has_more = false;
-    if (!s.repo_hub()->messages()->get_history_page(self_uid, peer_id, is_group,
+    if (!s.repo_hub()->messages()->get_history_page(self_uid, peer_id, type,
                                                     before_id, kPageSize, page, has_more)) {
         s.package_message("Failed to load chat history.\n", "system");
         return;
@@ -159,7 +165,7 @@ void chat_history(client_session& s, int peer_id, int before_id) {
         item->set_message_id(m.message_id);
         item->set_sender_uid(m.sender_UID);
         item->set_sender_name(m.sender_name);
-        item->set_is_group(m.is_group);
+        item->set_is_group(m.is_group());
         item->set_content(m.content);
         item->set_timestamp(m.timestamp);
         if (m.reply_to_message_id > 0) {
@@ -256,8 +262,8 @@ void Chat_handler::handle_message(const chat_proto::Envelope& message, client_se
         delete_message(session, message.message_id());
         return;
     } else if (type == "history_request") {
-        // 游标分页拉聊天历史：peer_id = 对方/群 UID；before_id 可选（首屏不传，protobuf 默认为 0）
-        chat_history(session, message.peer_id(), message.before_id());
+        // 游标分页拉聊天历史：peer_id = 对方/群/频道 ID；is_channel=true 表示频道
+        chat_history(session, message.peer_id(), message.before_id(), message.is_channel());
         return;
     } else if (type == "add_friend") {
         // 按邮箱定位要添加的好友：email 缺失/未绑定时由 social_module 给出系统提示
