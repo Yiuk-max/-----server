@@ -9,6 +9,11 @@
 #include "message.pb.h"
 #include "memory_pool.h"
 
+// ============================================================
+// client_session：单个连接的「会话上下文 + 生命周期 + 发送端口 + 分发入口」。
+// 具体业务逻辑已下沉到 src/logic/handlers/ 下的各 Message_handler 实现，
+// 本类只提供业务 handler 所需的只读上下文、发送能力与会话状态切换。
+// ============================================================
 class client_session : public std::enable_shared_from_this<client_session>{
 private:
     //===============基本信息===============
@@ -21,80 +26,61 @@ private:
     //===============传输端口===============
     // 会话只依赖抽象传输，不感知 TCP 帧头；弱引用避免 transport -> session -> transport 成环。
     std::weak_ptr<IClientTransport> transport_;
+
+    //===============消息处理器===============
+    std::unordered_map<std::string,std::unique_ptr<Message_handler>> handlers_;
+    void init_();
+
 public:
+    //===============传输端口===============
     void set_transport(const std::shared_ptr<IClientTransport>& transport);
     void on_disconnected();                                     // 连接断开后的幂等在线表/会话状态清理
-    // M0 暂保留现有 TCP 文件能力的业务入口，不改文件协议。
     void upload_file(const chat_proto::FileChunkMeta& meta, const std::string& file_data);
     void download_file(const std::string& file_name);
-    //===============消息处理模块===============
-    std::unordered_map<std::string,std::unique_ptr<Message_handler>> handlers_; 
-    //初始化消息处理器，后续可以根据需要添加更多类型的消息处理器
-    void init_();
-    public:
+
+    //===============会话上下文（供 logic 层 handler 读取）===============
+    bool is_online() const { return online; }
+    int logged_in_uid() const { return logged_in_uid_; }
+    std::shared_ptr<account> current_account() const { return current_account_; }
+    std::shared_ptr<social_module> social_manager() const { return social_manager_; }
+    std::shared_ptr<RepositoryHub> repo_hub() const { return repo_hub_; }
+
+    // 登录成功时在锁内切换会话状态并替换在线表，返回被顶掉的旧会话（无则 nullptr）。
+    // 连接已断开时返回 false，不建立会话。
+    bool activate_session(const std::shared_ptr<account>& account,
+                          std::shared_ptr<social_module> social,
+                          std::shared_ptr<client_session>* old_session);
+
+    //===============生命周期===============
+    void logout();                                              // 登出当前账号但保留连接
+    void exit_self();                                           // 退出系统并关闭连接
+    void kick_offline();                                        // 被顶下线：通知并关闭本连接
+
+    //===============跨会话内存列表同步（只改 social_module 内存，不写库）===============
+    void add_friend_to_list(int friend_UID);
+    void remove_friend_from_list(int friend_UID);
+    void add_group_to_list(int group_UID);
+    void remove_group_from_list(int group_UID);
+
+    //===============消息分发===============
+    // 接收驱动：由 connection::process_incoming 回调；负责解析 protobuf 并策略分发到 handlers_
+    void on_message(const std::string& payload, std::string file_data);
+
+    //===============发送端口===============
+    void package_message(const std::string& message,std::string type);
+    void package_chat_message(const std::string& message,std::string type,int message_id,int group_uid = 0,int sender_uid = 0,const std::string& sender_name = "",int reply_to_message_id = 0,const std::string& reply_sender_name = "",const std::string& reply_content = "",const std::string& timestamp = "");
+    void package_envelope(const chat_proto::Envelope& message);
+    void send_serialized_packet(const std::string& payload);
+
     //===============内存池===============
     // client_session 对象的分配/回收统一走按类型池化的 ClassMemoryPool，
     // 池耗尽时自动回退到全局 ::operator new/delete（仅单个对象路径，数组 new 仍走全局）。
     static void* operator new(std::size_t size);
     static void operator delete(void* p) noexcept;
-    //===============构造、析构函数===============
-    client_session(){ init_(); };                                           // 会话由具体传输创建并绑定
+
+    //===============构造、析构===============
+    client_session(){ init_(); }
     ~client_session();
-    //===============注册、登录、退出===============
-    void register_user(std::string username,std::string password,std::string email); //注册新用户（新用户必填邮箱）
-    void login(int UID,std::string password);                               //登陆（UID）
-    void login_by_email(std::string email,std::string password);            //登陆（邮箱，内部解析为 UID）
-    void verify_token(std::string token);                                   //用 token 自动登录（跳过密码）
-    void finish_login(const std::shared_ptr<account>& account, const std::string& token); //登录成功通用收尾
-    void set_email(std::string email);                                      //给当前账号绑定/换绑邮箱
-    void logout();                                                          //登出
-    void exit_self();                                                       //退出系统
-    void kick_offline();                                                    //被顶下线：通知并关闭本连接（由新登录的另一会话调用）
-    //=============效验==============
-    bool target_UID_is_exit(int target_UID);                                //校验目标UID是否存在（个人或群聊UID）
-    bool target_UID_is_online(int target_UID);                              //校验目标UID是否在线（个人或群聊UID）
-    //===============消息处理===============
-    // 接收驱动：由 connection::process_incoming 回调；负责解析 protobuf 并策略分发到 handlers_
-    void on_message(const std::string& payload, std::string file_data);
-    //===============业务逻辑===============
-    void show_chatlist();                                                   //展示聊天对象（好友、群聊）   
-    //聊天
-    void private_chat(int target_UID,std::string message,int reply_to_message_id = 0);   //私聊（可选回复某条消息）
-    void group_chat(int target_UID,std::string message,int reply_to_message_id = 0);     //群聊——发言（可选回复）
-    void delete_message(int message_id);                                    //删除消息（仅限发送后3分钟内，通知在线接收方）
-    void chat_history(int peer_id, int before_id);                          //聊天历史（游标分页，before_id<=0 取最新一页）
-    void send_offline_messages(const std::string& since_time);  // 查询并推送自 since_time 之后的离线消息
-    bool load_reply_summary(int reply_to_message_id, std::string& sender_name, std::string& content); // 查回复的原消息摘要
-    //好友相关
-    void send_friend_request(const std::string& email,std::string apply_message); //添加好友(按邮箱，通过social_manager_)
-    void set_friend_remark(int friend_UID,std::string remark);              //给好友设置备注名
-    void handle_friend_request(int sender_UID,bool accept);                 //处理好友申请(同意/拒绝)
-    void remove_friend(int friend_UID);                                     //删除好友
-    void add_friend_to_list(int friend_UID);                                //同步更新内存好友列表（对方同意加好友后调用）
-    void remove_friend_from_list(int friend_UID);                           //同步更新内存好友列表（被对方删除后调用）
-    void show_friend_requests();                                            //查看待处理的好友申请
-    void change_my_name(std::string new_name);                              //修改自己的昵称
-    //群聊相关        
-    void create_group(std::string group_name);                                  //创建群聊
-    void delete_group(int group_UID);                                           //删除群聊
-    void group_add_client(int target_group_UID,int target_user_UID);            //群聊——添加群成员
-    void group_delete_client(int target_group_UID,int target_user_UID);         //群聊——踢出群成员
-    void modify_group_name(int group_UID,std::string new_name);                 //群聊——改名
-    void send_join_group(int group_UID);                                        //申请加入群聊
-    void handle_join_request(int group_UID,int requester_UID,bool accept);      //处理群聊加入申请（同意/拒绝）
-    void add_group_to_list(int group_UID);                                      //同步更新内存群列表（被拉入群/申请通过后调用）
-    void remove_group_from_list(int group_UID);                                 //同步更新内存群列表（被踢出群后调用）
-    void modify_member_role(int group_UID,int target_UID,bool promote);         //修改群成员身份（提升/降级）
-    void show_group_requests(int group_UID);                                                //查看群聊待处理的入群申请 todo
-    void show_group_members(int group_UID);                                     //查看群成员
-
-    //===============发送===============
-
-    void package_message(const std::string& message,std::string type);      //打包信息并等待处理
-    void package_chat_message(const std::string& message,std::string type,int message_id,int group_uid = 0,int sender_uid = 0,const std::string& sender_name = "",int reply_to_message_id = 0,const std::string& reply_sender_name = "",const std::string& reply_content = "",const std::string& timestamp = ""); //打包聊天消息
-    void package_envelope(const chat_proto::Envelope& message);             //直接发送一个完整 Envelope（如 history_response）
-    void send_serialized_packet(const std::string& payload);                //发送已序列化的 protobuf（供广播复用同一份 payload）
-
 };
 
 // 构造聊天消息 Envelope：把单发(package_chat_message)与广播(NoticeService)共用的字段填充逻辑收敛到一处。
