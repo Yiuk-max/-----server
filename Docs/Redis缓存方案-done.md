@@ -16,6 +16,11 @@
 | C4 邮箱→uid | ✅ 已实现 | `chat:e:{email}` STRING + 24h TTL | `account_email_repo` 读回填 / 换绑 DEL 旧 |
 | C5 历史索引 | ⬜ 未实现 | `chat:h:*` ZSET | 待做（较重，双写） |
 | C6 好友列表 | ⬜ 未实现 | `chat:f:{uid}` SET | 待做 |
+| C7 社区成员列表 | ✅ 已实现 | `chat:c:members:{cid}` SET | `community_repo` 读回填 / 写 DEL |
+| C8 频道信息 | ✅ 已实现 | `chat:c:channel:{chid}` HASH + 24h | `community_repo` 读回填 / 写 DEL |
+| C9 社区频道列表 | ✅ 已实现 | `chat:c:channels:{cid}` ZSET + 24h | `community_repo` 读回填 / 写 DEL |
+| C10 用户社区/频道列表 | ✅ 已实现 | `chat:c:ucommunities:{uid}` / `chat:c:uchannels:{uid}` SET + 24h | `community_repo` 读回填 / 写 DEL |
+| C11 社区信息 | ✅ 已实现 | `chat:c:info:{cid}` HASH + 24h | `community_repo` 读回填 / 写 DEL |
 
 ---
 
@@ -283,6 +288,28 @@ RedisPool（src/utils/redis_client.*：持有 sw::redis::Redis，自带连接池
 > 推荐写时 `DEL` 双方集合，下次回源，避免 SADD/SREM 增量遗漏。
 
 **可选关联优化**：`is_friend(a,b)` 可从 `chat:f:{a}` 用 `SISMEMBER b` 判断，省一次 COUNT SQL。但要注意双向一致性，建议先不做，列为后续优化。
+
+### C7-C11 社区缓存（已实现 ✅）
+
+社区功能（见《社区后端改造方案.md》§5.8）同样采用 Cache-Aside，全部接在 `community_repo` 内：
+
+- **C7 社区成员** `chat:c:members:{cid}` SET：频道发言广播前取成员（频道成员=社区成员，一份共享）。
+- **C8 频道信息** `chat:c:channel:{chid}` HASH：`get_channel_community` 解析频道→社区。
+- **C9 社区频道列表** `chat:c:channels:{cid}` ZSET：进社区拉频道列表；命中后逐个取 C8。
+- **C10 用户社区/频道列表** `chat:c:ucommunities:{uid}` / `chat:c:uchannels:{uid}` SET：登录加载。
+- **C11 社区信息** `chat:c:info:{cid}` HASH：低频读（join_community 通知 owner 等）。
+
+**失效点**（写路径全部主动失效，见 `community_repo.cpp`）：
+
+| 写操作 | 失效 |
+|---|---|
+| 建社区 | C10(owner) |
+| 删社区 | C7/C9/C11 + C8(各频道) + C10(各成员) |
+| 改社区 | C11 |
+| 建/删/改频道 | C8(channel) + C9 |
+| 加/踢/退成员、同意入社区 | C7 + C10(目标用户) |
+
+> 频道成员与社区成员是同一份数据，所以广播只需要 C7（按 community_id），无需为每个频道各存一份成员列表。
 
 ---
 

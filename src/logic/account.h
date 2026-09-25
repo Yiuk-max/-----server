@@ -19,7 +19,7 @@ namespace account_info
     // 账户设置项
     struct account_settings
     {
-        std::string theme    = "white";     // 主题（默认 white，存于 settings JSON）
+        std::string theme    = "default";   // 主题（默认 default，存于 settings JSON）
         std::string language = "Chinese";   // 语言（Account.language 列 / settings JSON）
         std::string last_login_time;        // 上次登录时间（存于 settings JSON，登录/注册时更新）
         // 后续可扩展：通知开关、头像等，均作为 settings JSON 的额外键

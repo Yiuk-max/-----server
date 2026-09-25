@@ -126,4 +126,5 @@ message Envelope {
   repeated CommunityInfo communities = 40;
   repeated ChannelInfo   channels    = 41;
   repeated MemberInfo    members     = 42;
+  string   theme         = 43;  // 主题（存于 Account.settings JSON，默认 "default"）
 }

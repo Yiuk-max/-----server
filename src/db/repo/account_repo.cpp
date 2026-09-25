@@ -53,10 +53,10 @@ std::string parse_last_login_time(const std::string& settings_json) {
     return "";
 }
 
-// 从 Account.settings 的 JSON 字符串解析出 theme（解析失败/缺键回退默认 white）
+// 从 Account.settings 的 JSON 字符串解析出 theme（解析失败/缺键回退默认 default）
 std::string parse_theme(const std::string& settings_json) {
     if (settings_json.empty()) {
-        return "white";
+        return "default";
     }
     try {
         nlohmann::json j = nlohmann::json::parse(settings_json);
@@ -64,9 +64,9 @@ std::string parse_theme(const std::string& settings_json) {
             return j["theme"].get<std::string>();
         }
     } catch (const std::exception&) {
-        // JSON 解析失败，回退默认 white
+        // JSON 解析失败，回退默认 default
     }
-    return "white";
+    return "default";
 }
 } // namespace
 
@@ -79,8 +79,8 @@ std::shared_ptr<account> account_repo::register_account(const std::string& name,
         return nullptr;
     }
     try {
-        // 默认设置：theme=white, language=Chinese；写入 settings JSON 与 language 列
-        std::string settings = make_settings_json("white", "Chinese", "");
+        // 默认设置：theme=default, language=Chinese；写入 settings JSON 与 language 列
+        std::string settings = make_settings_json("default", "Chinese", "");
         {
             std::unique_ptr<sql::PreparedStatement> pstmt(
                 guard.get()->prepareStatement(
@@ -104,7 +104,7 @@ std::shared_ptr<account> account_repo::register_account(const std::string& name,
         }
         auto acc = std::make_shared<account>(uid, name, password);
         // 填充设置项，与库中一致
-        acc->set_theme("white");
+        acc->set_theme("default");
         acc->set_language("Chinese");
         acc->set_last_login_time("");
         acc->set_settings_json(settings);

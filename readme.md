@@ -1,6 +1,6 @@
 # 聊天服务器（C++17 / epoll 主从 Reactor / WebSocket）
 
-基于 epoll + 主从 Reactor 多线程模型的 TCP 聊天服务器，支持注册/登录、私聊、群聊、好友系统、文件传输。
+基于 epoll + 主从 Reactor 多线程模型的 TCP 聊天服务器，支持注册/登录、私聊、群聊、社区（频道）、好友系统、主题设置、文件传输。
 另提供平行的 **Boost.Asio + Beast WebSocket 网络层**，由 `configure.json` 的 `net_layer` 在启动时二选一，两种模式复用同一套业务层。
 两种网络模式的业务消息统一使用 `src/proto/message.proto` 定义的 protobuf `chat_proto.Envelope`；WebSocket 使用 binary 帧 `4B payload_len + protobuf`。WebSocket 模式已支持注册/登录、私聊、群聊、好友、离线消息、心跳等即时通讯业务，**文件传输暂未支持**。
 
@@ -35,7 +35,7 @@ cd build
 4. 数据库连接池：`database` 下的 `host / port / user / password / dbname / db_conn_count`
    （`db_conn_count` 为连接池上限，默认 4）。
 5. Redis 缓存：`redis` 下的 `enabled / host / port / password / db / pool_size / timeout_ms`
-   （`enabled=false` 时关闭缓存，回退纯 MySQL；已实现 C1 群成员 / C2 账号 / C4 邮箱缓存，详见《Redis缓存方案.md》）。
+   （`enabled=false` 时关闭缓存，回退纯 MySQL；已实现 C1 群成员 / C2 账号 / C4 邮箱 / C7-C11 社区缓存，详见《Redis缓存方案-done.md》）。
 
 > 后端构建依赖 Boost 与 protobuf（`libboost-dev`、`libboost-system-dev`、`libprotobuf-dev`、`protobuf-compiler`）。
 > Redis 缓存依赖 `redis-plus-plus`（基于 hiredis），构建时经 CMake `FetchContent` 从 GitHub 自动拉取源码并静态链接，
@@ -107,23 +107,27 @@ ctest --test-dir build --output-on-failure
 
 ```bash
 python3 tests/ws_chat_smoke.py 127.0.0.1 8080 /ws
+# 社区功能（建社区/建频道/频道发言/成员管理/结构化列表）
+python3 tests/community_smoke.py 127.0.0.1 8080 /ws
 # 群聊广播多接收方一致性（验证广播构造/序列化一次后多端字段一致）
 python3 tests/test_group_broadcast.py 127.0.0.1 8080 /ws
 # 额外验证空闲超时（服务端需 use_heartbeat=true 且 heartbeat_interval<=N）
 python3 tests/ws_chat_smoke.py 127.0.0.1 8080 /ws --idle-seconds=3
 ```
 
-冒烟脚本覆盖：注册/登录、好友申请与接受、私聊、建群/拉人/群聊、离线消息、顶号、空闲超时。
+冒烟脚本覆盖：注册/登录、好友申请与接受、私聊、建群/拉人/群聊、离线消息、顶号、空闲超时；社区冒烟覆盖建社区/建频道/频道发言/成员管理/列表拉取。
 
 ## 文档
 
 - **[项目说明文档.md](Docs/项目说明文档.md)** —— 技术栈、目录结构、架构与工作流程、核心模块说明、常见问题。
 - **[客户端接口文档.txt](Docs/客户端接口文档.txt)** —— 前后端 protobuf / 帧协议接口规范（建议客户端开发者先读此文档）。
 - **[frontend/README.md](frontend/README.md)** —— 前端（Vite + Vue 3）开发与构建说明。
-- **[protobuf改造方案.md](Docs/protobuf改造方案.md)** —— JSON → protobuf 的设计、落地文件与验证矩阵。
-- **[WebSocket接入代码改动文档.md](Docs/WebSocket接入代码改动文档.md)** —— WebSocket 接入历史记录（正文包含旧 JSON/text 阶段，当前协议以接口文档为准）。
+- **[社区后端改造方案.md](Docs/社区后端改造方案.md)** —— 社区（Discord 式）后端改造设计、DB 迁移、Redis 缓存点与里程碑。
+- **[protobuf改造方案-done.md](Docs/protobuf改造方案-done.md)** —— JSON → protobuf 的设计、落地文件与验证矩阵。
+- **[WebSocket接入代码改动文档-done.md](Docs/WebSocket接入代码改动文档-done.md)** —— WebSocket 接入历史记录（正文包含旧 JSON/text 阶段，当前协议以接口文档为准）。
+- **[client_session拆分方案-done.md](Docs/client_session拆分方案-done.md)** —— client_session 拆分与业务逻辑下沉到 handler 的记录。
 - **[数据库设计.txt](Docs/数据库设计.txt)** —— 数据库表结构、UID 分配与连接池接入说明。
-- **[Redis缓存方案.md](Docs/Redis缓存方案.md)** —— Redis 缓存接入方案与实现状态（C1/C2/C4 已落地，C3/C5/C6 待做），附并发/稳定性瓶颈分析。
+- **[Redis缓存方案-done.md](Docs/Redis缓存方案-done.md)** —— Redis 缓存接入方案与实现状态（C1/C2/C4/C7-C11 已落地，C3/C5/C6 待做），附并发/稳定性瓶颈分析。
 - **[压力测试方案.md](Docs/压力测试方案.md)** —— WebSocket 压测方案与用例清单。
 - **[开发日志.txt](build/开发日志.txt)** —— 待办清单与开发日志（当前位于 build/ 目录，含历次架构重构与问题修复记录）。
 
@@ -142,7 +146,9 @@ server/
 │   └── utils/              # 线程池 + server_config + redis_client/redis_cache（Redis 缓存）
 ├── include/total.h         # 基础设施公共头（不再是"万能头"）
 ├── configure.json          # 运行配置（网络层 / 心跳 / 连接上限 / WebSocket / 数据库连接池 / Redis 缓存）
-├── sql/create_table.sql    # 数据库建表脚本
+├── sql/create_table.sql    # 数据库建表脚本（含社区表 community/community_member）
+├── sql/community.sql       # 社区功能迁移脚本（message.type 改英文枚举等）
+├── sql/theme_default.sql   # 主题默认值迁移（white → default）
 ├── sql/add_self_friend.sql # 给已有账号补齐"自己是自己的好友"（自聊）
 ├── frontend/               # 前端源码（Vite + Vue 3）：npm run build 输出到 web/
 ├── web/                    # 前端构建产物（由 WS 服务端静态提供，勿手改）

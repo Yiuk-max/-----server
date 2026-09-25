@@ -172,6 +172,27 @@ void change_my_name(client_session& s, std::string new_name) {
     }
 }
 
+// 修改自己的主题：先改内存，再落库；失败时回滚内存主题，保证与数据库一致
+void change_theme(client_session& s, const std::string& theme) {
+    auto acc = s.current_account();
+    if (!acc) {
+        s.package_message("You must be logged in to change your theme.\n", "system");
+        return;
+    }
+    if (theme.empty()) {
+        s.package_message("Theme cannot be empty.\n", "system");
+        return;
+    }
+    std::string old_theme = acc->get_theme();
+    acc->set_theme(theme);
+    if (s.repo_hub()->accounts()->update_account(acc)) {
+        s.package_message("Theme updated successfully. Your new theme is [" + theme + "].\n", "system");
+    } else {
+        acc->set_theme(old_theme); // 失败回滚内存中的主题，保持与库一致
+        s.package_message("Failed to update theme (database unavailable).\n", "system");
+    }
+}
+
 void show_chatlist(client_session& s) {
     auto acc = s.current_account();
     auto social = s.social_manager();
@@ -215,6 +236,9 @@ void Base_handler::handle_message(const chat_proto::Envelope& message, client_se
         return;
     } else if (type == "change_name") {
         change_my_name(session, message.new_name());
+        return;
+    } else if (type == "change_theme") {
+        change_theme(session, message.theme());
         return;
     }
 }

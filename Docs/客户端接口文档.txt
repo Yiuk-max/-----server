@@ -9,7 +9,7 @@
 *   **数据编码**：消息体统一使用 **protobuf**（`chat_proto.Envelope`，定义见 `src/proto/message.proto`），不再使用 JSON。
 *   **关键特点**：
     1.  **支持粘包/半包处理**（仅 binary 模式）：服务器采用「4 字节总长度 + 4 字节 payload 长度」的定长包头分包。客户端发送时**无需**添加换行符 `\n`，但必须正确填写帧头长度字段。WebSocket 自带消息边界，无需 total_len。
-    2.  **基于 UID 寻址**：所有用户（个人）和群组均以整数 UID 作为唯一标识。登录、私聊、群聊操作均使用 UID，而非用户名。
+    2.  **基于 UID 寻址**：所有用户（个人）、群组、社区、频道均以整数 ID 作为唯一标识。登录、私聊、群聊、频道发言等操作均使用 ID，而非用户名。
     3.  **服务器主动推送**：服务器可随时主动推送消息（如对方私聊、系统通知），客户端应**开启独立的接收线程**循环读取并解析。
 
 二、帧格式
@@ -70,6 +70,24 @@
 | `history_request`     | 消息     | 按 message_id 游标分页拉聊天历史（每页 10 条） |
 | `upload_file`         | 文件     | 上传文件（分块，仅 binary 模式）       |
 | `download_file`       | 文件     | 下载文件（仅 binary 模式）             |
+| `change_theme`        | 基础     | 修改主题（存 Account.settings JSON，默认 default） |
+| `create_community`    | 社区     | 创建社区（自动建核心频道 + 创建者为 owner） |
+| `delete_community`    | 社区     | 删除社区（级联删频道/成员）           |
+| `modify_community`    | 社区     | 修改社区资料（名称/简介/头像）         |
+| `show_communities`    | 社区     | 查看我加入的社区列表（结构化响应）     |
+| `show_community_channels` | 社区 | 查看社区下的频道列表（结构化响应）   |
+| `show_community_members`  | 社区 | 查看社区成员列表（结构化响应）       |
+| `create_channel`      | 社区     | 在社区下创建频道                       |
+| `delete_channel`      | 社区     | 删除频道                               |
+| `modify_channel`      | 社区     | 修改频道（名称/分区）                  |
+| `channel_chat`        | 社区     | 频道发言（向频道所属社区成员广播）     |
+| `join_community`      | 社区     | 申请加入社区（apply_type=3）           |
+| `handle_community_join_request` | 社区 | 处理入社区申请（同意/拒绝）    |
+| `community_add_member` | 社区    | 拉人进社区（仅 owner）                 |
+| `community_remove_member` | 社区 | 踢出社区（仅 owner）                  |
+| `leave_community`     | 社区     | 退出社区（owner 不能退）               |
+| `show_community_requests` | 社区 | 查看待处理入社区申请（仅 owner）     |
+| `modify_community_member_role` | 社区 | 修改社区成员角色（admin/member） |
 
 四、Envelope 字段总表
 --------------------------------------
@@ -109,6 +127,17 @@
 | `file_name`          | 30     | string        | 文件名（download_file）                |
 | `meta`               | 31     | FileChunkMeta | 文件分块元信息（upload_file）          |
 | `messages`           | 32     | repeated ChatItem | 历史分页消息列表                  |
+| `community_id`       | 33     | int32         | 社区 ID（=核心频道 id）                |
+| `channel_id`         | 34     | int32         | 频道 ID                                |
+| `category`           | 35     | string        | 频道分区                               |
+| `description`        | 36     | string        | 社区简介                               |
+| `avatar`             | 37     | string        | 头像 file_id（预留）                   |
+| `role`               | 38     | string        | 成员角色 owner/admin/member            |
+| `is_channel`         | 39     | bool          | history_request 时标记频道历史         |
+| `communities`        | 40     | repeated CommunityInfo | 社区列表（响应）              |
+| `channels`           | 41     | repeated ChannelInfo   | 频道列表（响应）              |
+| `members`            | 42     | repeated MemberInfo    | 成员列表（响应）              |
+| `theme`              | 43     | string        | 主题（change_theme）                   |
 
 ### 子消息定义
 ```proto
@@ -143,6 +172,28 @@ message FileChunkMeta {
   uint32 chunk_count = 6;
   uint32 chunk_size  = 7;
   uint64 offset      = 8;
+}
+
+message CommunityInfo {
+  int32  community_id = 1;  // 核心频道 id
+  string name         = 2;
+  string description  = 3;
+  string avatar       = 4;  // file_id，预留
+  string category     = 5;  // 预留：社区所属分区
+  string my_role      = 6;  // owner/admin/member
+}
+
+message ChannelInfo {
+  int32  channel_id   = 1;  // 普通频道 id
+  int32  community_id = 2;  // 核心频道 id
+  string name         = 3;
+  string category     = 4;  // 频道分区
+}
+
+message MemberInfo {
+  int32  user_uid = 1;
+  string nickname = 2;  // 社区昵称（空则前端用全局昵称）
+  string role     = 3;
 }
 ```
 
@@ -261,6 +312,81 @@ message FileChunkMeta {
 *   **字段**：`type="history_request"`、`peer_id`、`before_id`（可选，0 取最新一页）
 *   **响应**：`type="history_response"`，携带 `peer_id`、`messages`（repeated ChatItem，时间正序，最多 10 条）、`has_more`。
     `has_more=true` 表示还有更旧记录，前端用当前最旧一条 `message_id` 作为下次 `before_id` 上滑加载更多。
+*   *注意*：拉频道历史时额外设置 `is_channel=true`，`peer_id` 填频道 id。
+
+### 30. 修改主题 (change_theme)
+*   **字段**：`type="change_theme"`、`theme`（非空字符串，任意名字，默认 `default`）
+*   *注意*：需先登录；成功后 system `Theme updated successfully. Your new theme is [<主题>].`
+
+### 31. 创建社区 (create_community)
+*   **字段**：`type="create_community"`、`group_name`（社区名）、`description`（社区简介，可空）
+*   *注意*：创建者自动成为社区 owner 成员；成功后 system 回传社区 ID：
+    `Community created successfully. Community ID: <id>.`
+
+### 32. 删除社区 (delete_community)
+*   **字段**：`type="delete_community"`、`community_id`
+*   *注意*：仅 owner 可删；级联删除其频道/成员。
+
+### 33. 修改社区资料 (modify_community)
+*   **字段**：`type="modify_community"`、`community_id`、`group_name`、`description`、`avatar`（预留）
+*   *注意*：仅 owner 可改。
+
+### 34. 查看我加入的社区 (show_communities)
+*   **字段**：`type="show_communities"`
+*   **响应**：`type="community_list_response"`，携带 `communities`（repeated CommunityInfo）。
+
+### 35. 查看社区频道 (show_community_channels)
+*   **字段**：`type="show_community_channels"`、`community_id`
+*   **响应**：`type="channel_list_response"`，携带 `channels`（repeated ChannelInfo）。
+
+### 36. 查看社区成员 (show_community_members)
+*   **字段**：`type="show_community_members"`、`community_id`
+*   **响应**：`type="community_member_list_response"`，携带 `members`（repeated MemberInfo）。
+
+### 37. 创建频道 (create_channel)
+*   **字段**：`type="create_channel"`、`community_id`、`group_name`（频道名）、`category`（分区，可空）
+*   *注意*：需是社区成员；成功后 system 回传频道 ID：
+    `Channel created successfully. Channel ID: <id>.`
+
+### 38. 删除频道 (delete_channel)
+*   **字段**：`type="delete_channel"`、`community_id`、`channel_id`
+*   *注意*：仅 owner 可删。
+
+### 39. 修改频道 (modify_channel)
+*   **字段**：`type="modify_channel"`、`community_id`、`channel_id`、`group_name`、`category`
+*   *注意*：仅 owner 可改。
+
+### 40. 频道发言 (channel_chat)
+*   **字段**：`type="channel_chat"`、`target_UID`（频道 id）、`message`；`reply_to_message_id` 可选
+*   *注意*：校验发送者是否属于该频道所属社区（而不是频道成员）；转发的 `Channel_Chat` 消息携带
+    `message_id`、`group_UID`（=频道 id）、`sender_UID`、`sender_name`、`timestamp`；发送者收到
+    system `Message sent. Message ID: <id>.`
+
+### 41. 申请加入社区 (join_community)
+*   **字段**：`type="join_community"`、`community_id`、`apply_message`（可空）
+
+### 42. 处理入社区申请 (handle_community_join_request)
+*   **字段**：`type="handle_community_join_request"`、`community_id`、`requester_UID`、`accept`（bool）
+
+### 43. 拉人进社区 (community_add_member)
+*   **字段**：`type="community_add_member"`、`community_id`、`target_user_UID`
+*   *注意*：仅 owner 可拉人。
+
+### 44. 踢出社区 (community_remove_member)
+*   **字段**：`type="community_remove_member"`、`community_id`、`target_user_UID`
+*   *注意*：仅 owner 可踢。
+
+### 45. 退出社区 (leave_community)
+*   **字段**：`type="leave_community"`、`community_id`
+*   *注意*：owner 不能退。
+
+### 46. 查看入社区申请 (show_community_requests)
+*   **字段**：`type="show_community_requests"`、`community_id`
+*   *注意*：仅 owner 可看。
+
+### 47. 修改社区成员角色 (modify_community_member_role)
+*   **字段**：`type="modify_community_member_role"`、`community_id`、`target_user_UID`、`promote`（bool）
+*   *注意*：仅 owner 可改；promote=true → admin，false → member。
 
 六、服务器返回格式（Server -> Client）
 --------------------------------------
@@ -275,6 +401,10 @@ message FileChunkMeta {
 | `history_response`    | 聊天历史分页响应                                     | `peer_id`、`messages[]`、`has_more`                    |
 | `delete_message`      | 消息被删除通知                                       | `content` 为空，`message_id` 定位消息；群聊还带 `group_UID` |
 | `file_chunk`          | 服务器发送文件块（下载响应，binary 模式）            | payload 为 `FileChunkMeta`，文件数据在帧尾             |
+| `Channel_Chat`        | 收到频道消息                                         | 同私聊，另带 `group_UID`（=频道 id）                 |
+| `community_list_response` | 社区列表响应                                    | `communities[]`（repeated CommunityInfo）            |
+| `channel_list_response`   | 频道列表响应                                    | `channels[]`（repeated ChannelInfo）                 |
+| `community_member_list_response` | 社区成员列表响应                         | `members[]`（repeated MemberInfo）                   |
 | `heartbeat_ack`       | 心跳应答                                             | `content`=`pong`                                       |
 
 > `private_chat` / `Group_Chat`（含离线推送）的 `content` 为**原始内容**；`message_id` 可用于 `delete_message`；
@@ -321,6 +451,21 @@ message FileChunkMeta {
 | **处理入群申请失败**     | `Failed to handle join request (you are not owner or no pending request).` |
 | **改身份成功**           | `Role of UID [<UID>] updated successfully.`                    |
 | **改身份失败（非群主）** | `Failed to modify member role (only owner can promote/demote).` |
+| **修改主题成功**         | `Theme updated successfully. Your new theme is [<主题>].`      |
+| **创建社区成功**         | `Community created successfully. Community ID: <id>.`          |
+| **删除社区成功**         | `Community deleted successfully.`                             |
+| **删除社区失败（非 owner）** | `Failed to delete community (only owner can delete).`        |
+| **修改社区成功**         | `Community updated successfully.`                             |
+| **创建频道成功**         | `Channel created successfully. Channel ID: <id>.`            |
+| **创建频道失败**         | `Failed to create channel (not a member / community not exists).` |
+| **删除频道成功**         | `Channel deleted successfully.`                               |
+| **修改频道成功**         | `Channel updated successfully.`                               |
+| **非社区成员不能发言**   | `You are not a member of this community.`                     |
+| **被拉入社区通知**       | `You have been added to community [<id>].`                    |
+| **被踢出社区通知**       | `You have been removed from community [<id>].`                |
+| **退出社区成功**         | `You have left community [<id>].`                             |
+| **入社区申请已发送**     | `Join request sent to community [<id>].`                      |
+| **处理入社区申请成功**   | `Join request accepted.` / `Join request rejected.`           |
 | **群成员列表**           | 每行 `UID: 群内名字`，如 `1003: 张三`                          |
 | **缺少 type 字段**       | `Invalid message format: missing 'type' field.`               |
 | **protobuf 解析失败**    | `Invalid protobuf message.`                                   |
@@ -331,6 +476,8 @@ message FileChunkMeta {
 `show` 请求返回 `system` 类型、`content` 纯文本。格式为**每行一条记录**：
 *   好友记录：`<用户名>:<6位补齐的UID>`，例如 `张三:001001`；若设置备注名则显示备注名。
 *   群组记录：`<群名>(人数):<6位补齐的UID>`，例如 `我的新群聊(3):002001`。
+
+> 社区/频道不走 `show`，请用 `show_communities` / `show_community_channels` 拉结构化列表（见 §34/§35）。
 
 示例：
 ```

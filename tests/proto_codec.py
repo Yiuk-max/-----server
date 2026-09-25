@@ -21,14 +21,14 @@ NAME_BY_NUM = {
     # 社区/频道（编号从 33 起）
     33: 'community_id', 34: 'channel_id', 35: 'category', 36: 'description',
     37: 'avatar', 38: 'role', 39: 'is_channel',
-    40: 'communities', 41: 'channels', 42: 'members',
+    40: 'communities', 41: 'channels', 42: 'members', 43: 'theme',
 }
 
 NUM_BY_NAME = {v: k for k, v in NAME_BY_NUM.items()}
 
 # length-delimited 字符串字段
 STRING_FIELDS = {1, 2, 4, 12, 13, 17, 18, 19, 22, 23, 24, 26, 27, 30,
-                 35, 36, 37, 38}
+                 35, 36, 37, 38, 43}
 
 # repeated 子消息定义：field_no -> (子字段号->名称, 字符串子字段号集合)
 SUB_MESSAGES = {

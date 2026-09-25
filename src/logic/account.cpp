@@ -27,7 +27,7 @@ void account::load_account_info(){
         base_info.settings_json = "{}";
     }
     if (settings.theme.empty()) {
-        settings.theme = "white";
+        settings.theme = "default";
     }
     if (settings.language.empty()) {
         settings.language = "Chinese";

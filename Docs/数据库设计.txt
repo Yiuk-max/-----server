@@ -12,6 +12,8 @@
 | nickname    | varchar(64)     | 昵称（允许重复）             |
 | settings    | json            | 可空，账号设置(主题/语言/通知开关)|
 | language    | varchar(16)     | 默认 'Chinese'               |
+| token       | varchar(64)     | 登录令牌(自动登录，可空)      |
+| avatar_file_id | varchar(128) | 用户头像文件ID(预留，二期文件传输)|
 | create_time | datetime        | 默认 CURRENT_TIMESTAMP       |
 | birthday    | date            | 可空                          |
 ------------------------------------------------------------
@@ -21,7 +23,8 @@
 说明：
 - nickname 不再唯一：登录/加好友/发消息均按 UID 定位，昵称、密码都允许重复
 - 旧库需执行 sql/allow_duplicate_nickname.sql（ALTER TABLE Account DROP INDEX uk_nickname）
-- settings 为 JSON 列（承载 account.h 中的账号设置字段，应用层序列化）
+- settings 为 JSON 列（承载 account.h 中的账号设置字段，应用层序列化；
+  主题 theme 默认 'default'，可经 change_theme 修改）
 - birthday 允许 NULL
 
 ============================================================
@@ -55,7 +58,7 @@ DB 事务双写参考：
 ------------------------------------------------------------
 | 字段         | 类型            | 说明                         |
 | id           | int unsigned   | 自增主键                     |
-| apply_type   | tinyint        | 申请类型: 1=好友申请 2=群聊申请|
+| apply_type   | tinyint        | 申请类型: 1=好友 2=群聊 3=社区|
 | sender_UID   | bigint unsigned| 申请人                       |
 | receiver_UID | bigint unsigned| 接收方(好友=对方;群聊=群主/管理员)|
 | group_UID    | bigint unsigned| 群聊申请的目标群(好友申请为0)  |
@@ -71,6 +74,7 @@ DB 事务双写参考：
 设计说明（一张表承载两类申请）：
 - apply_type=1 好友申请：sender_UID 向 receiver_UID 申请，group_UID=0
 - apply_type=2 群聊申请：sender_UID 申请加入 group_UID 群，receiver_UID=群主/管理员
+- apply_type=3 社区申请：sender_UID 申请加入 group_UID 社区，receiver_UID=社区owner
 - 唯一约束 uk_apply 防重复"等待中"记录：
       好友申请按 (1, A, B, 0, 0) 防同一对用户重复申请
       群聊申请按 (2, A, 群主, 群, 0) 防同一人重复申请同一群
@@ -121,16 +125,17 @@ DB 事务双写参考：
 ------------------------------------------------------------
 | 字段          | 类型             | 说明                          |
 | id            | bigint unsigned | 自增主键(保持发送顺序)          |
-| type          | tinyint         | 1=私聊 2=群聊                 |
+| type          | enum            | 'private'私聊 / 'group'普通群聊 / 'channel'社区频道 |
 | sender_UID    | bigint unsigned | 发送者                        |
-| receiver_UID  | bigint unsigned | 接收方(私聊=对方UID;群聊=group_UID)|
+| receiver_UID  | bigint unsigned | 接收方(私聊=对方UID;群聊=group_UID;频道=频道id)|
 | content       | text            | 消息内容                      |
+| reply_to_message_id | bigint unsigned | 回复的原消息id(NULL=非回复)  |
 | send_time     | datetime        | 默认 CURRENT_TIMESTAMP       |
 ------------------------------------------------------------
 主键 id
 索引：
   idx_private(sender_UID, receiver_UID, id)  私聊会话查询
-  idx_group(receiver_UID, id)                群聊历史
+  idx_group(receiver_UID, id)                群聊/频道历史
   idx_sender(sender_UID)
 外键：无（本版为提升并发写入性能暂不强制外键，由应用层保证引用完整性）
 
@@ -138,11 +143,52 @@ DB 事务双写参考：
 - 私聊只写一条 (sender, receiver)，查询两人会话：
       WHERE ((sender=:me AND receiver=:other) OR (sender=:other AND receiver=:me))
 - 群聊写一条 (sender, receiver=group_UID)
+- 社区频道写一条 (sender, receiver=频道id，type='channel')
 - 离线消息：按 send_time 查询（send_time > 用户上次登录时间），私聊 receiver=本人，
       群聊 receiver 在本人已加入的群中；由应用层 get_offline_messages 实现
 - 删除消息：仅发送者本人、发送后 3 分钟内可删（应用层校验，非 DB 约束）；
       删除超时清理（超过 7 天）已实现 delete_expired_messages 但暂未接入
 - 注：按需求"补消息不补文件"，未做文件表
+
+============================================================
+7. community 表（社区：核心频道 + 普通频道）
+------------------------------------------------------------
+| 字段            | 类型             | 说明                          |
+| id              | bigint unsigned | 主键，自增（社区/频道ID）      |
+| name            | varchar(64)     | 社区名(core) / 频道名(channel) |
+| core_channel_id | bigint unsigned | 普通频道→核心频道id；核心频道NULL|
+| is_core         | tinyint(1)      | 1=核心频道(社区,隐藏)          |
+| description     | varchar(255)    | 社区简介(仅核心频道)           |
+| avatar          | varchar(128)    | 社区头像file_id(预留)          |
+| owner_UID       | bigint unsigned | 社区拥有者(仅核心频道)         |
+| category        | varchar(64)     | 频道分区(普通频道)             |
+| create_time     | datetime        | 默认 CURRENT_TIMESTAMP        |
+------------------------------------------------------------
+主键 id
+外键：fk_community_core(core_channel_id->community.id)，ON DELETE CASCADE
+
+说明：
+- 社区 = is_core=1 的核心频道（隐藏不展示，承载社区描述/头像/拥有者）
+- 普通频道 = is_core=0 且 core_channel_id 指向所属社区核心频道
+- 删社区级联删其普通频道
+
+============================================================
+8. community_member 表（社区成员，社区内所有频道共享一份）
+------------------------------------------------------------
+| 字段         | 类型             | 说明                          |
+| community_id | bigint unsigned | 所属社区(核心频道id)（主键1）   |
+| user_UID     | bigint unsigned | 成员（主键2）                 |
+| nickname     | varchar(64)     | 社区内昵称(NULL=全局昵称)      |
+| role         | enum            | owner/admin/member            |
+| join_time    | datetime        | 默认 CURRENT_TIMESTAMP        |
+------------------------------------------------------------
+联合主键 (community_id, user_UID)
+外键：fk_cm_community(community_id->community.id)，
+      fk_cm_user(user_UID->Account.UID)，均 ON DELETE CASCADE
+
+说明：
+- 社区成员挂在核心频道上，一份共享给所有普通频道
+- 普通频道不维护成员，发言时校验"是否属于频道所属社区"
 
 ============================================================
 UID 分配与重启重定位（重要）

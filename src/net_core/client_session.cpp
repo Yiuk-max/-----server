@@ -82,6 +82,7 @@ void client_session::init_(){
     handlers_["login"]                  = std::make_unique<Base_handler>();
     handlers_["register"]               = std::make_unique<Base_handler>();
     handlers_["change_name"]            = std::make_unique<Base_handler>();// 修改自己的昵称
+    handlers_["change_theme"]           = std::make_unique<Base_handler>();// 修改主题
     handlers_["set_email"]              = std::make_unique<Base_handler>();// 绑定/换绑邮箱
     handlers_["verify_token"]           = std::make_unique<Base_handler>();// 用 token 自动登录
     //群聊相关
