@@ -11,6 +11,7 @@
 #include "cppconn/prepared_statement.h"
 #include "cppconn/resultset.h"
 #include "cppconn/statement.h"
+#include "cppconn/datatype.h"
 
 namespace {
 
@@ -160,7 +161,7 @@ bool community_repo::delete_community(int community_id, int requester_uid) {
 bool community_repo::modify_community(int community_id, int requester_uid,
                                       const std::string& name,
                                       const std::string& description,
-                                      const std::string& avatar) {
+                                      int avatar_id, int banner_id) {
     ConnGuard guard;
     if (!guard) {
         std::cerr << "[community_repo] modify_community: no DB connection." << std::endl;
@@ -173,12 +174,15 @@ bool community_repo::modify_community(int community_id, int requester_uid,
         }
         std::unique_ptr<sql::PreparedStatement> pstmt(
             guard.get()->prepareStatement(
-                "UPDATE community SET name = ?, description = ?, avatar = ? "
+                "UPDATE community SET name = ?, description = ?, avatar_id = ?, banner_id = ? "
                 "WHERE id = ? AND is_core = 1"));
         pstmt->setString(1, name);
         pstmt->setString(2, description);
-        pstmt->setString(3, avatar);
-        pstmt->setInt(4, community_id);
+        if (avatar_id > 0) pstmt->setInt(3, avatar_id);
+        else               pstmt->setNull(3, sql::DataType::BIGINT);
+        if (banner_id > 0) pstmt->setInt(4, banner_id);
+        else               pstmt->setNull(4, sql::DataType::BIGINT);
+        pstmt->setInt(5, community_id);
         const bool ok = pstmt->executeUpdate() > 0;
         if (ok) {
             RedisCache::get_instance().community_info_invalidate(community_id);
@@ -240,7 +244,7 @@ bool community_repo::get_user_communities_info(int user_uid,
     try {
         std::unique_ptr<sql::PreparedStatement> pstmt(
             guard.get()->prepareStatement(
-                "SELECT c.id, c.name, c.description, c.avatar, c.category, c.owner_UID, cm.role "
+                "SELECT c.id, c.name, c.description, c.avatar, c.avatar_id, c.banner_id, c.category, c.owner_UID, cm.role "
                 "FROM community_member cm "
                 "JOIN community c ON c.id = cm.community_id "
                 "WHERE cm.user_UID = ? AND c.is_core = 1 ORDER BY c.id"));
@@ -252,6 +256,8 @@ bool community_repo::get_user_communities_info(int user_uid,
             info.name         = rs->getString("name");
             info.description  = rs->isNull("description") ? "" : rs->getString("description");
             info.avatar       = rs->isNull("avatar") ? "" : rs->getString("avatar");
+            info.avatar_id    = rs->isNull("avatar_id") ? -1 : rs->getInt("avatar_id");
+            info.banner_id    = rs->isNull("banner_id") ? -1 : rs->getInt("banner_id");
             info.category     = rs->isNull("category") ? "" : rs->getString("category");
             info.owner_uid    = rs->isNull("owner_UID") ? -1 : rs->getInt("owner_UID");
             info.my_role      = rs->getString("role");
@@ -272,6 +278,8 @@ bool community_repo::get_community_info(int community_id, community_info& out) {
         out.avatar       = cached->avatar;
         out.category     = cached->category;
         out.owner_uid    = cached->owner_uid;
+        out.avatar_id    = cached->avatar_id;
+        out.banner_id    = cached->banner_id;
         return true;
     }
     ConnGuard guard;
@@ -281,7 +289,7 @@ bool community_repo::get_community_info(int community_id, community_info& out) {
     try {
         std::unique_ptr<sql::PreparedStatement> pstmt(
             guard.get()->prepareStatement(
-                "SELECT id, name, description, avatar, category, owner_UID FROM community "
+                "SELECT id, name, description, avatar, avatar_id, banner_id, category, owner_UID FROM community "
                 "WHERE id = ? AND is_core = 1"));
         pstmt->setInt(1, community_id);
         std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
@@ -292,6 +300,8 @@ bool community_repo::get_community_info(int community_id, community_info& out) {
         out.name         = rs->getString("name");
         out.description  = rs->isNull("description") ? "" : rs->getString("description");
         out.avatar       = rs->isNull("avatar") ? "" : rs->getString("avatar");
+        out.avatar_id    = rs->isNull("avatar_id") ? -1 : rs->getInt("avatar_id");
+        out.banner_id    = rs->isNull("banner_id") ? -1 : rs->getInt("banner_id");
         out.category     = rs->isNull("category") ? "" : rs->getString("category");
         out.owner_uid    = rs->isNull("owner_UID") ? -1 : rs->getInt("owner_UID");
 
@@ -301,6 +311,8 @@ bool community_repo::get_community_info(int community_id, community_info& out) {
         cc.avatar      = out.avatar;
         cc.category    = out.category;
         cc.owner_uid   = out.owner_uid;
+        cc.avatar_id   = out.avatar_id;
+        cc.banner_id   = out.banner_id;
         RedisCache::get_instance().community_info_set(community_id, cc);
         return true;
     } catch (const sql::SQLException& e) {

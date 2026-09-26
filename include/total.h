@@ -33,16 +33,6 @@
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
-// ---- 全局常量 ----
-// 文件保存路径（当前写死，后续可由配置项读取）
-#ifndef SERVER_SAVING_PATH
-#define SERVER_SAVING_PATH "./received_files/"
-#endif
-// 文件分块大小：256KB
-#ifndef SEND_CHUNK_SIZE
-#define SEND_CHUNK_SIZE (256 * 1024)
-#endif
-
 // ---- 全局运行标志 ----
 extern bool running;
 

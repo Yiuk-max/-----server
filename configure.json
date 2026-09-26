@@ -6,7 +6,7 @@
     "websocket": {
         "path": "/ws",
         "io_threads": 4,
-        "max_message_bytes": 1048576,
+        "max_message_bytes": 8388608,
         "max_pending_bytes": 8388608,
         "web_root": "./web"
     },
@@ -26,5 +26,14 @@
         "db": 0,
         "pool_size": 4,
         "timeout_ms": 200
+    },
+    "file_storage": {
+        "root": "/home/ubuntu/chat_server_files",
+        "chunk_size": 4194304,
+        "max_chunk_size": 16777216,
+        "max_file_size": 536870912,
+        "max_storage_size": 10737418240,
+        "max_avatar_size": 10485760,
+        "transfer_timeout_seconds": 1800
     }
 }

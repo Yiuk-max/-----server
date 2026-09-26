@@ -35,8 +35,6 @@ public:
     // ---------- IClientTransport ----------
     void send_packet(const chat_proto::Envelope& message, std::string file_data = {}) override;
     void send_serialized(const std::string& payload) override;
-    void send_file(std::string file_name) override;
-    void accept_file_chunk(const chat_proto::FileChunkMeta& meta, std::string file_data) override;
     void close(CloseMode mode) override;
 
     bool has_session() const { return session_ != nullptr; }

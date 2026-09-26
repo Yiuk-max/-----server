@@ -21,6 +21,7 @@ struct AccountCache {
     std::string settings;   // settings JSON 原始字符串
     std::string language;
     std::string token;
+    int         avatar_id = -1;
 };
 
 // 频道缓存字段（与 community 表普通频道行对齐）
@@ -37,6 +38,8 @@ struct CommunityCache {
     std::string avatar;
     std::string category;
     int         owner_uid = -1;
+    int         avatar_id = -1;
+    int         banner_id = -1;
 };
 
 class RedisCache {

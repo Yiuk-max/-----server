@@ -1,5 +1,6 @@
 #include "client_session.h"
 #include "session_manager.h"
+#include "file_service.h"
 
 // client_session 只依赖传输端口；TCP connection（以及后续 WsSession）负责具体协议。
 void client_session::set_transport(const std::shared_ptr<IClientTransport>& transport){
@@ -50,18 +51,6 @@ bool client_session::activate_session(const std::shared_ptr<account>& account,
     return true;
 }
 
-void client_session::upload_file(const chat_proto::FileChunkMeta& meta, const std::string& file_data){
-    if (auto transport = transport_.lock()) {
-        transport->accept_file_chunk(meta, file_data);
-    }
-}
-
-void client_session::download_file(const std::string& file_name){
-    if (auto transport = transport_.lock()) {
-        transport->send_file(file_name);
-    }
-}
-
 void client_session::init_(){
     //初始化消息处理器，后续可以根据需要添加更多类型的消息处理器
     handlers_["private_chat"]           = std::make_unique<Chat_handler>();// 聊天消息.私聊
@@ -77,12 +66,14 @@ void client_session::init_(){
     
     //基本功能
     handlers_["show"]                   = std::make_unique<Base_handler>();// 展示聊天对象
+    handlers_["show_contacts"]           = std::make_unique<Base_handler>();// 结构化联系人（含好友头像）
     handlers_["exit"]                   = std::make_unique<Base_handler>();
     handlers_["logout"]                 = std::make_unique<Base_handler>();// 登出账号（保留连接）
     handlers_["login"]                  = std::make_unique<Base_handler>();
     handlers_["register"]               = std::make_unique<Base_handler>();
     handlers_["change_name"]            = std::make_unique<Base_handler>();// 修改自己的昵称
     handlers_["change_theme"]           = std::make_unique<Base_handler>();// 修改主题
+    handlers_["set_avatar"]             = std::make_unique<Base_handler>();// 设置头像(file.id)
     handlers_["set_email"]              = std::make_unique<Base_handler>();// 绑定/换绑邮箱
     handlers_["verify_token"]           = std::make_unique<Base_handler>();// 用 token 自动登录
     //群聊相关
@@ -115,8 +106,21 @@ void client_session::init_(){
     handlers_["show_community_requests"]      = std::make_unique<Community_handler>();
     handlers_["modify_community_member_role"] = std::make_unique<Community_handler>();
     //文件相关
-    handlers_["download_file"]          = std::make_unique<File_handler>();
-    handlers_["upload_file"]            = std::make_unique<File_handler>();
+    handlers_["file_upload_init"]       = std::make_unique<File_handler>();
+    handlers_["file_chunk"]             = std::make_unique<File_handler>();
+    handlers_["file_upload_done"]       = std::make_unique<File_handler>();
+    handlers_["file_upload_resume"]     = std::make_unique<File_handler>();
+    handlers_["file_download_init"]     = std::make_unique<File_handler>();
+    handlers_["file_download_chunk"]    = std::make_unique<File_handler>();
+    handlers_["file_transfer_pause"]    = std::make_unique<File_handler>();
+    handlers_["file_transfer_resume"]   = std::make_unique<File_handler>();
+    handlers_["file_transfer_cancel"]   = std::make_unique<File_handler>();
+    handlers_["file_transfer_status"]   = std::make_unique<File_handler>();
+    handlers_["file_list_request"]      = std::make_unique<File_handler>();
+    handlers_["file_delete"]            = std::make_unique<File_handler>();
+
+    // 文件业务（与网络层无关），随会话生命周期
+    file_service_ = std::make_shared<FileService>(repo_hub_);
 }
 
 //===============消息处理===============
@@ -292,39 +296,44 @@ void client_session::package_message(const std::string& message,std::string type
 }
 
 // 构造聊天消息 Envelope（单发与广播共用），把字段填充逻辑收敛到一处。
-void build_chat_envelope(chat_proto::Envelope& msg, const std::string& type, const std::string& message,
-                         int message_id, int group_uid, int sender_uid, const std::string& sender_name,
-                         int reply_to_message_id, const std::string& reply_sender_name,
-                         const std::string& reply_content, const std::string& timestamp) {
-    msg.set_type(type);
-    msg.set_content(message);
-    msg.set_message_id(message_id);
-    if (group_uid > 0) {
-        msg.set_group_uid(group_uid);   // 群聊消息携带群 UID，便于客户端归类
+void build_chat_envelope(chat_proto::Envelope& msg, const ChatMessageData& d) {
+    msg.set_type(d.type);
+    msg.set_content(d.message);
+    msg.set_message_id(d.message_id);
+
+    if (d.group_uid > 0) {
+        msg.set_group_uid(d.group_uid);   // 群聊/频道消息携带 group_UID，便于客户端归类
     }
-    if (sender_uid > 0) {
-        msg.set_sender_uid(sender_uid); // 发送者 UID，便于客户端将消息路由到对应会话
+    if (d.sender_uid > 0) {
+        msg.set_sender_uid(d.sender_uid); // 发送者 UID，便于客户端将消息路由到对应会话
     }
-    if (!sender_name.empty()) {
-        msg.set_sender_name(sender_name); // 发送者昵称，便于客户端展示
+    if (!d.sender_name.empty()) {
+        msg.set_sender_name(d.sender_name); // 发送者昵称，便于客户端展示
     }
-    if (!timestamp.empty()) {
-        msg.set_timestamp(timestamp);      // 发送时间，便于客户端展示
+    if (!d.timestamp.empty()) {
+        msg.set_timestamp(d.timestamp);      // 发送时间，便于客户端展示
     }
-    if (reply_to_message_id > 0) {
+
+    if (d.reply) {
         // 只带一层引用：直接给出被回复消息的 id + 摘要
-        msg.set_reply_to_message_id(reply_to_message_id);
+        msg.set_reply_to_message_id(d.reply->message_id);
         auto* reply = msg.mutable_reply_to();
-        reply->set_message_id(reply_to_message_id);
-        reply->set_sender_name(reply_sender_name);
-        reply->set_content(reply_content);
+        reply->set_message_id(d.reply->message_id);
+        reply->set_sender_name(d.reply->sender_name);
+        reply->set_content(d.reply->content);
+    }
+
+    if (d.file) {
+        msg.set_is_file(true);
+        msg.set_file_id(std::to_string(d.file->file_id));
+        if (!d.file->name.empty()) msg.set_file_name(d.file->name);
+        msg.set_file_size(d.file->size);
     }
 }
 
-void client_session::package_chat_message(const std::string& message, std::string type, int message_id, int group_uid, int sender_uid, const std::string& sender_name, int reply_to_message_id, const std::string& reply_sender_name, const std::string& reply_content, const std::string& timestamp){
+void client_session::package_chat_message(const ChatMessageData& data){
     chat_proto::Envelope msg;
-    build_chat_envelope(msg, type, message, message_id, group_uid, sender_uid, sender_name,
-                        reply_to_message_id, reply_sender_name, reply_content, timestamp);
+    build_chat_envelope(msg, data);
     if (auto transport = transport_.lock()) {
         transport->send_packet(msg);
     }
@@ -334,6 +343,13 @@ void client_session::package_chat_message(const std::string& message, std::strin
 void client_session::package_envelope(const chat_proto::Envelope& message){
     if (auto transport = transport_.lock()) {
         transport->send_packet(message);
+    }
+}
+
+// 发送 Envelope + 文件分片原始二进制（file_chunk 等）。
+void client_session::send_file_packet(const chat_proto::Envelope& message, std::string file_data){
+    if (auto transport = transport_.lock()) {
+        transport->send_packet(message, std::move(file_data));
     }
 }
 

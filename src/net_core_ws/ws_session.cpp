@@ -348,22 +348,6 @@ void WsSession::post_binary_frame(const std::string& body, std::string file_data
               });
 }
 
-void WsSession::send_file(std::string /*file_name*/) {
-    // M1 暂不支持 WebSocket 文件下载，M3 再实现二进制块协议。
-    chat_proto::Envelope env;
-    env.set_type("system");
-    env.set_content("File transfer is not supported over WebSocket yet.\n");
-    send_packet(env, {});
-}
-
-void WsSession::accept_file_chunk(const chat_proto::FileChunkMeta& /*meta*/, std::string /*file_data*/) {
-    // M1 暂不支持 WebSocket 文件上传，M3 再实现二进制块协议。
-    chat_proto::Envelope env;
-    env.set_type("system");
-    env.set_content("File transfer is not supported over WebSocket yet.\n");
-    send_packet(env, {});
-}
-
 void WsSession::close(CloseMode mode) {
     auto s = self();
     if (!s) {

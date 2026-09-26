@@ -4,6 +4,7 @@
 #include "logic_common.h"
 #include "repository_hub.h"
 #include "social_module.h"
+#include "group_manager.h"
 
 #include <ctime>
 
@@ -33,6 +34,7 @@ void finish_login(client_session& s, const std::shared_ptr<account>& acc, const 
     auto* user = resp.mutable_user();
     user->set_id(UID);
     user->set_username(acc->getName());
+    resp.set_avatar_id(acc->get_avatar_id());
     s.package_envelope(resp);
 
     logic::show_friend_requests(s); // 登录后自动查看待处理的好友申请
@@ -203,6 +205,73 @@ void show_chatlist(client_session& s) {
     s.package_message(social->show_friends(), "system");
 }
 
+// 结构化联系人列表（好友 + 群），携带每个好友的 avatar_id 供客户端加载头像。
+void show_contacts(client_session& s) {
+    auto acc = s.current_account();
+    auto social = s.social_manager();
+    if (!acc || !social) {
+        s.package_message("You must be logged in to view contacts.\n", "system");
+        return;
+    }
+
+    chat_proto::Envelope resp;
+    resp.set_type("contact_list_response");
+
+    for (int uid : social->friend_list()) {
+        auto f = s.repo_hub()->accounts()->load_account(uid);
+        if (!f) continue;
+        auto* c = resp.add_contacts();
+        c->set_uid(uid);
+        const std::string remark = s.repo_hub()->friends()->get_remark(acc->getUID(), uid);
+        c->set_name(remark.empty() ? f->getName() : remark);
+        c->set_is_group(false);
+        c->set_avatar_id(f->get_avatar_id());
+    }
+
+    for (int gid : social->group_list()) {
+        auto grp = group_manager::get_instance().get(gid);
+        if (!grp) continue;
+        auto* c = resp.add_contacts();
+        c->set_uid(gid);
+        c->set_name(grp->get_group_name());
+        c->set_is_group(true);
+        c->set_avatar_id(0);
+    }
+
+    s.package_envelope(resp);
+}
+
+// 设置头像：把当前账号的 avatar_id 指向一个已上传的文件（file_id=-1 表示清除）。
+void set_avatar(client_session& s, const std::string& file_id_str) {
+    auto acc = s.current_account();
+    if (!acc) {
+        s.package_message("You must be logged in to set an avatar.\n", "system");
+        return;
+    }
+    int file_id = -1;
+    if (!file_id_str.empty()) {
+        try {
+            file_id = std::stoi(file_id_str);
+        } catch (...) {
+            s.package_message("Invalid file_id.\n", "system");
+            return;
+        }
+    }
+    if (file_id > 0) {
+        file_meta_info f;
+        if (!s.repo_hub()->files()->get_file(file_id, f)) {//上传头像
+            s.package_message("File not found.\n", "system");//检查文件是否存在
+            return;
+        }
+    }
+    if (s.repo_hub()->accounts()->update_avatar(acc->getUID(), file_id)) {//更新数据库中的头像id
+        acc->set_avatar_id(file_id);
+        s.package_message("Avatar updated successfully.\n", "system");
+    } else {
+        s.package_message("Failed to update avatar (database unavailable).\n", "system");
+    }
+}
+
 } // namespace
 
 void Base_handler::handle_message(const chat_proto::Envelope& message, client_session& session, std::string& file_data) {
@@ -239,6 +308,12 @@ void Base_handler::handle_message(const chat_proto::Envelope& message, client_se
         return;
     } else if (type == "change_theme") {
         change_theme(session, message.theme());
+        return;
+    } else if (type == "set_avatar") {
+        set_avatar(session, message.file_id());
+        return;
+    } else if (type == "show_contacts") {
+        show_contacts(session);
         return;
     }
 }

@@ -90,6 +90,7 @@ std::optional<AccountCache> RedisCache::account_get(int uid) {
         it = m.find("settings");       if (it != m.end()) a.settings = it->second;
         it = m.find("language");       if (it != m.end()) a.language = it->second;
         it = m.find("token");          if (it != m.end()) a.token = it->second;
+        it = m.find("avatar_id");      if (it != m.end()) a.avatar_id = std::stoi(it->second);
         return a;
     } catch (const std::exception&) {
         return std::nullopt;  // Redis 异常：降级
@@ -108,6 +109,7 @@ void RedisCache::account_set(int uid, const AccountCache& a) {
             {"settings", a.settings},
             {"language", a.language},
             {"token", a.token},
+            {"avatar_id", std::to_string(a.avatar_id)},
         };
         redis->hset(key_account(uid), fields.begin(), fields.end());
         redis->expire(key_account(uid), std::chrono::seconds(3600));  // 兜底 TTL
@@ -461,6 +463,10 @@ std::optional<CommunityCache> RedisCache::community_info_get(int community_id) {
         it = m.find("category"); if (it != m.end()) c.category = it->second;
         it = m.find("owner_uid");
         if (it != m.end()) { try { c.owner_uid = std::stoi(it->second); } catch (const std::exception&) {} }
+        it = m.find("avatar_id");
+        if (it != m.end()) { try { c.avatar_id = std::stoi(it->second); } catch (const std::exception&) {} }
+        it = m.find("banner_id");
+        if (it != m.end()) { try { c.banner_id = std::stoi(it->second); } catch (const std::exception&) {} }
         return c;
     } catch (const std::exception&) {
         return std::nullopt;
@@ -477,6 +483,8 @@ void RedisCache::community_info_set(int community_id, const CommunityCache& c) {
             {"avatar", c.avatar},
             {"category", c.category},
             {"owner_uid", std::to_string(c.owner_uid)},
+            {"avatar_id", std::to_string(c.avatar_id)},
+            {"banner_id", std::to_string(c.banner_id)},
         };
         redis->hset(key_community_info(community_id), fields.begin(), fields.end());
         redis->expire(key_community_info(community_id), std::chrono::seconds(86400));

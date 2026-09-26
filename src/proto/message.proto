@@ -25,6 +25,10 @@ message ChatItem {
   string timestamp           = 6;
   int32  reply_to_message_id = 7;
   ReplyTo reply_to           = 8;
+  bool   is_file             = 9;   // 文件消息
+  int32  file_id             = 10;  // file.id
+  string file_name           = 11;  // 原始文件名
+  uint64 file_size           = 12;  // 文件大小
 }
 
 // 文件分块元信息（对应 upload_file.meta / 下载 file_chunk 头部）
@@ -37,6 +41,35 @@ message FileChunkMeta {
   uint32 chunk_count = 6;
   uint32 chunk_size  = 7;
   uint64 offset      = 8;
+  string transfer_id = 9;  // 传输会话 ID（上传/下载分块必带）
+  string hash        = 10; // 首块可选携带全文件 sha256（当前未强制校验）
+}
+
+// 文件元数据（file 表协议视图）
+message FileMeta {
+  string file_id       = 1;  // string 化的 file.id
+  string original_name = 2;
+  string mime_type     = 3;
+  uint64 size          = 4;
+  string hash          = 5;
+  string type          = 6;  // avatar/emoji/image/attachment/file
+  int32  uploader_uid  = 7;
+  string created_at    = 8;
+}
+
+// 传输会话状态（file_transfer 表协议视图）
+message FileTransferInfo {
+  string transfer_id      = 1;
+  string file_id          = 2;
+  int32  uploader_uid     = 3;
+  int32  receiver_uid     = 4;
+  string direction        = 5;  // upload / download
+  string status           = 6;  // uploading/downloading/paused/completed/cancelled/failed
+  uint64 total_size       = 7;
+  uint64 transferred_size = 8;
+  uint32 chunk_size       = 9;
+  uint32 chunk_count      = 10;
+  uint32 next_chunk_index = 11;
 }
 
 // 社区（核心频道）信息
@@ -44,9 +77,11 @@ message CommunityInfo {
   int32  community_id = 1;
   string name         = 2;
   string description  = 3;
-  string avatar       = 4;  // file_id，预留
+  string avatar       = 4;  // file_id 字符串
   string category     = 5;  // 预留：社区所属分区
   string my_role      = 6;  // owner/admin/member
+  int32  avatar_id    = 7;  // 社区头像 file.id（-1 未设置）
+  int32  banner_id    = 8;  // 社区背景图 file.id（-1 未设置）
 }
 
 // 社区普通频道信息
@@ -59,9 +94,18 @@ message ChannelInfo {
 
 // 社区成员信息
 message MemberInfo {
-  int32  user_uid = 1;
-  string nickname = 2;  // 社区昵称（空则前端用全局昵称）
-  string role     = 3;
+  int32  user_uid  = 1;
+  string nickname  = 2;  // 社区昵称（空则前端用全局昵称）
+  string role      = 3;
+  int32  avatar_id = 4;  // 成员头像 file.id（-1 表示未设置）
+}
+
+// 会话/联系人（好友或群）
+message ContactInfo {
+  int32  uid       = 1;
+  string name      = 2;
+  bool   is_group  = 3;
+  int32  avatar_id = 4;  // 好友头像 file.id；群为 0
 }
 
 // 顶层信封（一个 message 承载所有请求/响应字段）
@@ -127,4 +171,24 @@ message Envelope {
   repeated ChannelInfo   channels    = 41;
   repeated MemberInfo    members     = 42;
   string   theme         = 43;  // 主题（存于 Account.settings JSON，默认 "default"）
+
+  // 文件系统（编号从 44 起）
+  FileMeta          file_meta     = 44;
+  FileTransferInfo  transfer_info = 45;
+  int32             transfer_id   = 46;
+  string            file_id       = 47;  // string 化的 file.id（download_init/file_delete 等）
+  repeated FileMeta files         = 48;  // file_list_response
+
+  // 头像 / 文件消息（M3 引用接入）
+  int32  avatar_id  = 49;  // 当前账户头像 file.id（login_success 等返回）
+  bool   is_file    = 50;  // 聊天消息是否为文件消息
+  uint64 file_size  = 51;  // 文件消息大小（file_name 复用字段 30，file_id 复用字段 47）
+  repeated ContactInfo contacts = 52;  // contact_list_response
+
+  // 社区头像/背景图（modify_community 请求）
+  int32 community_avatar_id = 53;  // 社区头像 file.id
+  int32 community_banner_id = 54;  // 社区背景图 file.id
+
+  // 分片下载请求（M4：可中断/续传）
+  int32 chunk_index  = 55;  // file_download_chunk 请求的块号
 }

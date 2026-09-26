@@ -1,4 +1,4 @@
-# 聊天服务器（C++17 / epoll 主从 Reactor / WebSocket）
+# Baka Community（聊天服务器 · C++17 / epoll 主从 Reactor / WebSocket）
 
 基于 epoll + 主从 Reactor 多线程模型的 TCP 聊天服务器，支持注册/登录、私聊、群聊、社区（频道）、好友系统、主题设置、文件传输。
 另提供平行的 **Boost.Asio + Beast WebSocket 网络层**，由 `configure.json` 的 `net_layer` 在启动时二选一，两种模式复用同一套业务层。
@@ -129,6 +129,7 @@ python3 tests/ws_chat_smoke.py 127.0.0.1 8080 /ws --idle-seconds=3
 - **[数据库设计.txt](Docs/数据库设计.txt)** —— 数据库表结构、UID 分配与连接池接入说明。
 - **[Redis缓存方案-done.md](Docs/Redis缓存方案-done.md)** —— Redis 缓存接入方案与实现状态（C1/C2/C4/C7-C11 已落地，C3/C5/C6 待做），附并发/稳定性瓶颈分析。
 - **[压力测试方案.md](Docs/压力测试方案.md)** —— WebSocket 压测方案与用例清单。
+- **[文件系统方案.md](Docs/文件系统方案.md)** —— 文件系统设计（统一 File 体系/磁盘存储/分片传输/暂停续传/watchdog），配套 `sql/file_system.sql`、`sql/alter_existing_tables.sql`；权威文件另存于 `/home/ubuntu/chat_server_files/`。
 - **[开发日志.txt](build/开发日志.txt)** —— 待办清单与开发日志（当前位于 build/ 目录，含历次架构重构与问题修复记录）。
 
 ## 项目结构（概要）
@@ -146,7 +147,11 @@ server/
 │   └── utils/              # 线程池 + server_config + redis_client/redis_cache（Redis 缓存）
 ├── include/total.h         # 基础设施公共头（不再是"万能头"）
 ├── configure.json          # 运行配置（网络层 / 心跳 / 连接上限 / WebSocket / 数据库连接池 / Redis 缓存）
-├── sql/create_table.sql    # 数据库建表脚本（含社区表 community/community_member）
+├── sql/create_table.sql    # 数据库建表脚本（11 张表：Account/.../file/file_transfer，与当前库一致）
+├── sql/file_system.sql     # 文件系统建表脚本（file/file_transfer）
+├── sql/alter_existing_tables.sql # 现有表改造（Account.avatar_id、message.is_file/file_id）
+├── sql/alter_community_avatar_banner.sql # 社区头像/背景图（community.avatar_id/banner_id）
+├── sql/alter_file_transfer_upload_meta.sql # 上传会话元数据持久化（断线重连续传）
 ├── sql/community.sql       # 社区功能迁移脚本（message.type 改英文枚举等）
 ├── sql/theme_default.sql   # 主题默认值迁移（white → default）
 ├── sql/add_self_friend.sql # 给已有账号补齐"自己是自己的好友"（自聊）

@@ -82,3 +82,10 @@ std::string account::get_token() const {
 void account::set_token(const std::string& token) {
     base_info.token = token;
 }
+
+int account::get_avatar_id() const {
+    return avatar_id_;
+}
+void account::set_avatar_id(int avatar_id) {
+    avatar_id_ = avatar_id;
+}

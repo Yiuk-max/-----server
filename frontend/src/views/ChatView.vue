@@ -362,7 +362,7 @@ onBeforeUnmount(() => document.removeEventListener('click', closeMenu));
 
       <!-- 空态 -->
       <div class="chat-empty" v-else>
-        <b>{{ state.myUid ? '选择一个会话' : '欢迎使用 Chat Server' }}</b>
+        <b>{{ state.myUid ? '选择一个会话' : '欢迎使用 Baka Community' }}</b>
         <span>{{ state.myUid ? '点击左侧会话开始聊天' : '请在左侧登录后开始使用' }}</span>
       </div>
 

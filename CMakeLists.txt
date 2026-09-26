@@ -10,6 +10,7 @@ aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/net_core           NET_SRC)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/net_core_ws        WS_NET_SRC)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/logic              LOGIC_SRC)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/logic/handlers     HANDLER_SRC)
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/file               FILE_SRC)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/utils              UTILS)
 
 find_package(nlohmann_json REQUIRED)
@@ -60,7 +61,7 @@ include_directories(/usr/include/mysql-cppconn)
 # MySQL Connector/C++ 的 JDBC 头在 jdbc 子目录（mysql_driver.h / cppconn/...）
 include_directories(/usr/include/mysql-cppconn/jdbc)
 
-add_executable(server src/main.cpp ${NET_SRC} ${WS_NET_SRC} ${LOGIC_SRC} ${HANDLER_SRC} ${UTILS} ${REPO_SRC} ${REPO_INTERFACE_SRC} ${MYSQL_SRC} ${PROTO_SRCS})
+add_executable(server src/main.cpp ${NET_SRC} ${WS_NET_SRC} ${LOGIC_SRC} ${HANDLER_SRC} ${FILE_SRC} ${UTILS} ${REPO_SRC} ${REPO_INTERFACE_SRC} ${MYSQL_SRC} ${PROTO_SRCS})
 
 target_include_directories(server PRIVATE 
     ${CMAKE_CURRENT_BINARY_DIR}
@@ -72,6 +73,7 @@ target_include_directories(server PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/db/mysql
     ${CMAKE_CURRENT_SOURCE_DIR}/src/logic
     ${CMAKE_CURRENT_SOURCE_DIR}/src/logic/handlers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/file
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
@@ -104,6 +106,7 @@ if(SERVER_BUILD_TESTS)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/db/mysql
         ${CMAKE_CURRENT_SOURCE_DIR}/src/logic
         ${CMAKE_CURRENT_SOURCE_DIR}/src/logic/handlers
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/file
         ${CMAKE_CURRENT_SOURCE_DIR}/src/utils
         ${CMAKE_CURRENT_SOURCE_DIR}/include
     )
@@ -119,7 +122,7 @@ if(SERVER_BUILD_TESTS)
     # 在线表测试需要 client_session 完整实现，因此复用除 main.cpp 外的全部源文件。
     add_executable(test_session_manager
         tests/test_session_manager.cpp
-        ${NET_SRC} ${LOGIC_SRC} ${HANDLER_SRC} ${UTILS} ${REPO_SRC} ${REPO_INTERFACE_SRC} ${MYSQL_SRC} ${PROTO_SRCS})
+        ${NET_SRC} ${LOGIC_SRC} ${HANDLER_SRC} ${FILE_SRC} ${UTILS} ${REPO_SRC} ${REPO_INTERFACE_SRC} ${MYSQL_SRC} ${PROTO_SRCS})
     target_include_directories(test_session_manager PRIVATE ${SERVER_TEST_INCLUDES} ${CMAKE_CURRENT_BINARY_DIR})
     target_link_libraries(test_session_manager PRIVATE nlohmann_json::nlohmann_json mysqlcppconn Threads::Threads protobuf::libprotobuf redis++::redis++_static)
     add_test(NAME session_manager COMMAND test_session_manager)

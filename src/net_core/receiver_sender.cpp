@@ -1,6 +1,5 @@
 #include "receiver_sender.h"
 #include "epoller.h"
-#include <algorithm>
 #include <cstring>
 #include <arpa/inet.h>
 void sender::add_to_out_buffer(const std::string &message)
@@ -54,66 +53,6 @@ bool sender::empty()
     std::lock_guard<std::mutex> lock(out_mtx);
     return out_buffer.empty();
 }
-void sender::send_file(const std::string &file_name)
-{
-    std::string file_path = SERVER_SAVING_PATH + file_name; // 构造文件路径
-    // 1. 打开文件，算总大小
-    std::ifstream file(file_path, std::ios::binary);
-    
-    file.seekg(0, std::ios::end);  // 指针跳到末尾
-    size_t total_size = file.tellg();  // 末尾位置就是文件大小
-    file.seekg(0, std::ios::beg);  // 指针跳回开头准备读
-
-    // 2. 算要切几块
-    const size_t CHUNK_SIZE = SEND_CHUNK_SIZE;  // 256KB
-    size_t chunk_count = (total_size + CHUNK_SIZE - 1) / CHUNK_SIZE;
-    // 比如文件 700KB：(700*1024 + 256*1024 - 1) / (256*1024) = 3块
-
-    // 3. 生成这次传输的唯一ID（简单版）
-    std::string file_id = std::to_string(time(nullptr));
-
-    // 4. 循环切块发送
-    for (size_t i = 0; i < chunk_count; i++) {
-        size_t offset = i * CHUNK_SIZE;
-        // 最后一块可能不足256KB，取实际大小
-        size_t this_chunk = std::min(CHUNK_SIZE, total_size - offset);
-
-        // 读这块数据
-        std::string buf(this_chunk, '\0');
-        file.read(buf.data(), this_chunk);
-
-        // 构造文件分块元信息
-        chat_proto::FileChunkMeta meta;
-        meta.set_type("file_chunk");
-        meta.set_file_id(file_id);
-        meta.set_filename(file_name);
-        meta.set_total_size(total_size);
-        meta.set_chunk_index(static_cast<uint32_t>(i));
-        meta.set_chunk_count(static_cast<uint32_t>(chunk_count));
-        meta.set_chunk_size(static_cast<uint32_t>(this_chunk));
-        meta.set_offset(offset);
-
-        process_file_data(meta, buf);
-    }
-}
-void sender::process_file_data(const chat_proto::FileChunkMeta& meta, std::string &data)
-{
-    std::string payload;
-    if (!meta.SerializeToString(&payload)) {
-        return;
-    }
-
-    uint32_t net_total_len    = htonl(static_cast<uint32_t>(8 + payload.size() + data.size()));
-    uint32_t net_payload_len  = htonl(static_cast<uint32_t>(payload.size()));
-
-    std::string packet;
-    packet.append(reinterpret_cast<const char*>(&net_total_len), 4);
-    packet.append(reinterpret_cast<const char*>(&net_payload_len), 4);
-    packet += payload;
-    packet += data; // 文件数据部分
-
-    add_to_out_buffer(packet);
-}
 Standard_Message receiver::process_recv_data(std::string raw_message)
 {
     Standard_Message result;
@@ -159,56 +98,6 @@ Standard_Message receiver::process_recv_data(std::string raw_message)
     }
 
     return result;
-}
-void receiver::upload_file(const chat_proto::FileChunkMeta& meta, const std::string &data)
-{
-    // 这里可以根据meta中的信息（如file_id、chunk_index等）来处理文件数据
-    std::cout << "Received file chunk: " << meta.DebugString() << ", data size: " << data.size() << std::endl;
-    std::string file_id     = meta.file_id();
-    std::string filename    = meta.filename();
-    size_t      offset      = meta.offset();
-    size_t      chunk_size  = meta.chunk_size();
-    size_t      chunk_count = meta.chunk_count();
-    size_t      total_size  = meta.total_size();
-
-    // 1. 第一块到达时，初始化文件
-    if (transfers.find(file_id) == transfers.end()) {
-        TransferContext ctx;
-        ctx.filename       = filename;
-        ctx.total_size     = total_size;
-        ctx.chunk_count    = chunk_count;
-        ctx.received_count = 0;
-
-        // 预分配文件大小
-        // 先跳到最后一个字节位置写一个0，文件就有了完整大小
-        std::string save_path = SERVER_SAVING_PATH + filename + "_" + file_id; // 避免重名
-        ctx.file.open(save_path, std::ios::binary | std::ios::out | std::ios::in);
-        if (!ctx.file.is_open()) {
-            // 文件不存在则先创建
-            std::ofstream tmp(save_path, std::ios::binary);
-            tmp.close();
-            ctx.file.open(save_path, std::ios::binary | std::ios::out | std::ios::in);
-        }
-        ctx.file.seekp(total_size - 1);
-        ctx.file.put('\0');  // 预占空间
-
-        transfers[file_id] = std::move(ctx);
-    }
-
-    auto& ctx = transfers[file_id];
-
-    // 2. 跳到 offset 位置写入这块数据
-    ctx.file.seekp(offset);
-    ctx.file.write(data.data(), data.size());
-    ctx.received_count++;
-
-    // 3. 所有块都到了，收尾
-    if (ctx.received_count == ctx.chunk_count) {
-        ctx.file.close();
-        transfers.erase(file_id);
-        
-        std::cout << "文件接收完成: " << filename << std::endl;
-    }
 }
 void receiver::append_data(const std::string &data)
 {

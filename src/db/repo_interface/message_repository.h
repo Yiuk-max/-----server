@@ -21,6 +21,13 @@ struct message {
     int reply_to_message_id = 0;
     std::string reply_sender_name;
     std::string reply_content;
+
+    // 文件消息：is_file=1 时本消息只存 file_id 引用，文件本体按 file_id 单独下载。
+    // file_name/file_size 由查询时 JOIN file 表填充，用于前端展示。
+    bool     is_file   = false;
+    int      file_id   = 0;
+    std::string file_name;
+    uint64_t file_size = 0;
 };
 //存储信息、定时删除信息、查询没有收到的私聊、群聊离线信息、查询私聊/群聊历史消息
 
@@ -33,7 +40,8 @@ public:
     // reply_to_message_id > 0 表示本条是回复该 id 的消息（只支持一层直接引用）。
     virtual int store_message(int sender_UID, int receiver_UID, const std::string& message,
                               const std::string& type, int reply_to_message_id = 0,
-                              std::string* out_timestamp = nullptr) = 0;
+                              std::string* out_timestamp = nullptr,
+                              bool is_file = false, int file_id = 0) = 0;
 
     virtual bool delete_message(int message_id) = 0;
 

@@ -36,16 +36,20 @@ message make_message(sql::ResultSet* rs) {
     m.content      = rs->getString("content");
     m.type         = rs->getString("type"); // "private" / "group" / "channel"
     m.timestamp    = rs->getString("send_time");
+    m.is_file      = rs->getBoolean("is_file");
+    m.file_id      = rs->isNull("file_id") ? 0 : rs->getInt("file_id");
     return m;
 }
 
-// 历史查询专用：额外读取 JOIN 出来的发送者昵称与“回复的原消息摘要”。
+// 历史查询专用：额外读取 JOIN 出来的发送者昵称、回复摘要与文件元数据。
 message make_history_message(sql::ResultSet* rs) {
     message m = make_message(rs);
     m.sender_name = rs->isNull("sender_name") ? "" : rs->getString("sender_name");
     m.reply_to_message_id = rs->isNull("reply_to_message_id") ? 0 : rs->getInt("reply_to_message_id");
     m.reply_sender_name = rs->isNull("reply_sender_name") ? "" : rs->getString("reply_sender_name");
     m.reply_content = rs->isNull("reply_content") ? "" : rs->getString("reply_content");
+    m.file_name = rs->isNull("file_name") ? "" : rs->getString("file_name");
+    m.file_size = rs->isNull("file_size") ? 0 : rs->getUInt64("file_size");
     return m;
 }
 } // namespace
@@ -55,26 +59,27 @@ message make_history_message(sql::ResultSet* rs) {
 // 成功返回数据库分配的 message_id，失败返回 -1
 int message_repo::store_message(int sender_UID, int receiver_UID,
                                 const std::string& content, const std::string& type,
-                                int reply_to_message_id, std::string* out_timestamp) {
+                                int reply_to_message_id, std::string* out_timestamp,
+                                bool is_file, int file_id) {
     ConnGuard guard;
     if (!guard) {
         std::cerr << "[message_repo] store_message: no DB connection." << std::endl;
         return -1;
     }
     try {
-        const bool is_reply = reply_to_message_id > 0;
         std::unique_ptr<sql::PreparedStatement> pstmt(
             guard.get()->prepareStatement(
-                is_reply
-                    ? "INSERT INTO message (type, sender_UID, receiver_UID, content, reply_to_message_id) VALUES (?, ?, ?, ?, ?)"
-                    : "INSERT INTO message (type, sender_UID, receiver_UID, content) VALUES (?, ?, ?, ?)"));
+                "INSERT INTO message (type, sender_UID, receiver_UID, content, reply_to_message_id, is_file, file_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)"));
         pstmt->setString(1, type);
         pstmt->setInt(2, sender_UID);
         pstmt->setInt(3, receiver_UID);
         pstmt->setString(4, content);
-        if (is_reply) {
-            pstmt->setInt(5, reply_to_message_id);
-        }
+        if (reply_to_message_id > 0) pstmt->setInt(5, reply_to_message_id);
+        else                        pstmt->setNull(5, sql::DataType::BIGINT);
+        pstmt->setBoolean(6, is_file);
+        if (is_file && file_id > 0) pstmt->setInt(7, file_id);
+        else                        pstmt->setNull(7, sql::DataType::BIGINT);
         pstmt->executeUpdate();
 
         // 取回 AUTO_INCREMENT 分配的 message_id 与 send_time（同连接上 LAST_INSERT_ID 有效）
@@ -104,7 +109,8 @@ bool message_repo::get_message(int message_id, message& out) {
     try {
         std::unique_ptr<sql::PreparedStatement> pstmt(
             guard.get()->prepareStatement(
-                "SELECT id, type, sender_UID, receiver_UID, content, send_time FROM message WHERE id = ?"));
+                "SELECT id, type, sender_UID, receiver_UID, content, send_time, is_file, file_id "
+                "FROM message WHERE id = ?"));
         pstmt->setInt(1, message_id);
         std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
         if (!rs->next()) {
@@ -174,12 +180,14 @@ std::vector<message> message_repo::get_offline_messages(int receiver_UID, const 
         std::unique_ptr<sql::PreparedStatement> pstmt(
             guard.get()->prepareStatement(
                 "SELECT m.id, m.type, m.sender_UID, m.receiver_UID, m.content, m.send_time, "
+                "       m.is_file, m.file_id, f.original_name AS file_name, f.size AS file_size, "
                 "       a.nickname AS sender_name, "
                 "       m.reply_to_message_id, ra.nickname AS reply_sender_name, r.content AS reply_content "
                 "FROM message m "
                 "LEFT JOIN Account a  ON a.UID = m.sender_UID "
                 "LEFT JOIN message r  ON r.id = m.reply_to_message_id "
                 "LEFT JOIN Account ra ON ra.UID = r.sender_UID "
+                "LEFT JOIN file f     ON f.id = m.file_id "
                 "WHERE ((m.type = 'private' AND m.receiver_UID = ? AND m.sender_UID != ?) "
                 "   OR (m.type = 'group' AND m.receiver_UID IN "
                 "         (SELECT group_UID FROM Groupmember WHERE member_UID = ?) "
@@ -231,14 +239,16 @@ bool message_repo::get_history_page(int self_uid, int peer_uid, const std::strin
     }
 
     // 私聊：双向会话；群聊/频道：按 receiver_UID 定位（结构相同，仅 type 不同）
-    const char* sql_private =
+    const char* sql_private =//长到怀疑人生
         "SELECT m.id, m.type, m.sender_UID, m.receiver_UID, m.content, m.send_time, "
+        "       m.is_file, m.file_id, f.original_name AS file_name, f.size AS file_size, "
         "       a.nickname AS sender_name, "
         "       m.reply_to_message_id, ra.nickname AS reply_sender_name, r.content AS reply_content "
         "FROM message m "
         "LEFT JOIN Account a  ON a.UID = m.sender_UID "
         "LEFT JOIN message r  ON r.id = m.reply_to_message_id "
         "LEFT JOIN Account ra ON ra.UID = r.sender_UID "
+        "LEFT JOIN file f     ON f.id = m.file_id "
         "WHERE m.type = 'private' "
         "  AND ((m.sender_UID = ? AND m.receiver_UID = ?) "
         "    OR (m.sender_UID = ? AND m.receiver_UID = ?)) "
@@ -246,12 +256,14 @@ bool message_repo::get_history_page(int self_uid, int peer_uid, const std::strin
         "ORDER BY m.id DESC LIMIT ?";
     const char* sql_group_like =
         "SELECT m.id, m.type, m.sender_UID, m.receiver_UID, m.content, m.send_time, "
+        "       m.is_file, m.file_id, f.original_name AS file_name, f.size AS file_size, "
         "       a.nickname AS sender_name, "
         "       m.reply_to_message_id, ra.nickname AS reply_sender_name, r.content AS reply_content "
         "FROM message m "
         "LEFT JOIN Account a  ON a.UID = m.sender_UID "
         "LEFT JOIN message r  ON r.id = m.reply_to_message_id "
         "LEFT JOIN Account ra ON ra.UID = r.sender_UID "
+        "LEFT JOIN file f     ON f.id = m.file_id "
         "WHERE m.type = ? AND m.receiver_UID = ? AND m.id < ? "
         "ORDER BY m.id DESC LIMIT ?";
 

@@ -150,10 +150,3 @@ void connection::send_framed(const std::string& payload, const std::string& file
     sender_->add_to_out_buffer(packet);
 }
 
-void connection::send_file(std::string file_name) {
-    sender_->send_file(file_name);
-}
-
-void connection::accept_file_chunk(const chat_proto::FileChunkMeta& meta, std::string file_data) {
-    receiver_->upload_file(meta, file_data);
-}

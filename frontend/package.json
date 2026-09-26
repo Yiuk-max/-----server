@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "聊天服务器前端（Vite + Vue 3），构建产物输出到 ../web 由后端静态服务提供",
+  "description": "Baka Community 前端（Vite + Vue 3），构建产物输出到 ../web 由后端静态服务提供",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

@@ -8,6 +8,7 @@
 #include "mysql_conn_pool.h"
 #include "ws_server.h"
 #include "redis_client.h"
+#include "file_watchdog.h"
 #include <cerrno>
 
 
@@ -68,6 +69,9 @@ int main(){
 
     // 初始化 Redis 连接池（缓存层用；enabled=false 时为空操作）
     RedisPool::get_instance().init();
+
+    // 启动文件传输 watchdog：定期清理超时会话与 tmp 临时文件。
+    FileTransferWatchdog::get_instance().start();
 
     const std::string net_layer = ServerConfig::get_instance().net_layer();
     if (net_layer == "websocket") {

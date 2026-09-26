@@ -14,6 +14,9 @@
 //       path / io_threads / max_message_bytes / max_pending_bytes
 //   - database            : object MySQL 连接池配置
 //       host / port / user / password / dbname / db_conn_count(默认 4)
+//   - file_storage        : object 文件存储配置
+//       root / chunk_size / max_chunk_size / max_file_size /
+//       max_storage_size / max_avatar_size / transfer_timeout_seconds
 //
 // 用法：ServerConfig::get_instance().net_layer()
 //       ServerConfig::get_instance().db_conn_count()
@@ -56,6 +59,15 @@ public:
     int         redis_pool_size() const; // 连接池大小（默认 4）
     int         redis_timeout_ms() const;// 单次命令超时（默认 200ms）
 
+    // ---- 文件存储配置 ----
+    std::string file_storage_root() const;      // 存储根目录（默认 /home/ubuntu/chat_server_files）
+    uint32_t    file_chunk_size() const;        // 文件分片大小（默认 4 MiB）
+    uint32_t    file_max_chunk_size() const;    // 单个分片上限（默认 16 MiB）
+    uint64_t    file_max_file_size() const;     // 单文件上限（默认 512 MiB）
+    uint64_t    file_max_storage_size() const;  // 存储总量上限（默认 10 GiB，超限淘汰最老文件）
+    uint64_t    file_max_avatar_size() const;   // 头像文件上限（默认 10 MiB）
+    int         file_transfer_timeout_seconds() const; // 传输超时（watchdog，默认 1800s）
+
 private:
     ServerConfig() = default;
 
@@ -68,7 +80,7 @@ private:
     // WebSocket 配置
     std::string ws_path_             = "/ws";
     int         ws_io_threads_       = 4;
-    std::size_t ws_max_message_bytes_ = 1024 * 1024;      // 1 MiB
+    std::size_t ws_max_message_bytes_ = 8 * 1024 * 1024;  // 8 MiB（文件分片默认 4 MiB，需大于单块大小）
     std::size_t ws_max_pending_bytes_ = 8 * 1024 * 1024;  // 8 MiB
     std::string ws_web_root_         = "./web";           // 静态前端资源目录
 
@@ -88,4 +100,13 @@ private:
     int         redis_db_         = 0;
     int         redis_pool_size_  = 4;
     int         redis_timeout_ms_ = 200;
+
+    // 文件存储配置
+    std::string file_storage_root_ = "/home/ubuntu/chat_server_files";
+    uint32_t    file_chunk_size_   = 4 * 1024 * 1024;
+    uint32_t    file_max_chunk_size_   = 16 * 1024 * 1024;
+    uint64_t    file_max_file_size_    = 512ULL * 1024 * 1024;
+    uint64_t    file_max_storage_size_ = 10ULL * 1024 * 1024 * 1024;
+    uint64_t    file_max_avatar_size_  = 10ULL * 1024 * 1024;
+    int         file_transfer_timeout_seconds_ = 1800;
 };

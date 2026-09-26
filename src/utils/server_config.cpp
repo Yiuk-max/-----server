@@ -49,6 +49,17 @@ void ServerConfig::load(const std::string& path) {
             if (r.contains("pool_size"))  redis_pool_size_  = r["pool_size"].get<int>();
             if (r.contains("timeout_ms")) redis_timeout_ms_ = r["timeout_ms"].get<int>();
         }
+        // 文件存储配置（嵌套于 "file_storage" 对象）
+        if (cfg.contains("file_storage") && cfg["file_storage"].is_object()) {
+            auto& f = cfg["file_storage"];
+            if (f.contains("root"))                     file_storage_root_ = f["root"].get<std::string>();
+            if (f.contains("chunk_size"))               file_chunk_size_   = f["chunk_size"].get<uint32_t>();
+            if (f.contains("max_chunk_size"))           file_max_chunk_size_ = f["max_chunk_size"].get<uint32_t>();
+            if (f.contains("max_file_size"))            file_max_file_size_ = f["max_file_size"].get<uint64_t>();
+            if (f.contains("max_storage_size"))         file_max_storage_size_ = f["max_storage_size"].get<uint64_t>();
+            if (f.contains("max_avatar_size"))          file_max_avatar_size_ = f["max_avatar_size"].get<uint64_t>();
+            if (f.contains("transfer_timeout_seconds")) file_transfer_timeout_seconds_ = f["transfer_timeout_seconds"].get<int>();
+        }
     } catch (const std::exception& e) {
         std::cerr << "[ServerConfig] parse error: " << e.what()
                   << ", fallback to defaults." << std::endl;
@@ -56,7 +67,7 @@ void ServerConfig::load(const std::string& path) {
 
     // 数值下限校验，避免 0/负数导致未定义行为。
     if (ws_io_threads_ < 1)         ws_io_threads_ = 1;
-    if (ws_max_message_bytes_ == 0) ws_max_message_bytes_ = 1024 * 1024;
+    if (ws_max_message_bytes_ == 0) ws_max_message_bytes_ = 8 * 1024 * 1024;
     if (ws_max_pending_bytes_ == 0) ws_max_pending_bytes_ = 8 * 1024 * 1024;
     if (db_conn_count_ < 1)         db_conn_count_ = 1;
     if (heartbeat_interval_ < 1)    heartbeat_interval_ = 1;
@@ -64,6 +75,14 @@ void ServerConfig::load(const std::string& path) {
     if (redis_pool_size_ < 1)       redis_pool_size_ = 1;
     if (redis_timeout_ms_ < 1)      redis_timeout_ms_ = 200;
     if (redis_port_ < 1)            redis_port_ = 6379;
+    if (file_storage_root_.empty()) file_storage_root_ = "/home/ubuntu/chat_server_files";
+    if (file_chunk_size_ == 0)      file_chunk_size_ = 4 * 1024 * 1024;
+    if (file_max_chunk_size_ == 0)  file_max_chunk_size_ = 16 * 1024 * 1024;
+    if (file_max_file_size_ == 0)   file_max_file_size_ = 512ULL * 1024 * 1024;
+    if (file_max_storage_size_ == 0) file_max_storage_size_ = 10ULL * 1024 * 1024 * 1024;
+    if (file_max_avatar_size_ == 0) file_max_avatar_size_ = 10ULL * 1024 * 1024;
+    if (file_chunk_size_ > file_max_chunk_size_) file_chunk_size_ = file_max_chunk_size_;
+    if (file_transfer_timeout_seconds_ < 1) file_transfer_timeout_seconds_ = 1800;
 
     std::cout << "[ServerConfig] net_layer=" << net_layer_
               << ", use_heartbeat=" << (use_heartbeat_ ? "true" : "false")
@@ -172,4 +191,33 @@ int ServerConfig::redis_pool_size() const {
 int ServerConfig::redis_timeout_ms() const {
     std::lock_guard<std::mutex> lock(mtx_);
     return redis_timeout_ms_;
+}
+
+std::string ServerConfig::file_storage_root() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return file_storage_root_;
+}
+uint32_t ServerConfig::file_chunk_size() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return file_chunk_size_;
+}
+uint32_t ServerConfig::file_max_chunk_size() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return file_max_chunk_size_;
+}
+uint64_t ServerConfig::file_max_file_size() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return file_max_file_size_;
+}
+uint64_t ServerConfig::file_max_storage_size() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return file_max_storage_size_;
+}
+uint64_t ServerConfig::file_max_avatar_size() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return file_max_avatar_size_;
+}
+int ServerConfig::file_transfer_timeout_seconds() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return file_transfer_timeout_seconds_;
 }

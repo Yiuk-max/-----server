@@ -14,7 +14,7 @@ public:
     bool modify_community(int community_id, int requester_uid,
                           const std::string& name,
                           const std::string& description,
-                          const std::string& avatar) override;
+                          int avatar_id, int banner_id) override;
 
     // 查询
     bool is_community_member(int community_id, int user_uid) override;

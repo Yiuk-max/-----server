@@ -16,10 +16,12 @@ struct community_info {
     int         community_id = -1;
     std::string name;
     std::string description;
-    std::string avatar;     // file_id，预留
+    std::string avatar;     // file_id 字符串，旧字段保留
     std::string category;   // 预留：社区所属分区
     int         owner_uid = -1;
     std::string my_role;    // 当前用户在社区的 role（owner/admin/member，调用方按需填充）
+    int         avatar_id = -1;  // 社区头像 file.id
+    int         banner_id = -1;  // 社区背景图 file.id
 };
 
 // 普通频道信息
@@ -50,7 +52,7 @@ public:
     virtual bool modify_community(int community_id, int requester_uid,
                                   const std::string& name,
                                   const std::string& description,
-                                  const std::string& avatar) = 0;
+                                  int avatar_id, int banner_id) = 0;
 
     // ==================== 查询 ====================
     virtual bool is_community_member(int community_id, int user_uid) = 0;

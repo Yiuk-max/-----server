@@ -51,14 +51,14 @@ void delete_community(client_session& s, int community_id) {
 }
 
 void modify_community(client_session& s, int community_id, const std::string& name,
-                      const std::string& description, const std::string& avatar) {
+                      const std::string& description, int avatar_id, int banner_id) {//banner是横幅，就是社区背景的图片的数据库id
     auto acc = s.current_account();
     if (!acc) {
         s.package_message("You must be logged in to modify a community.\n", "system");
         return;
     }
     if (!s.repo_hub()->communities()->modify_community(community_id, acc->getUID(),
-                                                       name, description, avatar)) {
+                                                       name, description, avatar_id, banner_id)) {
         s.package_message("Failed to modify community (only owner can modify).\n", "system");
         return;
     }
@@ -141,6 +141,8 @@ void show_community_members(client_session& s, int community_id) {
         item->set_user_uid(m.user_uid);
         item->set_nickname(m.nickname);
         item->set_role(m.role);
+        auto macc = s.repo_hub()->accounts()->load_account(m.user_uid);
+        item->set_avatar_id(macc ? macc->get_avatar_id() : -1);// 头像 file.id（-1 未设置）
     }
     s.package_envelope(resp);
 }
@@ -200,13 +202,13 @@ void modify_channel(client_session& s, int community_id, int channel_id,
 }
 
 void channel_chat(client_session& s, int channel_id, const std::string& message,
-                  int reply_to_message_id) {
+                  int reply_to_message_id, bool is_file, int file_id) {
     auto acc = s.current_account();
     if (!acc) {
         s.package_message("You must be logged in to send channel messages.\n", "system");
         return;
     }
-    if (message.empty()) {
+    if (!is_file && message.empty()) {
         s.package_message("Message cannot be empty.\n", "system");
         return;
     }
@@ -224,17 +226,31 @@ void channel_chat(client_session& s, int channel_id, const std::string& message,
     // 3. 落库（type='channel'，receiver_UID=channel_id）
     std::string msg_timestamp;
     int msg_id = s.repo_hub()->messages()->store_message(acc->getUID(), channel_id, message,
-                                                         "channel", reply_to_message_id, &msg_timestamp);
+                                                         "channel", reply_to_message_id, &msg_timestamp,
+                                                         is_file, file_id);
     std::string reply_name, reply_content;
     if (reply_to_message_id > 0) {
         logic::load_reply_summary(s, reply_to_message_id, reply_name, reply_content);
     }
+    std::string file_name; uint64_t file_size = 0;
+    if (is_file && file_id > 0) {
+        file_meta_info f;
+        if (s.repo_hub()->files()->get_file(file_id, f)) { file_name = f.original_name; file_size = f.size; }
+    }
     // 4. 取社区成员（频道共享社区成员）广播
     auto members = s.repo_hub()->communities()->get_channel_members(channel_id);
     if (msg_id > 0) {
-        NoticeService::get_instance().send_to_users_with_id(members, message, "Channel_Chat", msg_id, channel_id,
-                                                            acc->getUID(), acc->getName(),
-                                                            reply_to_message_id, reply_name, reply_content, msg_timestamp);
+        ChatMessageData data;
+        data.type        = "Channel_Chat";
+        data.message     = message;
+        data.message_id  = msg_id;
+        data.group_uid   = channel_id;
+        data.sender_uid  = acc->getUID();
+        data.sender_name = acc->getName();
+        data.timestamp   = msg_timestamp;
+        if (reply_to_message_id > 0) data.reply = ReplyInfo{reply_to_message_id, reply_name, reply_content};
+        if (is_file && file_id > 0)  data.file = FileInfo{file_id, file_name, file_size};
+        NoticeService::get_instance().send_to_users_with_id(members, data);
         s.package_message("Message sent. Message ID: " + std::to_string(msg_id) + ".\n", "system");
     } else {
         NoticeService::get_instance().send_to_users(members, message, "Channel_Chat");
@@ -398,7 +414,8 @@ void Community_handler::handle_message(const chat_proto::Envelope& message, clie
         delete_community(session, message.community_id());
     } else if (type == "modify_community") {
         modify_community(session, message.community_id(), message.group_name(),
-                         message.description(), message.avatar());
+                         message.description(), message.community_avatar_id(),
+                         message.community_banner_id());
     } else if (type == "show_communities") {
         show_communities(session);
     } else if (type == "show_community_channels") {
@@ -413,7 +430,12 @@ void Community_handler::handle_message(const chat_proto::Envelope& message, clie
         modify_channel(session, message.community_id(), message.channel_id(),
                        message.group_name(), message.category());
     } else if (type == "channel_chat") {
-        channel_chat(session, message.target_uid(), message.message(), message.reply_to_message_id());
+        int file_id = 0;
+        if (message.is_file() && !message.file_id().empty()) {
+            try { file_id = std::stoi(message.file_id()); } catch (...) {}
+        }
+        channel_chat(session, message.target_uid(), message.message(), message.reply_to_message_id(),
+                     message.is_file(), file_id);
     } else if (type == "join_community") {
         join_community(session, message.community_id(), message.apply_message());
     } else if (type == "handle_community_join_request") {

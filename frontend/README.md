@@ -1,6 +1,6 @@
 # 前端（Vite + Vue 3）
 
-聊天服务器的 Web 前端。构建产物输出到仓库根目录的 `web/`，
+Baka Community 的 Web 前端。构建产物输出到仓库根目录的 `web/`，
 由 WebSocket 服务端（`net_layer=websocket`）自带的静态文件服务提供。
 
 前后端业务消息统一使用 `src/proto/message.proto` 定义的 `chat_proto.Envelope`。前端通过 `protobufjs`

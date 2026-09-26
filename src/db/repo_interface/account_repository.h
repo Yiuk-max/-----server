@@ -43,6 +43,9 @@ public:
     // 更新登录令牌：登录成功后写入/刷新 token，成功返回 true。
     virtual bool update_token(int uid, const std::string& token) = 0;
 
+    // 设置头像：把 Account.avatar_id 指向一个已上传的 file.id（-1 表示清除）。
+    virtual bool update_avatar(int uid, int file_id) = 0;
+
     // 按 token 查询账户（自动登录用）；token 不存在/为空返回 nullptr。
     virtual std::shared_ptr<account> load_account_by_token(const std::string& token) = 0;
 };

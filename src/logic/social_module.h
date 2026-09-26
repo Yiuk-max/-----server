@@ -63,4 +63,8 @@ public:
     bool handle_friend_request(int sender_UID, bool accept);
     std::string show_friend_requests();
     std::string show_friends();
+
+    // 结构化联系人列表（供 contact_list_response 使用）
+    const std::vector<int>& friend_list() const { return friend_relations; }
+    const std::vector<int>& group_list()  const { return friend_groups; }
 };

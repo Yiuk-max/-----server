@@ -9,6 +9,7 @@
 #include "cppconn/prepared_statement.h"
 #include "cppconn/resultset.h"
 #include "cppconn/statement.h"
+#include "cppconn/datatype.h"
 #include "cppconn/exception.h"
 
 // 连接 RAII：取池连接，作用域结束后归还，异常安全。
@@ -147,6 +148,7 @@ std::shared_ptr<account> account_repo::load_account(int uid) {
         acc->set_language(cached->language);
         acc->set_last_login_time(parse_last_login_time(cached->settings));
         if (!cached->token.empty()) acc->set_token(cached->token);
+        acc->set_avatar_id(cached->avatar_id);
         return acc;
     }
 
@@ -158,7 +160,7 @@ std::shared_ptr<account> account_repo::load_account(int uid) {
     try {
         std::unique_ptr<sql::PreparedStatement> pstmt(
             guard.get()->prepareStatement(
-                "SELECT UID, password, nickname, settings, language, token FROM Account WHERE UID = ?"));
+                "SELECT UID, password, nickname, settings, language, token, avatar_id FROM Account WHERE UID = ?"));
         pstmt->setInt(1, uid);
         std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
         if (!rs->next()) {
@@ -174,6 +176,7 @@ std::shared_ptr<account> account_repo::load_account(int uid) {
         acc->set_language(rs->getString("language"));
         acc->set_last_login_time(parse_last_login_time(settings_json));
         if (!rs->isNull("token")) acc->set_token(rs->getString("token"));
+        if (!rs->isNull("avatar_id")) acc->set_avatar_id(rs->getInt("avatar_id"));
 
         // 回填缓存（禁用/异常时内部 no-op）
         AccountCache c;
@@ -182,6 +185,7 @@ std::shared_ptr<account> account_repo::load_account(int uid) {
         c.settings = acc->get_settings_json();
         c.language = acc->get_language();
         c.token    = acc->get_token();
+        c.avatar_id = acc->get_avatar_id();
         RedisCache::get_instance().account_set(uid, c);
         return acc;
     } catch (const sql::SQLException& e) {
@@ -215,6 +219,31 @@ bool account_repo::update_token(int uid, const std::string& token) {
     }
 }
 
+// 设置头像：Account.avatar_id 指向已上传的 file.id（-1 清除）。
+bool account_repo::update_avatar(int uid, int file_id) {
+    ConnGuard guard;
+    if (!guard) {
+        std::cerr << "[account_repo] update_avatar: no DB connection." << std::endl;
+        return false;
+    }
+    try {
+        std::unique_ptr<sql::PreparedStatement> pstmt(
+            guard.get()->prepareStatement("UPDATE Account SET avatar_id = ? WHERE UID = ?"));
+        if (file_id > 0) pstmt->setInt(1, file_id);
+        else             pstmt->setNull(1, sql::DataType::BIGINT);
+        pstmt->setInt(2, uid);
+        const bool ok = pstmt->executeUpdate() > 0;
+        if (ok) {
+            RedisCache::get_instance().account_invalidate(uid);
+        }
+        return ok;
+    } catch (const sql::SQLException& e) {
+        std::cerr << "[account_repo] update_avatar failed: " << e.what()
+                  << " (ERRNO=" << e.getErrorCode() << ")" << std::endl;
+        return false;
+    }
+}
+
 // 按 token 查询账户（自动登录用）
 std::shared_ptr<account> account_repo::load_account_by_token(const std::string& token) {
     if (token.empty()) {
@@ -228,7 +257,7 @@ std::shared_ptr<account> account_repo::load_account_by_token(const std::string& 
     try {
         std::unique_ptr<sql::PreparedStatement> pstmt(
             guard.get()->prepareStatement(
-                "SELECT UID, password, nickname, settings, language, token FROM Account WHERE token = ?"));
+                "SELECT UID, password, nickname, settings, language, token, avatar_id FROM Account WHERE token = ?"));
         pstmt->setString(1, token);
         std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
         if (!rs->next()) {
@@ -243,6 +272,7 @@ std::shared_ptr<account> account_repo::load_account_by_token(const std::string& 
         acc->set_language(rs->getString("language"));
         acc->set_last_login_time(parse_last_login_time(settings_json));
         if (!rs->isNull("token")) acc->set_token(rs->getString("token"));
+        if (!rs->isNull("avatar_id")) acc->set_avatar_id(rs->getInt("avatar_id"));
         return acc;
     } catch (const sql::SQLException& e) {
         std::cerr << "[account_repo] load_account_by_token failed: " << e.what()

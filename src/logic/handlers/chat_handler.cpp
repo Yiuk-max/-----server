@@ -11,7 +11,7 @@
 
 namespace {
 
-void group_chat(client_session& s, int target_uid, const std::string& message, int reply_to_message_id) {
+void group_chat(client_session& s, int target_uid, const std::string& message, int reply_to_message_id, bool is_file, int file_id) {
     auto acc = s.current_account();
     if (!acc) {
         s.package_message("You must be logged in to send group messages.\n", "system");
@@ -25,16 +25,30 @@ void group_chat(client_session& s, int target_uid, const std::string& message, i
     }
     // 先存储消息（含 reply_to_message_id），取回数据库分配的 message_id 与发送时间
     std::string msg_timestamp;
-    int msg_id = s.repo_hub()->messages()->store_message(acc->getUID(), target_uid, message, "group", reply_to_message_id, &msg_timestamp);
+    int msg_id = s.repo_hub()->messages()->store_message(acc->getUID(), target_uid, message, "group", reply_to_message_id, &msg_timestamp, is_file, file_id);
     // 回复的原消息摘要（可能不在当前分页里，单独按 id 查）
     std::string reply_name, reply_content;
     if (reply_to_message_id > 0) logic::load_reply_summary(s, reply_to_message_id, reply_name, reply_content);
+    // 文件消息：取文件元数据（文件名/大小）供前端展示，本体点击后下载
+    std::string file_name; uint64_t file_size = 0;
+    if (is_file && file_id > 0) {
+        file_meta_info f;
+        if (s.repo_hub()->files()->get_file(file_id, f)) { file_name = f.original_name; file_size = f.size; }
+    }
     // 从数据库拉取群成员列表，经全局通知服务广播（自动忽略不在线成员），并携带 message_id 与发送时间
     auto members = s.repo_hub()->groups()->get_group_members(target_uid);
     if (msg_id > 0) {
-        NoticeService::get_instance().send_to_users_with_id(members, message, "Group_Chat", msg_id, target_uid,
-                                                            acc->getUID(), acc->getName(),
-                                                            reply_to_message_id, reply_name, reply_content, msg_timestamp);
+        ChatMessageData data;
+        data.type        = "Group_Chat";
+        data.message     = message;
+        data.message_id  = msg_id;
+        data.group_uid   = target_uid;
+        data.sender_uid  = acc->getUID();
+        data.sender_name = acc->getName();
+        data.timestamp   = msg_timestamp;
+        if (reply_to_message_id > 0) data.reply = ReplyInfo{reply_to_message_id, reply_name, reply_content};
+        if (is_file && file_id > 0)  data.file = FileInfo{file_id, file_name, file_size};
+        NoticeService::get_instance().send_to_users_with_id(members, data);
         // 告知发送者消息 id，便于 3 分钟内删除
         s.package_message("Message sent. Message ID: " + std::to_string(msg_id) + ".\n", "system");
     } else {
@@ -42,13 +56,13 @@ void group_chat(client_session& s, int target_uid, const std::string& message, i
     }
 }
 
-void private_chat(client_session& s, int target_uid, const std::string& message, int reply_to_message_id) {
+void private_chat(client_session& s, int target_uid, const std::string& message, int reply_to_message_id, bool is_file, int file_id) {
     auto acc = s.current_account();
     if (!acc) {
         s.package_message("You must be logged in to send private messages.\n", "system");
         return;
     }
-    if (message.empty()) {
+    if (!is_file && message.empty()) {
         s.package_message("Message cannot be empty.\n", "system");
         return;
     }
@@ -64,18 +78,31 @@ void private_chat(client_session& s, int target_uid, const std::string& message,
 
     // 3. 先落库（无论对方是否在线；离线消息由对方上线时离线拉取）
     std::string msg_timestamp;
-    int msg_id = s.repo_hub()->messages()->store_message(acc->getUID(), target_uid, message, "private", reply_to_message_id, &msg_timestamp);
+    int msg_id = s.repo_hub()->messages()->store_message(acc->getUID(), target_uid, message, "private", reply_to_message_id, &msg_timestamp, is_file, file_id);
     // 回复的原消息摘要（可能不在当前分页里，单独按 id 查）
     std::string reply_name, reply_content;
     if (reply_to_message_id > 0) logic::load_reply_summary(s, reply_to_message_id, reply_name, reply_content);
+    // 文件消息：取文件元数据（文件名/大小）供前端展示，本体点击后下载
+    std::string file_name; uint64_t file_size = 0;
+    if (is_file && file_id > 0) {
+        file_meta_info f;
+        if (s.repo_hub()->files()->get_file(file_id, f)) { file_name = f.original_name; file_size = f.size; }
+    }
 
     // 4. 对方在线则实时转发，否则留在 DB 等其上线离线拉取
     auto target_session = session_manager::get_instance().find_session(target_uid);
     if (target_session) {
         if (msg_id > 0) {
-            target_session->package_chat_message(message, "private_chat", msg_id, 0,
-                                                 acc->getUID(), acc->getName(),
-                                                 reply_to_message_id, reply_name, reply_content, msg_timestamp);
+            ChatMessageData data;
+            data.type        = "private_chat";
+            data.message     = message;
+            data.message_id  = msg_id;
+            data.sender_uid  = acc->getUID();
+            data.sender_name = acc->getName();
+            data.timestamp   = msg_timestamp;
+            if (reply_to_message_id > 0) data.reply = ReplyInfo{reply_to_message_id, reply_name, reply_content};
+            if (is_file && file_id > 0)  data.file = FileInfo{file_id, file_name, file_size};
+            target_session->package_chat_message(data);
         } else {
             target_session->package_message(message, "private_chat");
         }
@@ -117,20 +144,27 @@ void delete_message(client_session& s, int message_id) {
     s.package_message("Message [" + std::to_string(message_id) + "] deleted.\n", "system");
 
     // 通知在线且会收到该消息的人（群聊/频道删除时携带 group_UID/channel_id）
+    auto notify_delete = [&](int uid, int group_uid) {
+        ChatMessageData d;
+        d.type       = "delete_message";
+        d.message_id = message_id;
+        d.group_uid  = group_uid;
+        NoticeService::get_instance().send_to_user_with_id(uid, d);
+    };
     if (msg.type == "group") {
         auto members = s.repo_hub()->groups()->get_group_members(msg.receiver_UID);
         for (int uid : members) {
             if (uid == acc->getUID()) continue; // 跳过删除者自己
-            NoticeService::get_instance().send_to_user_with_id(uid, "", "delete_message", message_id, msg.receiver_UID);
+            notify_delete(uid, msg.receiver_UID);
         }
     } else if (msg.type == "channel") {
         auto members = s.repo_hub()->communities()->get_channel_members(msg.receiver_UID);
         for (int uid : members) {
             if (uid == acc->getUID()) continue;
-            NoticeService::get_instance().send_to_user_with_id(uid, "", "delete_message", message_id, msg.receiver_UID);
+            notify_delete(uid, msg.receiver_UID);
         }
     } else {
-        NoticeService::get_instance().send_to_user_with_id(msg.receiver_UID, "", "delete_message", message_id);
+        notify_delete(msg.receiver_UID, 0);
     }
 }
 
@@ -168,6 +202,12 @@ void chat_history(client_session& s, int peer_id, int before_id, bool is_channel
         item->set_is_group(m.is_group());
         item->set_content(m.content);
         item->set_timestamp(m.timestamp);
+        if (m.is_file) {
+            item->set_is_file(true);
+            item->set_file_id(m.file_id);
+            item->set_file_name(m.file_name);
+            item->set_file_size(m.file_size);
+        }
         if (m.reply_to_message_id > 0) {
             item->set_reply_to_message_id(m.reply_to_message_id);
             auto* reply = item->mutable_reply_to();
@@ -253,10 +293,20 @@ void remove_friend(client_session& s, int friend_uid) {
 void Chat_handler::handle_message(const chat_proto::Envelope& message, client_session& session, std::string& file_data) {
     const std::string type = message.type();
     if (type == "private_chat") {
-        private_chat(session, message.target_uid(), message.message(), message.reply_to_message_id());
+        int file_id = 0;
+        if (message.is_file() && !message.file_id().empty()) {
+            try { file_id = std::stoi(message.file_id()); } catch (...) {}
+        }
+        private_chat(session, message.target_uid(), message.message(), message.reply_to_message_id(),
+                     message.is_file(), file_id);
         return;
     } else if (type == "group_chat") {
-        group_chat(session, message.target_uid(), message.message(), message.reply_to_message_id());
+        int file_id = 0;
+        if (message.is_file() && !message.file_id().empty()) {
+            try { file_id = std::stoi(message.file_id()); } catch (...) {}
+        }
+        group_chat(session, message.target_uid(), message.message(), message.reply_to_message_id(),
+                   message.is_file(), file_id);
         return;
     } else if (type == "delete_message") {
         delete_message(session, message.message_id());

@@ -79,5 +79,12 @@ public:
     // 登录令牌（token，自动登录用）
     std::string get_token() const;
     void set_token(const std::string& token);
+
+    // 头像 file.id（Account.avatar_id，默认 -1 表示未设置）
+    int  get_avatar_id() const;
+    void set_avatar_id(int avatar_id);
+
+private:
+    int avatar_id_ = -1;
 };
 
