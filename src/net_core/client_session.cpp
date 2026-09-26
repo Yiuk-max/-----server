@@ -22,7 +22,7 @@ void client_session::on_disconnected(){
     // account/social 保留到正在执行的业务任务结束并随会话析构，避免断线清理
     // 与该任务并发 reset 同一 shared_ptr；在线表已经在上面及时移除。
 }
-
+// 断线/登出/顶号时调用：清理会话状态，保留连接（若有）和 account/social 内存。
 bool client_session::activate_session(const std::shared_ptr<account>& account,
                                       std::shared_ptr<social_module> social,
                                       std::shared_ptr<client_session>* old_session){

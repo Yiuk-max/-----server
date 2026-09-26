@@ -130,6 +130,8 @@ python3 tests/ws_chat_smoke.py 127.0.0.1 8080 /ws --idle-seconds=3
 - **[Redis缓存方案-done.md](Docs/Redis缓存方案-done.md)** —— Redis 缓存接入方案与实现状态（C1/C2/C4/C7-C11 已落地，C3/C5/C6 待做），附并发/稳定性瓶颈分析。
 - **[压力测试方案.md](Docs/压力测试方案.md)** —— WebSocket 压测方案与用例清单。
 - **[文件系统方案.md](Docs/文件系统方案.md)** —— 文件系统设计（统一 File 体系/磁盘存储/分片传输/暂停续传/watchdog），配套 `sql/file_system.sql`、`sql/alter_existing_tables.sql`；权威文件另存于 `/home/ubuntu/chat_server_files/`。
+- **[文件传输系统说明.md](Docs/文件传输系统说明.md)** —— 文件传输系统运作详解（每个模块/函数职责、完整流程）。
+- **[架构模型与状态机.md](Docs/架构模型与状态机.md)** —— 网络模型/业务模型/文件传输模型/Session 生命周期/状态机的 ASCII 图。
 - **[开发日志.txt](build/开发日志.txt)** —— 待办清单与开发日志（当前位于 build/ 目录，含历次架构重构与问题修复记录）。
 
 ## 项目结构（概要）

@@ -41,7 +41,7 @@ void main_reactor::add_connect()
 }
 void sub_reactor::add_connect(int new_client_fd)
 {
-    fcntl(new_client_fd, F_SETFL, O_NONBLOCK);
+    fcntl(new_client_fd, F_SETFL, O_NONBLOCK);// 设置非阻塞，ET 模式下必须
 
     auto conn = std::make_shared<connection>(epoller_fd_, new_client_fd);
     // 走 client_session::operator new 从 ClassMemoryPool 分配；池耗尽会自动回退全局 new。

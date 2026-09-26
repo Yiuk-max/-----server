@@ -27,11 +27,11 @@ public:
     public:
         explicit Writer(std::string path);
         ~Writer();
-        bool open();
-        bool open_append();  // 以读写方式打开（断点续传/乱序写用，不截断）
+        bool open();            
+        bool open_append();     // 以读写方式打开（断点续传/乱序写用，不截断）
         bool write_at(uint64_t offset, const char* data, std::size_t n);  // 定位到 offset 写入
         bool commit(const std::string& final_path); // 关闭并原子 rename 到正式路径
-        void abort();
+        void abort();           // 关闭、暂停
         bool is_open() const { return open_; }
     private:
         std::string   path_;

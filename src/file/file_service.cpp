@@ -116,6 +116,7 @@ void FileService::fill_transfer_proto(const file_transfer_info& t, chat_proto::F
 // 上传
 // ------------------------------------------------------------
 void FileService::upload_init(int uid, const chat_proto::Envelope& msg, const SendFn& send) {
+    //拒绝的情况
     if (uid < 0) {
         send_system("You must be logged in to upload files.\n", send);
         return;
@@ -126,7 +127,7 @@ void FileService::upload_init(int uid, const chat_proto::Envelope& msg, const Se
         return;
     }
 
-    // 白名单校验：type 会参与磁盘路径，防止路径穿越。
+    // 白名单校验：type 会参与磁盘路径，防止路径穿越。找到
     std::string type = fm.type();
     static const std::unordered_set<std::string> kAllowed = {"avatar", "emoji", "image", "attachment", "file"};
     if (kAllowed.find(type) == kAllowed.end()) {
@@ -142,17 +143,17 @@ void FileService::upload_init(int uid, const chat_proto::Envelope& msg, const Se
         send_system("Upload rejected: avatar size exceeds max_avatar_size.\n", send);
         return;
     }
-
+    //生成唯一的存储 key ，找到临时文件路径
     const std::string storage_key = FileStorage::generate_storage_key();
     const std::string tmp_rel = "tmp/" + storage_key + ".part";
     const std::string tmp_abs = storage_.tmp_path(storage_key + ".part");
-
+    // 创建临时文件 writer，落盘。
     auto writer = storage_.create_writer(tmp_abs);
     if (!writer || !writer->open()) {
         send_system("Failed to create upload temporary file.\n", send);
         return;
     }
-
+    // 计算分片数量和大小
     const uint64_t total = fm.size();
     const uint32_t cs = chunk_size_;
     const uint32_t chunk_count = static_cast<uint32_t>((total + cs - 1) / cs);
@@ -174,7 +175,7 @@ void FileService::upload_init(int uid, const chat_proto::Envelope& msg, const Se
     t.file_type     = type;
     t.original_name = fm.original_name();
     t.mime_type     = fm.mime_type();
-
+    // 先创建 transfer 记录，获取 transfer_id
     const int transfer_id = repo_->files()->create_transfer(t);
     if (transfer_id < 0) {
         writer->abort();
@@ -182,7 +183,7 @@ void FileService::upload_init(int uid, const chat_proto::Envelope& msg, const Se
         return;
     }
     t.transfer_id = transfer_id;
-
+    // 保存上传上下文，后续分片写入时使用。
     UploadCtx ctx;
     ctx.transfer_id      = transfer_id;
     ctx.storage_key      = storage_key;
@@ -201,8 +202,8 @@ void FileService::upload_init(int uid, const chat_proto::Envelope& msg, const Se
 
     chat_proto::Envelope resp;
     resp.set_type("file_upload_ready");
-    fill_transfer_proto(t, resp.mutable_transfer_info());
-    send(resp, {});
+    fill_transfer_proto(t, resp.mutable_transfer_info());// 返回 transfer_id、chunk_count、chunk_size 等信息，客户端据此分片上传
+    send(resp, {});// 发送响应给客户端，告知可以开始上传
 }
 
 void FileService::upload_chunk(int /*uid*/, const chat_proto::Envelope& msg,
@@ -210,37 +211,38 @@ void FileService::upload_chunk(int /*uid*/, const chat_proto::Envelope& msg,
     const auto& meta = msg.meta();
     int transfer_id = -1;
     try {
-        transfer_id = std::stoi(meta.transfer_id());
+        transfer_id = std::stoi(meta.transfer_id());// 获取 transfer_id，标识当前上传任务
     } catch (...) {
         send_system("Invalid transfer_id in file chunk.\n", send);
         return;
     }
-
+    //判断分片上传任务是否存在
     auto it = uploads_.find(transfer_id);
     if (it == uploads_.end()) {
         send_system("Unknown upload transfer; send file_upload_init first.\n", send);
         return;
     }
-
+    //获取上传上下文
     auto& ctx = it->second;
     if (!ctx.writer || !ctx.writer->is_open()) {
         send_system("Upload writer is not available.\n", send);
         return;
     }
-
+    //找分片索引位置
     const uint32_t idx = meta.chunk_index();
     if (idx >= ctx.chunk_count) {
         send_system("chunk_index out of range.\n", send);
         return;
     }
+    //找到分片的存放位置
     const uint64_t offset = meta.offset();
     if (!ctx.writer->write_at(offset, file_data.data(), file_data.size())) {
         send_system("Failed to write file chunk to disk.\n", send);
         return;
     }
-
+    //标记已接受
     mark_received(ctx.received, idx);
-
+    //计算收到的分片数量
     uint64_t transferred = 0;
     for (uint32_t i = 0; i < ctx.chunk_count; ++i) {
         if (is_received(ctx.received, i)) {

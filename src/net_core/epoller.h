@@ -58,7 +58,7 @@ private:
     std::vector<struct epoll_event> events;
     std::mutex client_mutex;
 
-    // 方案 3b 重拆：本 reactor 维护 fd -> connection 映射，事件循环直接面向 connection。
+    // 本 reactor 维护 fd -> connection 映射，事件循环直接面向 connection。
     // connection 内部再绑定自己的 client_session（业务会话），从而把网络收发与业务彻底分离。
     std::unordered_map<int, std::shared_ptr<connection>> connections_by_fd;
     std::shared_ptr<connection> get_connection(int fd);   // 按 fd 查找
