@@ -24,14 +24,14 @@
 ```
 *   **总长度 (total_len)**：`uint32_t`，网络字节序（大端）。其值 = `8 + payload 字节数 + 文件数据字节数`。
 *   **payload 长度 (payload_len)**：`uint32_t`，网络字节序。其值 = protobuf 消息的字节数。
-*   **payload 部分**：紧跟在两个 4 字节长度字段之后，长度为 `payload_len`，是 `chat_proto.Envelope`（业务消息）或 `chat_proto.FileChunkMeta`（下载文件块）。
+*   **payload 部分**：紧跟在两个 4 字节长度字段之后，长度为 `payload_len`，是 `chat_proto.Envelope`。
 *   **文件数据部分**：紧跟在 payload 之后，长度为 `total_len - 8 - payload_len`，可缺省（长度为 0）。
 
 > 服务器解析时，先读取前 4 字节得到 `total_len`，若接收缓冲区不足 `total_len` 则等待更多数据（半包）；处理完当前帧后继续循环处理剩余数据（粘包）。
 
 ### 2.2 WebSocket 模式
 *   业务消息：**binary 帧**，payload 为 `4 字节 payload_len（大端） + protobuf Envelope`。
-*   文件消息（当前 WS 文件传输未开放）：同样为 binary 帧，`4 字节 payload_len + protobuf + file_data`。
+*   文件消息：同样为 binary 帧，`4 字节 payload_len + protobuf Envelope + file_data`。
 *   text 帧不再用于业务消息；收到 text 帧会被当作旧 JSON 客户端，服务端回复 system 提示后继续读取。
 
 三、消息类型总览
@@ -41,16 +41,22 @@
 | type                  | 归类     | 说明                                   |
 |-----------------------|----------|----------------------------------------|
 | `register`            | 基础     | 注册新账号                             |
-| `login`               | 基础     | 用户登录                               |
+| `login`               | 基础     | 用户登录（UID 或邮箱）                 |
 | `logout`              | 基础     | 登出当前账号（保留连接，可再登录）     |
-| `show`                | 基础     | 展示聊天对象列表（好友 + 群组）        |
-| `change_name`         | 基础     | 修改自己的昵称                         |
-| `set_email`           | 基础     | 绑定/换绑当前账号邮箱（老账号补绑）    |
 | `exit`                | 基础     | 退出系统、关闭连接                     |
+| `show`                | 基础     | 展示聊天对象列表（文本）               |
+| `show_contacts`       | 基础     | 结构化联系人列表（好友+群，含头像ID）  |
+| `change_name`         | 基础     | 修改自己的昵称                         |
+| `set_email`           | 基础     | 绑定/换绑当前账号邮箱                  |
+| `set_avatar`          | 基础     | 设置自己的头像（指向已上传文件）       |
+| `change_theme`        | 基础     | 修改主题（存 Account.settings JSON）   |
+| `verify_token`        | 基础     | 用 token 自动登录                      |
 | `heartbeat`           | 基础     | 心跳包（无业务消息时的保活）           |
-| `private_chat`        | 私聊     | 私聊（一对一向指定 UID 发消息）        |
-| `group_chat`          | 群聊     | 群聊发言（向指定群 UID 广播）           |
-| `add_friend`          | 好友     | 发送好友申请（按邮箱，存于 `relation_apply`，apply_type=1） |
+| `private_chat`        | 私聊     | 私聊（一对一；可为文件消息）           |
+| `group_chat`          | 群聊     | 群聊发言（可为文件消息）               |
+| `delete_message`      | 消息     | 删除消息（仅发送者本人、3 分钟内）     |
+| `history_request`     | 消息     | 按 message_id 游标分页拉聊天历史       |
+| `add_friend`          | 好友     | 发送好友申请（按邮箱）                 |
 | `set_friend_remark`   | 好友     | 给好友设置备注名                       |
 | `accept_friend`       | 好友     | 同意好友申请                           |
 | `reject_friend`       | 好友     | 拒绝好友申请                           |
@@ -61,33 +67,42 @@
 | `group_add_client`    | 群组     | 添加群成员                             |
 | `group_delete_client` | 群组     | 移除群成员（踢人）                     |
 | `modify_group_name`   | 群组     | 修改群名称                             |
-| `send_join_group`     | 群组     | 申请加入群聊（落库申请，等待群主处理） |
+| `send_join_group`     | 群组     | 申请加入群聊                           |
 | `handle_join_request` | 群组     | 处理入群申请（同意/拒绝）              |
 | `modify_member_role`  | 群组     | 修改群成员身份（提升/降级）            |
 | `show_group_members`  | 群组     | 查看群成员（含群内名字）               |
 | `show_group_requests` | 群组     | 查看群聊待处理的入群申请（仅群主）     |
-| `delete_message`      | 消息     | 删除消息（仅发送者本人、发送后 3 分钟内） |
-| `history_request`     | 消息     | 按 message_id 游标分页拉聊天历史（每页 10 条） |
-| `upload_file`         | 文件     | 上传文件（分块，仅 binary 模式）       |
-| `download_file`       | 文件     | 下载文件（仅 binary 模式）             |
-| `change_theme`        | 基础     | 修改主题（存 Account.settings JSON，默认 default） |
-| `create_community`    | 社区     | 创建社区（自动建核心频道 + 创建者为 owner） |
-| `delete_community`    | 社区     | 删除社区（级联删频道/成员）           |
-| `modify_community`    | 社区     | 修改社区资料（名称/简介/头像）         |
-| `show_communities`    | 社区     | 查看我加入的社区列表（结构化响应）     |
-| `show_community_channels` | 社区 | 查看社区下的频道列表（结构化响应）   |
-| `show_community_members`  | 社区 | 查看社区成员列表（结构化响应）       |
+| `create_community`    | 社区     | 创建社区（自动建核心频道+创建者 owner）|
+| `delete_community`    | 社区     | 删除社区（级联删频道/成员）            |
+| `modify_community`    | 社区     | 修改社区资料（名称/简介/头像/背景图）  |
+| `show_communities`    | 社区     | 查看我加入的社区列表（结构化）         |
+| `show_community_channels` | 社区 | 查看社区下的频道列表（结构化）         |
+| `show_community_members`  | 社区 | 查看社区成员列表（结构化，含头像ID）   |
 | `create_channel`      | 社区     | 在社区下创建频道                       |
 | `delete_channel`      | 社区     | 删除频道                               |
 | `modify_channel`      | 社区     | 修改频道（名称/分区）                  |
-| `channel_chat`        | 社区     | 频道发言（向频道所属社区成员广播）     |
-| `join_community`      | 社区     | 申请加入社区（apply_type=3）           |
+| `channel_chat`        | 社区     | 频道发言（可为文件消息）               |
+| `join_community`      | 社区     | 申请加入社区                           |
 | `handle_community_join_request` | 社区 | 处理入社区申请（同意/拒绝）    |
 | `community_add_member` | 社区    | 拉人进社区（仅 owner）                 |
 | `community_remove_member` | 社区 | 踢出社区（仅 owner）                  |
 | `leave_community`     | 社区     | 退出社区（owner 不能退）               |
 | `show_community_requests` | 社区 | 查看待处理入社区申请（仅 owner）     |
-| `modify_community_member_role` | 社区 | 修改社区成员角色（admin/member） |
+| `modify_community_member_role` | 社区 | 修改社区成员角色（admin/member）  |
+| `file_upload_init`    | 文件     | 申请上传文件（元数据+大小审核）        |
+| `file_chunk`          | 文件     | 上传/下载分片（meta + 帧尾文件数据）   |
+| `file_upload_done`    | 文件     | 上传完成（服务端校验并落盘）           |
+| `file_upload_resume`  | 文件     | 断线重续上传                           |
+| `file_download_init`  | 文件     | 申请下载文件（建会话）                 |
+| `file_download_chunk` | 文件     | 拉取单个下载分片                       |
+| `file_transfer_pause` | 文件     | 暂停传输                               |
+| `file_transfer_resume`| 文件     | 继续传输                               |
+| `file_transfer_cancel`| 文件     | 取消传输                               |
+| `file_transfer_status`| 文件     | 查询传输进度                           |
+| `file_list_request`   | 文件     | 查看我的文件列表                       |
+| `file_delete`         | 文件     | 删除文件                               |
+
+> 已移除旧的 `upload_file` / `download_file` 两个 type，请使用 `file_*` 系列。
 
 四、Envelope 字段总表
 --------------------------------------
@@ -97,7 +112,7 @@
 |----------------------|--------|---------------|----------------------------------------|
 | `type`               | 1      | string        | 消息类型，必填                         |
 | `content`            | 2      | string        | 纯文本内容（system 消息/聊天正文）     |
-| `target_UID`         | 3      | int32         | 私聊/群聊目标 UID                      |
+| `target_UID`         | 3      | int32         | 私聊/群聊/频道目标 UID                 |
 | `message`            | 4      | string        | 聊天消息正文                           |
 | `message_id`         | 5      | int32         | 数据库消息 ID                          |
 | `peer_id`            | 6      | int32         | 历史查询对象 UID/群 UID                |
@@ -105,16 +120,16 @@
 | `has_more`           | 8      | bool          | 历史是否还有更旧记录                   |
 | `group_UID`          | 9      | int32         | 群 UID                                 |
 | `target_user_UID`    | 10     | int32         | 被添加/移除的成员 UID                  |
-| `requester_UID`      | 11     | int32         | 入群申请人 UID                         |
+| `requester_UID`      | 11     | int32         | 入群/入社区申请人 UID                  |
 | `group_name`         | 12     | string        | 群名称                                 |
 | `new_name`           | 13     | string        | 新群名/新昵称                          |
-| `promote`            | 14     | bool          | 提升为群主/降级                        |
+| `promote`            | 14     | bool          | 提升/降级                              |
 | `friend_UID`         | 15     | int32         | 好友 UID                               |
 | `sender_UID`         | 16     | int32         | 发送者 UID                             |
 | `email`              | 17     | string        | 邮箱                                   |
 | `apply_message`      | 18     | string        | 好友申请留言                           |
 | `remark`             | 19     | string        | 好友备注名                             |
-| `accept`             | 20     | bool          | 同意/拒绝                             |
+| `accept`             | 20     | bool          | 同意/拒绝                              |
 | `UID`                | 21     | int32         | 登录 UID                               |
 | `username`           | 22     | string        | 注册用户名                             |
 | `password`           | 23     | string        | 密码                                   |
@@ -124,20 +139,32 @@
 | `timestamp`          | 27     | string        | 发送时间 `YYYY-MM-DD HH:MM:SS`         |
 | `reply_to_message_id`| 28     | int32         | 被回复消息 ID                          |
 | `reply_to`           | 29     | ReplyTo       | 被回复消息摘要                         |
-| `file_name`          | 30     | string        | 文件名（download_file）                |
-| `meta`               | 31     | FileChunkMeta | 文件分块元信息（upload_file）          |
+| `file_name`          | 30     | string        | 文件名（文件消息）                     |
+| `meta`               | 31     | FileChunkMeta | 文件分块元信息（file_chunk）           |
 | `messages`           | 32     | repeated ChatItem | 历史分页消息列表                  |
 | `community_id`       | 33     | int32         | 社区 ID（=核心频道 id）                |
 | `channel_id`         | 34     | int32         | 频道 ID                                |
 | `category`           | 35     | string        | 频道分区                               |
 | `description`        | 36     | string        | 社区简介                               |
-| `avatar`             | 37     | string        | 头像 file_id（预留）                   |
+| `avatar`             | 37     | string        | 社区头像 file_id 字符串（旧字段保留）  |
 | `role`               | 38     | string        | 成员角色 owner/admin/member            |
 | `is_channel`         | 39     | bool          | history_request 时标记频道历史         |
 | `communities`        | 40     | repeated CommunityInfo | 社区列表（响应）              |
 | `channels`           | 41     | repeated ChannelInfo   | 频道列表（响应）              |
 | `members`            | 42     | repeated MemberInfo    | 成员列表（响应）              |
 | `theme`              | 43     | string        | 主题（change_theme）                   |
+| `file_meta`          | 44     | FileMeta      | 文件元数据（上传初始化/完成）          |
+| `transfer_info`      | 45     | FileTransferInfo | 传输会话状态（文件响应）            |
+| `transfer_id`        | 46     | int32         | 传输会话 ID（文件操作）                |
+| `file_id`            | 47     | string        | 文件 ID（string 化的 file.id）         |
+| `files`              | 48     | repeated FileMeta | 文件列表（file_list_response）     |
+| `avatar_id`          | 49     | int32         | 当前账户头像 file.id（login_success）  |
+| `is_file`            | 50     | bool          | 聊天消息是否为文件消息                 |
+| `file_size`          | 51     | uint64        | 文件消息大小                           |
+| `contacts`           | 52     | repeated ContactInfo | 联系人列表（contact_list_response）|
+| `community_avatar_id`| 53     | int32         | 社区头像 file.id（modify_community）   |
+| `community_banner_id`| 54     | int32         | 社区背景图 file.id（modify_community） |
+| `chunk_index`        | 55     | int32         | 下载分片块号（file_download_chunk）    |
 
 ### 子消息定义
 ```proto
@@ -161,6 +188,10 @@ message ChatItem {
   string timestamp           = 6;
   int32  reply_to_message_id = 7;
   ReplyTo reply_to           = 8;
+  bool   is_file             = 9;   // 文件消息
+  int32  file_id             = 10;  // file.id
+  string file_name           = 11;  // 原始文件名
+  uint64 file_size           = 12;  // 文件大小
 }
 
 message FileChunkMeta {
@@ -172,28 +203,65 @@ message FileChunkMeta {
   uint32 chunk_count = 6;
   uint32 chunk_size  = 7;
   uint64 offset      = 8;
+  string transfer_id = 9;  // 传输会话 ID
+  string hash        = 10; // 首块可选携带全文件 sha256
+}
+
+message FileMeta {
+  string file_id       = 1;  // string 化的 file.id
+  string original_name = 2;
+  string mime_type     = 3;
+  uint64 size          = 4;
+  string hash          = 5;  // sha256
+  string type          = 6;  // avatar/emoji/image/attachment/file
+  int32  uploader_uid  = 7;
+  string created_at    = 8;
+}
+
+message FileTransferInfo {
+  string transfer_id      = 1;
+  string file_id          = 2;
+  int32  uploader_uid     = 3;
+  int32  receiver_uid     = 4;
+  string direction        = 5;  // upload / download
+  string status           = 6;  // uploading/downloading/paused/completed/cancelled/failed
+  uint64 total_size       = 7;
+  uint64 transferred_size = 8;
+  uint32 chunk_size       = 9;
+  uint32 chunk_count      = 10;
+  uint32 next_chunk_index = 11;
 }
 
 message CommunityInfo {
-  int32  community_id = 1;  // 核心频道 id
+  int32  community_id = 1;
   string name         = 2;
   string description  = 3;
-  string avatar       = 4;  // file_id，预留
-  string category     = 5;  // 预留：社区所属分区
+  string avatar       = 4;  // 旧字段，字符串 file_id
+  string category     = 5;
   string my_role      = 6;  // owner/admin/member
+  int32  avatar_id    = 7;  // 社区头像 file.id
+  int32  banner_id    = 8;  // 社区背景图 file.id
 }
 
 message ChannelInfo {
-  int32  channel_id   = 1;  // 普通频道 id
-  int32  community_id = 2;  // 核心频道 id
+  int32  channel_id   = 1;
+  int32  community_id = 2;
   string name         = 3;
-  string category     = 4;  // 频道分区
+  string category     = 4;
 }
 
 message MemberInfo {
-  int32  user_uid = 1;
-  string nickname = 2;  // 社区昵称（空则前端用全局昵称）
-  string role     = 3;
+  int32  user_uid  = 1;
+  string nickname  = 2;
+  string role      = 3;
+  int32  avatar_id = 4;  // 成员头像 file.id
+}
+
+message ContactInfo {
+  int32  uid       = 1;
+  string name      = 2;
+  bool   is_group  = 3;
+  int32  avatar_id = 4;  // 好友头像 file.id；群为 0
 }
 ```
 
@@ -213,24 +281,38 @@ message MemberInfo {
 *   **字段（用 UID）**：`type="login"`、`UID`、`password`
 *   **字段（用邮箱）**：`type="login"`、`email`、`password`
 *   *注意*：`email` 非空时按邮箱登录，否则按 `UID` 登录。
-*   **成功响应**：`type="login_success"`，携带 `token` 与 `user{id, username}`。
+*   **成功响应**：`type="login_success"`，携带 `token`、`user{id, username}`、`avatar_id`（当前头像 file.id，-1 表示未设置）。
     邮箱未绑定时返回 system `No account is bound to email [xxx].`
+
+### 2.1 用 token 自动登录 (verify_token)
+*   **字段**：`type="verify_token"`、`token`
+*   *注意*：token 有效（7 天滑动过期）则返回 `login_success`，否则返回 system 提示。
 
 ### 3. 展示聊天列表 (show)
 *   **字段**：`type="show"`
+*   **返回**：`system` 类型文本，格式见 §七。
+
+### 3.1 结构化联系人列表 (show_contacts)
+*   **字段**：`type="show_contacts"`
+*   **响应**：`type="contact_list_response"`，携带 `contacts`（repeated ContactInfo），
+    每个好友带 `uid/name/is_group=false/avatar_id`，每个群带 `uid/name/is_group=true/avatar_id=0`。
+*   *推荐*：需要好友头像时优先用本接口，替代文本 `show`。
 
 ### 4. 私聊 (private_chat)
-*   **字段**：`type="private_chat"`、`target_UID`、`message`；`reply_to_message_id` 可选（回复时填被回复消息 ID）。
-*   *注意*：服务器会校验目标 UID 是否存在、是否为好友（不要求在线）。对方在线时实时转发；离线时落库，上线后补发。转发的消息携带 `message_id`、`sender_UID`、`sender_name`、`timestamp`；回复消息还带 `reply_to_message_id` 与 `reply_to`。发送者收到 system `Message sent. Message ID: <id>.`
+*   **字段**：`type="private_chat"`、`target_UID`、`message`；`reply_to_message_id` 可选。
+*   **文件消息**：额外设置 `is_file=true`、`file_id`（string，已上传文件的 file.id）；`message` 可为空。
+*   *注意*：对方在线时实时转发；离线时落库，上线后补发。转发的消息携带
+    `message_id`、`sender_UID`、`sender_name`、`timestamp`；文件消息还带
+    `is_file/file_id/file_name/file_size`；回复消息还带 `reply_to_message_id` 与 `reply_to`。
+    发送者收到 system `Message sent. Message ID: <id>.`
 
 ### 5. 群聊 (group_chat)
 *   **字段**：`type="group_chat"`、`target_UID`（群 UID）、`message`；`reply_to_message_id` 可选。
-*   *注意*：转发的 `Group_Chat` 消息携带 `message_id`、`group_UID`、`sender_UID`、`sender_name`、`timestamp`；发送者收到 system `Message sent. Message ID: <id>.`
+*   **文件消息**：同私聊，额外 `is_file=true`、`file_id`。
+*   *注意*：转发的 `Group_Chat` 消息携带 `message_id`、`group_UID`、`sender_UID`、`sender_name`、`timestamp`。
 
 ### 6. 创建群聊 (create_group)
 *   **字段**：`type="create_group"`、`group_name`
-*   *注意*：创建成功后 system 文本中回传群 UID，例如
-    `Group created successfully. Group name: [我的新群聊], Group UID: 002001.`
 
 ### 7. 解散群聊 (delete_group)
 *   **字段**：`type="delete_group"`、`group_UID`
@@ -244,25 +326,50 @@ message MemberInfo {
 ### 10. 修改群名称 (modify_group_name)
 *   **字段**：`type="modify_group_name"`、`group_UID`、`new_name`
 
-### 11. 上传文件 (upload_file)
-*   **用途**：分块上传（单块最大 256KB，仅 binary 模式）。文件数据放帧尾，`meta` 放分块元信息。
-*   **字段**：`type="upload_file"`、`meta`（FileChunkMeta：`file_id/filename/total_size/chunk_index/chunk_count/chunk_size/offset`）
-*   *注意*：`meta` 为嵌套 message，二进制文件数据通过帧尾部的文件数据段传递，不放入 protobuf 内。
+### 11. 上传文件 (file_upload_init / file_chunk / file_upload_done)
+*   **用途**：分片上传文件，支持顺序/乱序、暂停/续传、断线重传。
+*   **第一步 `file_upload_init`**：`type="file_upload_init"`、`file_meta{original_name,size,mime_type,type,hash(可选)}`；
+    可选 `target_UID`（指定接收方，可空）。服务端回 `file_upload_ready`（`transfer_info{transfer_id,chunk_size,chunk_count}`）。
+*   **第二步 `file_chunk`**：`type="file_chunk"`、`meta{transfer_id,chunk_index,offset,chunk_size,...}`，
+    文件二进制放帧尾 `file_data`。可乱序发块。
+*   **第三步 `file_upload_done`**：`type="file_upload_done"`、`transfer_id`。
+    服务端校验分片齐全 + sha256 后回 `file_upload_complete`（`file_meta{file_id,...}`）。
+*   *注意*：分片大小默认 4 MiB（由 `file_storage.chunk_size` 决定）；服务端有单文件/头像大小上限。
 
-### 12. 下载文件 (download_file)
-*   **字段**：`type="download_file"`、`file_name`
-*   *注意*：服务器会在 `./received_files/` 目录查找该文件，并以 `file_chunk` 分块推送（payload 为 `FileChunkMeta`，文件数据在帧尾）。
+### 12. 下载文件 (file_download_init / file_download_chunk)
+*   **用途**：拉取式分片下载（客户端逐块拉取，天然背压，可暂停）。
+*   **第一步 `file_download_init`**：`type="file_download_init"`、`file_id`（string）。
+    服务端回 `file_download_ready`（`file_meta` + `transfer_info{transfer_id,chunk_count,chunk_size}`）。
+*   **第二步 `file_download_chunk`**：`type="file_download_chunk"`、`transfer_id`、`chunk_index`。
+    服务端回 `file_chunk`（`meta{transfer_id,chunk_index,offset,chunk_size,...}` + 帧尾 `file_data`）。
+*   *注意*：客户端按 `chunk_index` 从 0 逐块拉取，直到最后一块；最后一块拉完后会话置 completed。
+
+### 12.1 断线重续上传 (file_upload_resume)
+*   **用途**：上传中断线后重连续传。
+*   **字段**：`type="file_upload_resume"`、`transfer_id`
+*   *注意*：服务端从 DB 恢复上传会话，回 `file_upload_ready`（含 `next_chunk_index`），
+    客户端从 `next_chunk_index` 继续发 `file_chunk`，最后 `file_upload_done`。
+
+### 12.2 暂停 / 继续 / 取消 / 进度
+*   `file_transfer_pause`：`transfer_id` → 回 `file_transfer_paused`。
+*   `file_transfer_resume`：`transfer_id` → 回 `file_transfer_progress`。
+*   `file_transfer_cancel`：`transfer_id` → 回 `file_transfer_progress`。
+*   `file_transfer_status`：`transfer_id` → 回 `file_transfer_progress`。
+*   *注意*：下载暂停 = 客户端停止发 `file_download_chunk`。
+
+### 12.3 文件列表 / 删除
+*   `file_list_request`：可选 `before_id` 分页 → 回 `file_list_response`（`files[]`）。
+*   `file_delete`：`file_id` → 删除文件，回 system `File deleted.`
 
 ### 13. 安全退出 (exit)
 *   **字段**：`type="exit"`
 
 ### 14. 登出账号 (logout)
 *   **字段**：`type="logout"`
-*   *注意*：返回 system `Logout successful.`，连接保持，可再登录。
 
-### 15. 心跳包 (heartbeat) *（可选/可配）*
+### 15. 心跳包 (heartbeat)
 *   **字段**：`type="heartbeat"`
-*   *注意*：服务器收到回 `heartbeat_ack`（content=`pong`）。是否启用、超时阈值由 `configure.json` 的 `use_heartbeat` / `heartbeat_interval` 决定。
+*   *注意*：服务器收到回 `heartbeat_ack`（content=`pong`）。
 
 ### 16. 设置好友备注名 (set_friend_remark)
 *   **字段**：`type="set_friend_remark"`、`friend_UID`、`remark`
@@ -272,7 +379,11 @@ message MemberInfo {
 
 ### 17.1 设置/换绑邮箱 (set_email)
 *   **字段**：`type="set_email"`、`email`
-*   *注意*：需先登录；不校验邮箱格式，仅要求不重复。
+
+### 17.2 设置头像 (set_avatar)
+*   **字段**：`type="set_avatar"`、`file_id`（string；`-1`/空表示清除头像）
+*   *注意*：`file_id` 必须是已上传的文件（通常 `file_upload_init` 时 `type=avatar`）。
+    成功后回 system `Avatar updated successfully.`
 
 ### 18. 发送好友申请 (add_friend)
 *   **字段**：`type="add_friend"`、`email`、`apply_message`
@@ -293,10 +404,10 @@ message MemberInfo {
 *   **字段**：`type="send_join_group"`、`group_UID`
 
 ### 24. 处理入群申请 (handle_join_request)
-*   **字段**：`type="handle_join_request"`、`group_UID`、`requester_UID`、`accept`（bool）
+*   **字段**：`type="handle_join_request"`、`group_UID`、`requester_UID`、`accept`
 
 ### 25. 修改群成员身份 (modify_member_role)
-*   **字段**：`type="modify_member_role"`、`group_UID`、`target_UID`、`promote`（bool）
+*   **字段**：`type="modify_member_role"`、`group_UID`、`target_UID`、`promote`
 
 ### 26. 查看群成员 (show_group_members)
 *   **字段**：`type="show_group_members"`、`group_UID`
@@ -306,109 +417,100 @@ message MemberInfo {
 
 ### 28. 删除消息 (delete_message)
 *   **字段**：`type="delete_message"`、`message_id`
-*   *注意*：仅发送者本人、发送后 3 分钟内可删；删除后通知在线接收方。
 
 ### 29. 加载聊天历史 (history_request)
-*   **字段**：`type="history_request"`、`peer_id`、`before_id`（可选，0 取最新一页）
-*   **响应**：`type="history_response"`，携带 `peer_id`、`messages`（repeated ChatItem，时间正序，最多 10 条）、`has_more`。
-    `has_more=true` 表示还有更旧记录，前端用当前最旧一条 `message_id` 作为下次 `before_id` 上滑加载更多。
-*   *注意*：拉频道历史时额外设置 `is_channel=true`，`peer_id` 填频道 id。
+*   **字段**：`type="history_request"`、`peer_id`、`before_id`（可选，0 取最新一页）、`is_channel`（频道历史时 true）
+*   **响应**：`type="history_response"`，携带 `peer_id`、`messages`（repeated ChatItem）、`has_more`。
+    文件消息的 ChatItem 会带 `is_file/file_id/file_name/file_size`。
 
 ### 30. 修改主题 (change_theme)
-*   **字段**：`type="change_theme"`、`theme`（非空字符串，任意名字，默认 `default`）
-*   *注意*：需先登录；成功后 system `Theme updated successfully. Your new theme is [<主题>].`
+*   **字段**：`type="change_theme"`、`theme`
 
 ### 31. 创建社区 (create_community)
-*   **字段**：`type="create_community"`、`group_name`（社区名）、`description`（社区简介，可空）
-*   *注意*：创建者自动成为社区 owner 成员；成功后 system 回传社区 ID：
-    `Community created successfully. Community ID: <id>.`
+*   **字段**：`type="create_community"`、`group_name`、`description`
 
 ### 32. 删除社区 (delete_community)
 *   **字段**：`type="delete_community"`、`community_id`
-*   *注意*：仅 owner 可删；级联删除其频道/成员。
 
 ### 33. 修改社区资料 (modify_community)
-*   **字段**：`type="modify_community"`、`community_id`、`group_name`、`description`、`avatar`（预留）
-*   *注意*：仅 owner 可改。
+*   **字段**：`type="modify_community"`、`community_id`、`group_name`、`description`、
+    `community_avatar_id`（社区头像 file.id，-1 清除）、`community_banner_id`（背景图 file.id，-1 清除）
+*   *注意*：仅 owner 可改。头像/背景图需先上传（`type=image`）得到 file.id。
 
 ### 34. 查看我加入的社区 (show_communities)
 *   **字段**：`type="show_communities"`
-*   **响应**：`type="community_list_response"`，携带 `communities`（repeated CommunityInfo）。
+*   **响应**：`type="community_list_response"`，携带 `communities`（repeated CommunityInfo，
+    含 `avatar_id/banner_id`）。
 
 ### 35. 查看社区频道 (show_community_channels)
 *   **字段**：`type="show_community_channels"`、`community_id`
-*   **响应**：`type="channel_list_response"`，携带 `channels`（repeated ChannelInfo）。
+*   **响应**：`type="channel_list_response"`，携带 `channels`。
 
 ### 36. 查看社区成员 (show_community_members)
 *   **字段**：`type="show_community_members"`、`community_id`
-*   **响应**：`type="community_member_list_response"`，携带 `members`（repeated MemberInfo）。
+*   **响应**：`type="community_member_list_response"`，携带 `members`（repeated MemberInfo，含 `avatar_id`）。
 
 ### 37. 创建频道 (create_channel)
-*   **字段**：`type="create_channel"`、`community_id`、`group_name`（频道名）、`category`（分区，可空）
-*   *注意*：需是社区成员；成功后 system 回传频道 ID：
-    `Channel created successfully. Channel ID: <id>.`
+*   **字段**：`type="create_channel"`、`community_id`、`group_name`、`category`
 
 ### 38. 删除频道 (delete_channel)
 *   **字段**：`type="delete_channel"`、`community_id`、`channel_id`
-*   *注意*：仅 owner 可删。
 
 ### 39. 修改频道 (modify_channel)
 *   **字段**：`type="modify_channel"`、`community_id`、`channel_id`、`group_name`、`category`
-*   *注意*：仅 owner 可改。
 
 ### 40. 频道发言 (channel_chat)
-*   **字段**：`type="channel_chat"`、`target_UID`（频道 id）、`message`；`reply_to_message_id` 可选
-*   *注意*：校验发送者是否属于该频道所属社区（而不是频道成员）；转发的 `Channel_Chat` 消息携带
-    `message_id`、`group_UID`（=频道 id）、`sender_UID`、`sender_name`、`timestamp`；发送者收到
-    system `Message sent. Message ID: <id>.`
+*   **字段**：`type="channel_chat"`、`target_UID`（频道 id）、`message`；`reply_to_message_id` 可选。
+*   **文件消息**：同私聊，额外 `is_file=true`、`file_id`。
 
 ### 41. 申请加入社区 (join_community)
-*   **字段**：`type="join_community"`、`community_id`、`apply_message`（可空）
+*   **字段**：`type="join_community"`、`community_id`、`apply_message`
 
 ### 42. 处理入社区申请 (handle_community_join_request)
-*   **字段**：`type="handle_community_join_request"`、`community_id`、`requester_UID`、`accept`（bool）
+*   **字段**：`type="handle_community_join_request"`、`community_id`、`requester_UID`、`accept`
 
 ### 43. 拉人进社区 (community_add_member)
 *   **字段**：`type="community_add_member"`、`community_id`、`target_user_UID`
-*   *注意*：仅 owner 可拉人。
 
 ### 44. 踢出社区 (community_remove_member)
 *   **字段**：`type="community_remove_member"`、`community_id`、`target_user_UID`
-*   *注意*：仅 owner 可踢。
 
 ### 45. 退出社区 (leave_community)
 *   **字段**：`type="leave_community"`、`community_id`
-*   *注意*：owner 不能退。
 
 ### 46. 查看入社区申请 (show_community_requests)
 *   **字段**：`type="show_community_requests"`、`community_id`
-*   *注意*：仅 owner 可看。
 
 ### 47. 修改社区成员角色 (modify_community_member_role)
-*   **字段**：`type="modify_community_member_role"`、`community_id`、`target_user_UID`、`promote`（bool）
-*   *注意*：仅 owner 可改；promote=true → admin，false → member。
+*   **字段**：`type="modify_community_member_role"`、`community_id`、`target_user_UID`、`promote`
 
 六、服务器返回格式（Server -> Client）
 --------------------------------------
-服务器返回同样封装为 `Envelope`，通常包含 `type` 字段（业务消息还含 `content`）。
-
 | 响应类型 (type)       | 场景/含义                                            | 携带字段说明                                            |
 |-----------------------|------------------------------------------------------|--------------------------------------------------------|
 | `system`              | 通用系统提示、错误提示、show 列表等                  | `content` 为纯文本                                     |
-| `login_success`       | 登录成功                                             | `token`、`user{id, username}`                          |
-| `private_chat`        | 收到私聊消息                                         | `content`、`message_id`、`sender_UID`、`sender_name`、`timestamp`；回复还带 `reply_to_message_id`/`reply_to` |
-| `Group_Chat`          | 收到群聊消息（注意大小写 `Group_Chat`）              | 同私聊，另带 `group_UID`                               |
+| `login_success`       | 登录成功                                             | `token`、`user{id, username}`、`avatar_id`             |
+| `private_chat`        | 收到私聊消息                                         | `content`、`message_id`、`sender_UID`、`sender_name`、`timestamp`；文件消息还带 `is_file/file_id/file_name/file_size`；回复还带 `reply_to_message_id/reply_to` |
+| `Group_Chat`          | 收到群聊消息                                         | 同私聊，另带 `group_UID`                               |
+| `Channel_Chat`        | 收到频道消息                                         | 同私聊，另带 `group_UID`（=频道 id）                  |
 | `history_response`    | 聊天历史分页响应                                     | `peer_id`、`messages[]`、`has_more`                    |
-| `delete_message`      | 消息被删除通知                                       | `content` 为空，`message_id` 定位消息；群聊还带 `group_UID` |
-| `file_chunk`          | 服务器发送文件块（下载响应，binary 模式）            | payload 为 `FileChunkMeta`，文件数据在帧尾             |
-| `Channel_Chat`        | 收到频道消息                                         | 同私聊，另带 `group_UID`（=频道 id）                 |
-| `community_list_response` | 社区列表响应                                    | `communities[]`（repeated CommunityInfo）            |
-| `channel_list_response`   | 频道列表响应                                    | `channels[]`（repeated ChannelInfo）                 |
-| `community_member_list_response` | 社区成员列表响应                         | `members[]`（repeated MemberInfo）                   |
+| `delete_message`      | 消息被删除通知                                       | `content` 为空，`message_id`；群聊/频道还带 `group_UID` |
+| `file_upload_ready`   | 同意上传                                             | `transfer_info`                                        |
+| `file_upload_complete`| 上传完成                                             | `file_meta{file_id,...}`、`transfer_info`              |
+| `file_download_ready` | 下载就绪                                             | `file_meta`、`transfer_info`                           |
+| `file_chunk`          | 文件分片（上传回执/下载数据）                         | `meta`（FileChunkMeta），文件数据在帧尾                |
+| `file_transfer_paused`| 已暂停                                               | `transfer_info`                                        |
+| `file_transfer_progress` | 进度响应/取消响应                                  | `transfer_info`                                        |
+| `file_list_response`  | 文件列表                                             | `files[]`（repeated FileMeta）                         |
+| `contact_list_response` | 结构化联系人列表                                   | `contacts[]`（repeated ContactInfo）                   |
+| `community_list_response` | 社区列表响应                                    | `communities[]`（含 avatar_id/banner_id）              |
+| `channel_list_response`   | 频道列表响应                                    | `channels[]`                                           |
+| `community_member_list_response` | 社区成员列表响应                         | `members[]`（含 avatar_id）                            |
 | `heartbeat_ack`       | 心跳应答                                             | `content`=`pong`                                       |
 
-> `private_chat` / `Group_Chat`（含离线推送）的 `content` 为**原始内容**；`message_id` 可用于 `delete_message`；
-> 回复消息额外携带 `reply_to_message_id` 与 `reply_to`（`{message_id, sender_name, content}`），只展示一层引用。
+> `private_chat` / `Group_Chat` / `Channel_Chat`（含离线推送）的 `content` 为**原始内容**；
+> `message_id` 可用于 `delete_message`；文件消息额外带 `file_id`（string）+ `file_name` + `file_size`；
+> 回复消息额外带 `reply_to`（`{message_id, sender_name, content}`），只展示一层引用。
 
 ### 常见系统提示文本
 | 触发场景                 | content 内容（示例）                                          |
@@ -421,63 +523,26 @@ message MemberInfo {
 | **登出成功**             | `Logout successful.`                                          |
 | **被顶下线（新登录踢出）** | `Your account is logged in elsewhere, you have been kicked offline.` |
 | **心跳应答**             | `pong`（type 为 `heartbeat_ack`）                              |
-| **创建群成功**           | `Group created successfully. Group name: [<群名>], Group UID: <群UID>.` |
 | **消息为空**（私聊）     | `Message cannot be empty.`                                    |
 | **未登录发私聊**         | `You must be logged in to send private messages.`             |
 | **目标 UID 不存在**      | `UID [<UID>] does not exist.`                                 |
 | **修改昵称成功**         | `Name updated successfully. Your new name is [<新昵称>].`      |
-| **私聊发送成功（回传消息ID）** | `Message sent. Message ID: <id>.`                           |
+| **设置头像成功**         | `Avatar updated successfully.`                                |
+| **私聊发送成功**         | `Message sent. Message ID: <id>.`                             |
 | **删除消息成功**         | `Message [<id>] deleted.`                                     |
-| **删除消息失败（不存在）** | `Message [<id>] does not exist.`                             |
-| **删除消息失败（非本人）** | `You can only delete your own messages.`                      |
-| **删除消息失败（超时）** | `Messages can only be deleted within 3 minutes of sending.`   |
-| **被拉入群通知**         | `You have been added to group [<群UID>].`                     |
-| **被踢出群通知**         | `You have been removed from group [<群UID>].`                 |
-| **设置备注成功**         | `Remark for UID [<UID>] updated successfully.`                |
-| **设置备注失败（非好友）** | `UID [<UID>] is not your friend.`                             |
-| **群名称为空**           | `The group name can't be empty`                               |
-| **创建群失败**           | `Failed to create group (group name may already exist or DB unavailable).` |
-| **添加成员成功**         | `Member [<UID>] added to group [<群UID>] successfully.`        |
-| **添加成员失败**         | `Failed to add member (you are not in the group or member already exists).` |
-| **踢人成功**             | `Member [<UID>] removed from group [<群UID>] successfully.`    |
-| **踢人失败（非群主）**   | `Failed to remove member (only owner can kick, or member not in group).` |
-| **解散群成功**           | `Group deleted successfully.`                                  |
-| **解散群失败（非群主）** | `Failed to delete group (only owner can delete).`              |
-| **改群名成功**           | `Group name updated successfully. New name: [<新群名>].`        |
-| **改群名失败（非群主）** | `Failed to modify group name (only owner can modify).`         |
-| **入群申请已发送**       | `Join request sent to group [<群UID>] successfully.`           |
-| **入群申请发送失败**     | `Failed to send join request (group not exists / already a member / duplicate request).` |
-| **处理入群申请成功**     | `Join request accepted.` / `Join request rejected.`            |
-| **处理入群申请失败**     | `Failed to handle join request (you are not owner or no pending request).` |
-| **改身份成功**           | `Role of UID [<UID>] updated successfully.`                    |
-| **改身份失败（非群主）** | `Failed to modify member role (only owner can promote/demote).` |
-| **修改主题成功**         | `Theme updated successfully. Your new theme is [<主题>].`      |
-| **创建社区成功**         | `Community created successfully. Community ID: <id>.`          |
-| **删除社区成功**         | `Community deleted successfully.`                             |
-| **删除社区失败（非 owner）** | `Failed to delete community (only owner can delete).`        |
-| **修改社区成功**         | `Community updated successfully.`                             |
-| **创建频道成功**         | `Channel created successfully. Channel ID: <id>.`            |
-| **创建频道失败**         | `Failed to create channel (not a member / community not exists).` |
-| **删除频道成功**         | `Channel deleted successfully.`                               |
-| **修改频道成功**         | `Channel updated successfully.`                               |
-| **非社区成员不能发言**   | `You are not a member of this community.`                     |
-| **被拉入社区通知**       | `You have been added to community [<id>].`                    |
-| **被踢出社区通知**       | `You have been removed from community [<id>].`                |
-| **退出社区成功**         | `You have left community [<id>].`                             |
-| **入社区申请已发送**     | `Join request sent to community [<id>].`                      |
-| **处理入社区申请成功**   | `Join request accepted.` / `Join request rejected.`           |
-| **群成员列表**           | 每行 `UID: 群内名字`，如 `1003: 张三`                          |
-| **缺少 type 字段**       | `Invalid message format: missing 'type' field.`               |
-| **protobuf 解析失败**    | `Invalid protobuf message.`                                   |
-| **未知命令类型**         | `Unknown command type.`                                       |
+| **文件删除成功**         | `File deleted.`                                               |
+| **文件不存在**           | `File not found.`                                             |
+| **上传大小超限**         | `Upload rejected: file size exceeds max_file_size.`           |
+| **头像大小超限**         | `Upload rejected: avatar size exceeds max_avatar_size.`       |
+| **上传不完整**           | `Upload incomplete; some chunks are missing.`                 |
+| **上传哈希不符**         | `Upload failed: sha256 mismatch.`                             |
 
-七、聊天列表返回格式（show）
+七、聊天列表返回格式
 ----------------------------
+### 7.1 文本列表（show）
 `show` 请求返回 `system` 类型、`content` 纯文本。格式为**每行一条记录**：
 *   好友记录：`<用户名>:<6位补齐的UID>`，例如 `张三:001001`；若设置备注名则显示备注名。
 *   群组记录：`<群名>(人数):<6位补齐的UID>`，例如 `我的新群聊(3):002001`。
-
-> 社区/频道不走 `show`，请用 `show_communities` / `show_community_channels` 拉结构化列表（见 §34/§35）。
 
 示例：
 ```
@@ -486,46 +551,56 @@ message MemberInfo {
 我的新群聊(3):002001
 ```
 
+### 7.2 结构化列表（show_contacts）
+`show_contacts` 返回 `contact_list_response`，`contacts[]` 为 `ContactInfo`，
+含 `uid / name / is_group / avatar_id`。推荐需要头像的客户端使用本接口。
+
 八、完整交互流程示例
 --------------------
 1.  **建立连接**：binary 模式连接 `:8080`；WebSocket 模式连接 `ws://<host>:8080/ws`。
-2.  **登录**：发送 Envelope（`type="login"`、`UID=1001`、`password="123456"`），收到 `login_success` 即登录成功。
-3.  **查询列表**：发送 `type="show"`，解析返回的 `content` 文本得到好友/群组及 UID。
-4.  **私聊**：发送 Envelope（`type="private_chat"`、`target_UID=1002`、`message="你好"`）。
-5.  **接收**：接收线程持续解析，按 `type` 分别处理 `private_chat` / `Group_Chat` / `system` 等。
-6.  **退出**：发送 `type="exit"` 后断开连接。
+2.  **登录**：发送 `type="login"`、`UID`、`password`，收到 `login_success`（含 `avatar_id`）。
+3.  **查询列表**：发送 `type="show_contacts"` 拿结构化联系人；或 `type="show"` 拿文本列表。
+4.  **私聊**：发送 `type="private_chat"`、`target_UID`、`message`。
+5.  **发文件消息**：先 `file_upload_init/file_chunk/file_upload_done` 拿 `file_id`，
+    再发 `private_chat/group_chat/channel_chat` 带 `is_file=true`、`file_id`。
+6.  **下载文件**：`file_download_init(file_id)` → `file_download_chunk` 逐块拉取。
+7.  **接收**：接收线程持续解析，按 `type` 分别处理 `private_chat` / `Group_Chat` / `file_chunk` / `system` 等。
+8.  **退出**：发送 `type="exit"` 后断开连接。
 
 九、客户端开发建议
 ------------------
-1.  **独立接收线程**：服务器支持主动推送，客户端必须开启独立线程持续 `recv` 并调用帧解析逻辑（binary 模式参照服务器 `receiver::process_recv_data` 的粘包/半包处理；WebSocket 模式按 WS 消息边界读取）。
-2.  **严格遵循帧头（binary 模式）**：发送前计算 `total_len = 8 + payload字节数 + file字节数` 与 `payload_len`，并以大端写入前 8 字节。
-3.  **登录状态控制**：收到 `login_success` 之前，除了 `login`（必要时 `register`）请求，不要发送其它业务请求。
+1.  **独立接收线程**：服务器支持主动推送，客户端必须开启独立线程持续 `recv` 并解析帧。
+2.  **严格遵循帧头（binary 模式）**：`total_len = 8 + payload字节数 + file字节数`、`payload_len`，大端写入前 8 字节。
+3.  **登录状态控制**：收到 `login_success` 之前，除 `login`（必要时 `register`）外不要发其它业务请求。
 4.  **UID 而非用户名**：所有寻址均使用整数 UID。
-5.  **protobuf 生成**：用 `protoc --cpp_out`（或对应语言插件）从 `src/proto/message.proto` 生成客户端消息类，字段号以该文件为准。
-6.  **文件分块（binary 模式）**：上传/下载均基于 256KB 分块与 `file_id` 标识，客户端需按块组装文件。
+5.  **protobuf 生成**：用 `protoc` 从 `src/proto/message.proto` 生成客户端消息类，字段号以该文件为准。
+6.  **文件分块**：上传/下载统一走 `file_*` 系列；分片大小以 `file_upload_ready`/`file_download_ready` 返回的
+    `chunk_size` 为准（默认 4 MiB），客户端按 `chunk_index` 组装。
+7.  **文件消息**：聊天消息里文件只是元数据引用（`file_id/file_name/file_size`），本体点击后 `file_download_init` 下载。
 
-十、WebSocket 接入方式（可选）
+十、WebSocket 接入方式
 -----------------------------------------------
 服务端支持两种网络层，由 `configure.json` 的 `net_layer` 在启动时二选一，两种模式都监听 `8080`，同一时刻只启用一种：
 
-*   `"net_layer": "binary"`（默认）：本文档第二~九节描述的 TCP + 二进制帧协议。
-*   `"net_layer": "websocket"`：使用 WebSocket，地址为 `ws://<host>:8080/ws`。
+*   `"net_layer": "binary"`：TCP + 二进制帧协议。
+*   `"net_layer": "websocket"`：WebSocket，地址为 `ws://<host>:8080/ws`。
 
 WebSocket 模式下的约定：
 1.  **握手**：路径必须是 `/ws`（允许带 query）。错误路径返回 `404`，非 Upgrade 请求返回 `426`。
 2.  **业务消息**：使用 **binary 帧**，payload = `4 字节 payload_len（大端） + protobuf Envelope`。
 3.  **消息类型与返回**：与第三~七节的 type、字段、system 提示文本完全一致，只是载体从 TCP 帧换为 WS binary 帧。
-4.  **心跳**：同样发送 `type="heartbeat"`，服务端回 `heartbeat_ack`（content=`pong`）。
-5.  **text 帧**：不再使用；若收到 text 帧，服务端返回 system 提示后继续读取。
-6.  **文件传输**：WebSocket 模式暂不支持上传/下载（返回“暂不支持”系统提示），后续版本再开放。
-7.  **大小限制**：单条消息默认上限 1 MiB（`websocket.max_message_bytes`）；单连接待发送队列上限默认 8 MiB（`websocket.max_pending_bytes`）。
+4.  **心跳**：同样发送 `type="heartbeat"`，服务端回 `heartbeat_ack`。
+5.  **text 帧**：不再使用；收到 text 帧服务端返回 system 提示后继续读取。
+6.  **文件传输**：WebSocket 与 binary 一样支持 `file_*` 系列；`file_chunk` 的文件数据放 WS binary 帧尾部。
+7.  **大小限制**：单条消息默认上限 8 MiB（`websocket.max_message_bytes`，需大于文件分片 4 MiB）；
+    单连接待发送队列上限默认 8 MiB（`websocket.max_pending_bytes`）。
 
 WebSocket 模式还内置静态前端服务：
 *   浏览器直接打开 `http://<host>:8080/` 即可加载聊天页（`/` 映射到 `/index.html`）。
 *   静态资源目录由 `websocket.web_root` 指定（默认 `./web`，相对运行目录；从 `build/` 运行时为 `../web`）。
-*   只服务 GET/HEAD 与白名单扩展名（html/css/js/json/图片/字体），路径含 `..` 返回 400，未命中返回 404。
+*   只服务 GET/HEAD 与白名单扩展名，路径含 `..` 返回 400，未命中返回 404。
 
-十一、附加：服务端部署与配置（供运维/联调参考）
+十一、附加：服务端部署与配置
 -----------------------------------------------
 *   服务端启动时读取**相对路径** `configure.json`，需先复制到运行目录（如 `cp configure.json build/`）。
 *   `configure.json` 主要配置：
@@ -533,4 +608,5 @@ WebSocket 模式还内置静态前端服务：
     2.  心跳：`use_heartbeat`、`heartbeat_interval`。
     3.  WebSocket：`websocket.path/io_threads/max_message_bytes/max_pending_bytes/web_root`。
     4.  数据库连接池：`database.host/port/user/password/dbname/db_conn_count`。
+    5.  文件存储：`file_storage.root/chunk_size/max_chunk_size/max_file_size/max_storage_size/max_avatar_size/transfer_timeout_seconds`。
 *   未读到配置文件时使用默认值，可能导致无法连接数据库。

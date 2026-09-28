@@ -1,10 +1,6 @@
-import { createApp } from 'vue';
-import App from './App.vue';
-import router from './router.js';
-import { loadTheme, applyTheme } from './theme.js';
-import './style.css';
+import { createApp } from 'vue'
+import App from './App.vue'
+import '../styles.css'
+import '../reference-theme.css'
 
-// 首帧前就应用主题，避免闪烁
-applyTheme(loadTheme());
-
-createApp(App).use(router).mount('#app');
+createApp(App).mount('#app')
