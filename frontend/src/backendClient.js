@@ -37,6 +37,7 @@ let localSeq = 0
 let transferSeq = 0
 let pendingAvatarId = 0
 let friendRefreshTimer = null
+let persistTimer = null
 const objectUrls = new Set()
 const pendingText = []
 const historyQueue = []
@@ -145,6 +146,7 @@ export function disconnect() {
   backend.connected = false
   backend.connecting = false
   interruptTransfers()
+  flushPersistUploads()
   clearTransportQueues()
   releaseRuntimeUrls()
 }
@@ -542,7 +544,7 @@ export function ensureFileUrl(fileId) {
   return ''
 }
 
-function persistUploads() {
+function persistUploadsNow() {
   try {
     const tasks = backend.transferOrder.map((id) => backend.transfers[id]).filter((task) => task?.direction === 'upload' && task.transferId && !['已完成','已取消','失败'].includes(task.status)).map((task) => ({
       localId: task.localId, transferId: task.transferId, name: task.name, format: task.format,
@@ -552,6 +554,14 @@ function persistUploads() {
     }))
     localStorage.setItem(RESUME_KEY, JSON.stringify(tasks))
   } catch {}
+}
+function persistUploads() {
+  if (persistTimer) return
+  persistTimer = setTimeout(() => { persistTimer = null; persistUploadsNow() }, 250)
+}
+function flushPersistUploads() {
+  if (persistTimer) { clearTimeout(persistTimer); persistTimer = null }
+  persistUploadsNow()
 }
 function restoreUploads() {
   try {
@@ -591,8 +601,8 @@ export function uploadFile(file, options = false) {
   addTransfer({ localId, direction: 'upload', name: file.name, format: (file.name.split('.').pop() || 'FILE').toUpperCase(), totalSize: file.size, size: file.size, mime: file.type || 'application/octet-stream', type: config.type || (file.type.startsWith('image/') ? 'image' : 'file'), status: '初始化', transferred: 0, progress: 0, nextChunk: 0, file, attachKey: conv?.key || '', paused: false, ownerUid: backend.uid, onComplete: config.onComplete || null })
   uploadQueue.push(localId)
   const ok = send({ type: 'file_upload_init', target_UID: conv?.kind === 'private' ? conv.id : 0, file_meta: { original_name: file.name, mime_type: file.type || 'application/octet-stream', size: file.size, type: config.type || (file.type.startsWith('image/') ? 'image' : 'file') } })
-  if (!ok) { uploadQueue.pop(); backend.transfers[localId].status = '失败' }
-  return ok
+  if (!ok) { uploadQueue.pop(); backend.transfers[localId].status = '失败'; return false }
+  return localId
 }
 function uploadReady(message) {
   let task = byTransferId(message.transfer_info?.transfer_id)
@@ -610,6 +620,10 @@ async function pumpUpload(task) {
   task.pumpToken = token
   try {
     while (task.pumpToken === token && !task.paused && task.nextChunk < task.chunkCount && backend.connected && ownsTask(task)) {
+      while (ws?.readyState === WebSocket.OPEN && ws.bufferedAmount > 2 * 1024 * 1024 && task.pumpToken === token && !task.paused) {
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      if (task.pumpToken !== token || task.paused) break
       const index = task.nextChunk
       const offset = index * task.chunkSize
       const end = Math.min(task.totalSize, offset + task.chunkSize)
@@ -617,8 +631,9 @@ async function pumpUpload(task) {
       if (task.pumpToken !== token || task.paused) break
       const sent = send({ type: 'file_chunk', meta: { type: 'file_chunk', transfer_id: task.transferId, filename: task.name, total_size: task.totalSize, chunk_index: index, chunk_count: task.chunkCount, chunk_size: bytes.byteLength, offset } }, bytes)
       if (!sent) { task.status = '已中断'; task.paused = true; break }
-      task.nextChunk += 1; task.transferred = end; task.progress = Math.round(end * 100 / task.totalSize); persistUploads()
-      while (ws?.bufferedAmount > 2 * 1024 * 1024) await new Promise((resolve) => setTimeout(resolve, 15))
+      task.nextChunk += 1; task.transferred = end; task.progress = Math.round(end * 100 / task.totalSize)
+      persistUploads()
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
     if (!task.paused && task.nextChunk >= task.chunkCount) {
       task.status = '校验中'

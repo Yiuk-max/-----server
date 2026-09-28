@@ -1,6 +1,7 @@
 <script setup>
 import { ref, nextTick, computed, h, reactive, watch, onMounted, onUnmounted, withDirectives, vModelText } from 'vue'
 import { DEFAULT_AVATAR, DEFAULT_GROUP_AVATAR, DEFAULT_COMM_AVATAR, QUICK_EMOJIS, PICKER_EMOJIS, AVATAR_TONES } from './data/ui.js'
+import { EMOJI_CATEGORIES } from './data/emoji.js'
 import { Icon } from './components/icons.js'
 import { FileCover } from './components/file-cover.js'
 import { backend, api } from './backendClient.js'
@@ -75,9 +76,23 @@ const avatarByUid = (uid) => { const contact=backend.contacts.find(item=>Number(
 // 正在回复的目标消息：发送时会作为引用行挂到新消息上（Discord 的回复行为）
 const replyTarget = ref(null)
 // 私信 / 群聊保持原 MessageRow 和像素布局，数据改为后端会话。
-const dmThread = computed(() => api.activeConversation.value?.messages || [])
+const dmThread = computed(() => (api.activeConversation.value?.messages || []).filter((record) => !isReactionMessage(record)))
 const backendChannelThread = computed(() => api.activeConversation.value?.kind === 'channel' ? api.activeConversation.value.messages : [])
-const reactions = ref({})
+const messageReactions = computed(() => {
+  const map = {}
+  for (const record of (api.activeConversation.value?.messages || [])) {
+    if (!isReactionMessage(record)) continue
+    const targetId = String(record.reply.id)
+    const emoji = String(record.text).trim()
+    if (!map[targetId]) map[targetId] = []
+    let reaction = map[targetId].find((item) => item.emoji === emoji)
+    if (!reaction) { reaction = { emoji, count: 0, mine: false, users: [] }; map[targetId].push(reaction) }
+    reaction.count += 1
+    reaction.users.push(record.author)
+    if (record.mine) reaction.mine = true
+  }
+  return map
+})
 const contextMenu = ref(null)
 const emojiPicker = ref(null)
 const reactionDetails = ref(null)
@@ -116,6 +131,11 @@ const composerInput = ref(null)
 const fileInput = ref(null)
 const uploads = ref([])
 const attachmentMenu = ref(null)
+const emojiPanelOpen = ref(false)
+const emojiPanelPos = ref(null)
+const emojiPanelTarget = ref(null)
+const emojiCategory = ref(EMOJI_CATEGORIES[0]?.name || '')
+const activeEmojiCategory = computed(() => EMOJI_CATEGORIES.find((item) => item.name === emojiCategory.value) || EMOJI_CATEGORIES[0])
 const inviteModal = ref(false)
 const joinModal = ref(false)
 const settingsOpen = ref(false)
@@ -195,25 +215,76 @@ const Composer = (props) => {
     ]))
   }
   if (uploads.value.length) {
-    parts.push(h('div', { class: 'attachment-tray' }, uploads.value.map((item) => h('div', { key: item.id, class: 'upload-card' }, [
-      item.preview
-        ? h('img', { class: 'upload-image', src: item.preview, alt: item.name })
-        : h('div', { class: 'upload-file-preview' }, [h(FileCover, { name: item.name }), h('b', null, item.format), h('small', null, formatFileSize(item.size))]),
-      h('div', { class: 'upload-caption' }, [h('b', null, item.name), h('small', null, `${item.format} · ${formatFileSize(item.size)}`)]),
-      h('button', { type: 'button', class: 'upload-remove', 'aria-label': `移除 ${item.name}`, onClick: () => removeUpload(item.id) }, '×')
-    ]))))
+    parts.push(h('div', { class: 'attachment-tray' }, uploads.value.map((item) => {
+      const task = item.transferLocalId ? backend.transfers[item.transferLocalId] : null
+      const progress = task ? Math.max(0, Math.min(100, Math.round(task.progress || 0))) : null
+      const statusText = task ? `${item.format} · ${formatFileSize(item.size)} · ${task.status}${progress == null ? '' : ` ${progress}%`}` : `${item.format} · ${formatFileSize(item.size)}`
+      return h('div', { key: item.id, class: 'upload-card' }, [
+        item.preview
+          ? h('img', { class: 'upload-image', src: item.preview, alt: item.name })
+          : h('div', { class: 'upload-file-preview' }, [h(FileCover, { name: item.name }), h('b', null, item.format), h('small', null, formatFileSize(item.size))]),
+        h('div', { class: 'upload-caption' }, [
+          h('b', null, item.name),
+          h('small', null, statusText),
+          progress != null ? h('div', { style: 'height:3px;margin-top:4px;border-radius:2px;background:#33353d;overflow:hidden' }, [
+            h('i', { style: `display:block;height:100%;border-radius:2px;background:#5865f2;width:${progress}%` })
+          ]) : null
+        ]),
+        h('button', { type: 'button', class: 'upload-remove', 'aria-label': `移除 ${item.name}`, onClick: () => removeUpload(item.id) }, '×')
+      ])
+    })))
   }
   parts.push(h('div', { class: 'composer-line' }, [
     h('button', { type: 'button', class: 'add-attachment', 'aria-label': '更多附件选项', title: '更多附件选项', onClick: (e) => { e.stopPropagation(); toggleAttachmentMenu(e) } }, '＋'),
     h('input', { ref: fileInput, class: 'file-input', type: 'file', multiple: true, onChange: handleFiles }),
-    withDirectives(h('input', { ref: composerInput, placeholder: props.placeholder, 'onUpdate:modelValue': (value) => { message.value = value } }), [[vModelText, message.value]]),
+    withDirectives(h('textarea', {
+      ref: composerInput,
+      rows: 1,
+      placeholder: props.placeholder,
+      'onUpdate:modelValue': (value) => { message.value = value },
+      onKeydown: (event) => {
+        if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
+          event.preventDefault()
+          submit()
+        }
+      },
+      onInput: (event) => resizeComposer(event.target),
+      style: 'flex:1;min-width:30px;border:0;outline:0;background:transparent;color:var(--text-1);font-size:15px;font-family:inherit;resize:none;height:24px;line-height:24px;padding:0;margin:0'
+    }), [[vModelText, message.value]]),
     h('div', { class: 'composer-tools' }, [
       h('button', { type: 'button', class: 'tool-button', 'aria-label': '礼物', title: '礼物', onClick: () => handleAttachmentAction('gift') }, [h(Icon, { name: 'gift' })]),
       h('button', { type: 'button', class: 'tool-button tool-gif', 'aria-label': 'GIF', title: 'GIF', onClick: () => handleAttachmentAction('gif') }, 'GIF'),
       h('button', { type: 'button', class: 'tool-button', 'aria-label': '贴纸', title: '贴纸', onClick: () => handleAttachmentAction('sticker') }, [h(Icon, { name: 'sticker' })]),
-      h('button', { type: 'button', class: 'tool-button', 'aria-label': '表情', title: '表情', onClick: () => handleAttachmentAction('emoji') }, [h(Icon, { name: 'smile' })])
+      h('button', { type: 'button', class: 'tool-button', 'aria-label': '表情', title: '表情', onClick: (e) => toggleEmojiPanel(e) }, [h(Icon, { name: 'smile' })])
     ])
   ]))
+  if (emojiPanelOpen.value) {
+    const cat = activeEmojiCategory.value
+    parts.push(h('div', {
+      class: 'emoji-panel',
+      onClick: (e) => e.stopPropagation(),
+      style: `position:fixed;left:${emojiPanelPos.value?.left ?? 8}px;top:${emojiPanelPos.value?.top ?? 8}px;width:420px;height:360px;z-index:90;display:flex;flex-direction:column;background:#2b2d31;border:1px solid #1e1f22;border-radius:8px;box-shadow:0 8px 16px rgba(0,0,0,.35);padding:8px`
+    }, [
+      h('div', { style: 'display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid #1e1f22;padding-bottom:6px;margin-bottom:6px' },
+        EMOJI_CATEGORIES.map((item) => h('button', {
+          key: item.name,
+          type: 'button',
+          title: item.name,
+          onClick: () => { emojiCategory.value = item.name },
+          style: `width:32px;height:32px;display:grid;place-items:center;border-radius:6px;border:0;cursor:pointer;font-size:18px;line-height:1;background:${emojiCategory.value === item.name ? '#5865f2' : 'transparent'}`
+        }, item.icon))
+      ),
+      h('div', { class: 'emoji-panel-scroll', style: 'display:grid;grid-template-columns:repeat(8,1fr);gap:2px;overflow-y:auto;flex:1;align-content:start' },
+        cat.emojis.map((emoji) => h('button', {
+          key: emoji,
+          type: 'button',
+          title: emoji,
+          onClick: () => { if (emojiPanelTarget.value) sendReaction(emoji, emojiPanelTarget.value); else appendEmoji(emoji) },
+          style: 'background:transparent;border:0;cursor:pointer;font-size:24px;line-height:1;height:38px;border-radius:4px;padding:0'
+        }, emoji))
+      )
+    ]))
+  }
   if (attachmentMenu.value) {
     parts.push(h('div', { class: 'attachment-menu', style: { left: `${attachmentMenu.value.x}px`, top: `${attachmentMenu.value.y}px` }, onClick: (e) => e.stopPropagation() }, [
       h('button', { onClick: () => handleAttachmentAction('upload') }, [h(Icon, { name: 'upload', class: 'upload-menu-icon' }), h('b', null, '上传文件')])
@@ -223,6 +294,15 @@ const Composer = (props) => {
 }
 // 已撤回的消息：按消息 id 记录（作者 / 是否自己），渲染成一行系统提示，静态与动态消息通用
 const recalled = ref({})
+const isEmojiOnlyMessage = (text) => {
+  const trimmed = String(text || '').trim()
+  if (!trimmed) return false
+  const emojis = trimmed.match(/\p{Extended_Pictographic}/gu) || []
+  if (emojis.length < 1 || emojis.length > 6) return false
+  const rest = trimmed.replace(/\p{Extended_Pictographic}/gu, '').replace(/\s+/g, '').replace(/[\uFE0F\u200D\u20E3]/g, '')
+  return rest.length === 0
+}
+const isReactionMessage = (record) => !!record?.reply?.id && isEmojiOnlyMessage(record.text)
 const MessageRow = (props) => {
   const record = props.record
   const recall = recalled.value[record.id]
@@ -258,7 +338,10 @@ const MessageRow = (props) => {
     record.mutual ? h('span', { class: 'mutual-badge', title: '共同服务器' }, 'M') : null,
     h('time', {}, record.time)
   ]))
-  if (record.text) content.push(h('div', { class: 'message-content' }, h('p', {}, record.text)))
+  if (record.text) {
+    const jumbo = isEmojiOnlyMessage(record.text)
+    content.push(h('div', { class: 'message-content' }, h('p', { style: jumbo ? 'font-size:44px;line-height:1.15;letter-spacing:2px' : null }, record.text)))
+  }
   if (record.embed) {
     content.push(h('a', { class: 'message-embed', href: record.embed.url || '#', target: '_blank', rel: 'noreferrer', style: `--embed-accent:${record.embed.accent}` }, [
       h('span', { class: 'embed-body' }, [
@@ -348,7 +431,7 @@ const selectCommunity = (community) => {
   const first = (backend.channels[community.id] || [])[0]
   if (first) switchChannel(first.name)
 }
-const channelHistory = computed(() => backendChannelThread.value)
+const channelHistory = computed(() => backendChannelThread.value.filter((record) => !isReactionMessage(record)))
 const typingUsers = computed(() => [])
 // 未读横幅：进入页面时按当前时间倒推 52 分钟，不再是写死的 15:26 / 12 条
 const unreadBannerInfo = computed(() => {
@@ -401,6 +484,10 @@ const closeFloatingMenus = (event) => {
   dmEditMenu.value = null
   dmQuickMenu.value = false
   testMenu.value = null
+  emojiPanelOpen.value = false
+  emojiPanelPos.value = null
+  emojiPanelTarget.value = null
+  attachmentMenu.value = null
 }
 // 原版测试菜单保留其像素位置；生产接入后不再伪造服务端数据。
 const pushTestIncoming = () => notDeveloped('测试推送')
@@ -413,6 +500,10 @@ const testResetDemo = () => notDeveloped('重置服务端数据')
 const onMenuKeydown = (event) => {
   if (event.key !== 'Escape') return
   if (replyTarget.value) { replyTarget.value = null; return }
+  emojiPanelOpen.value = false
+  emojiPanelPos.value = null
+  emojiPanelTarget.value = null
+  attachmentMenu.value = null
   closeFloatingMenus()
 }
 onMounted(() => {
@@ -606,10 +697,28 @@ const scrollChat = (event) => {
   const conv = api.activeConversation.value
   if (log.scrollTop < 12 && conv?.hasMore && !conv.loading && conv.oldestId) api.requestHistory(conv, conv.oldestId)
 }
-const toggleReaction = () => notDeveloped('消息反应')
+const sendReaction = (emoji, messageId) => {
+  const conv = api.activeConversation.value
+  if (!conv || !emoji) return
+  const record = conv.messages.find((item) => String(item.id) === String(messageId))
+  const snapshot = record ? { author: record.author, text: record.text } : { author: '成员', text: '' }
+  api.sendChat(emoji, messageId, snapshot)
+}
 const showEmojiPicker = (id, x, y) => {
-  emojiPicker.value = { id, x: Math.max(8, Math.min(x, window.innerWidth - 250)), y: Math.max(8, Math.min(y, window.innerHeight - 64)) }
+  emojiPicker.value = { id, x: Math.max(8, Math.min(x, window.innerWidth - 110)), y: Math.max(8, Math.min(y, window.innerHeight - 340)) }
   contextMenu.value = null
+}
+const openEmojiPanelFromReaction = () => {
+  const picker = emojiPicker.value
+  emojiPicker.value = null
+  attachmentMenu.value = null
+  const width = 420
+  const height = 360
+  let left = Math.max(8, Math.min(picker?.x || 8, window.innerWidth - width - 8))
+  let top = Math.max(8, Math.min(picker?.y || 8, window.innerHeight - height - 8))
+  emojiPanelTarget.value = picker ? picker.id : null
+  emojiPanelPos.value = { left, top }
+  emojiPanelOpen.value = true
 }
 // 从消息行读出「被回复消息」的快照，用来生成引用行（作者 / 角色色 / 头像 / 正文）
 // 按 id 找行：id 里含空格/emoji，属性选择器不可靠，统一用 dataset 比对。
@@ -719,9 +828,9 @@ const handleMessageAction = async (event) => {
   const id = button.closest('.message')?.dataset.messageId || button.closest('[data-message-id]')?.dataset.messageId || contextMenu.value?.id
   const action = button.dataset.action
   const emoji = button.dataset.emoji
-  if (action === 'react' && id) { toggleReaction(); contextMenu.value = null; emojiPicker.value = null }
-  if (action === 'view-reactions' && id) { notDeveloped('查看消息反应'); contextMenu.value = null }
-  if (action === 'picker' && id) { notDeveloped('消息反应'); contextMenu.value = null }
+  if (action === 'react' && id && emoji) { sendReaction(emoji, id); contextMenu.value = null; emojiPicker.value = null }
+  if (action === 'view-reactions' && id) { reactionDetails.value = { items: messageReactions.value[id] || [] }; contextMenu.value = null }
+  if (action === 'picker' && id) { showEmojiPicker(id, event.clientX, event.clientY) }
   if (action === 'more' && id) openContextMenu({ target: button.closest('.message'), clientX: event.clientX, clientY: event.clientY })
   if (action === 'reply' && id) {
     // Discord 的回复：输入框上方出现「正在回复 @某人」的条，发出去的消息自带引用行。
@@ -771,18 +880,21 @@ const submit = async () => {
   if (!text && !uploads.value.length) return
   const replyId = replyTarget.value?.id || 0
   const textSent = text ? api.sendChat(text, replyId, replyTarget.value) : false
+  let startedAny = false
   const failedUploads = []
-  let uploadSent = false
   for (const upload of uploads.value) {
-    if (api.uploadFile(upload.file, true)) { uploadSent = true; if (upload.preview) URL.revokeObjectURL(upload.preview) }
-    else failedUploads.push(upload)
+    if (upload.transferLocalId) { startedAny = true; continue }
+    const transferId = api.uploadFile(upload.file, true)
+    if (transferId) { upload.transferLocalId = transferId; startedAny = true }
+    else { failedUploads.push(upload); if (upload.preview) URL.revokeObjectURL(upload.preview) }
   }
-  if (!textSent && !uploadSent) return
+  if (failedUploads.length) uploads.value = uploads.value.filter((item) => !failedUploads.includes(item))
+  if (!textSent && !startedAny) return
   playBaka('send')
   replyTarget.value = null
   if (textSent) message.value = ''
-  uploads.value = failedUploads
   await nextTick()
+  resizeComposer(composerInput.value)
   const log = document.querySelector('.message-scroll, .dm-thread')
   if (log) log.scrollTop = log.scrollHeight
 }
@@ -807,17 +919,55 @@ const handleFiles = async (event) => {
 const removeUpload = (id) => {
   const index = uploads.value.findIndex((item) => item.id === id)
   if (index < 0) return
-  if (uploads.value[index].preview) URL.revokeObjectURL(uploads.value[index].preview)
+  const item = uploads.value[index]
+  const task = item.transferLocalId ? backend.transfers[item.transferLocalId] : null
+  if (task && !['已完成','失败','已取消'].includes(task.status)) api.cancelTransfer(task)
+  if (item.preview) URL.revokeObjectURL(item.preview)
   uploads.value.splice(index, 1)
 }
 const formatFileSize = (size) => size < 1024 * 1024 ? `${Math.max(1, Math.round(size / 1024))} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`
+const closeComposerPopovers = () => { attachmentMenu.value = null; emojiPanelOpen.value = false; emojiPanelPos.value = null; emojiPanelTarget.value = null }
+const resizeComposer = (el) => {
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${Math.min(Math.max(el.scrollHeight, 24), 160)}px`
+}
+const appendEmoji = (emoji) => {
+  message.value += emoji
+  nextTick(() => {
+    const input = composerInput.value
+    if (input) {
+      resizeComposer(input)
+      input.focus()
+      const end = input.value.length
+      try { input.setSelectionRange(end, end) } catch {}
+    }
+  })
+}
+const toggleEmojiPanel = (event) => {
+  event.stopPropagation()
+  attachmentMenu.value = null
+  if (emojiPanelOpen.value) { emojiPanelOpen.value = false; emojiPanelPos.value = null; emojiPanelTarget.value = null; return }
+  emojiPanelTarget.value = null
+  const rect = event.currentTarget.getBoundingClientRect()
+  const width = 420
+  const height = 360
+  let left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))
+  let top = rect.top - height - 8
+  if (top < 8) top = Math.min(rect.bottom + 8, Math.max(8, window.innerHeight - height - 8))
+  emojiPanelPos.value = { left, top }
+  emojiPanelOpen.value = true
+}
 const toggleAttachmentMenu = (event) => {
+  emojiPanelOpen.value = false
+  emojiPanelTarget.value = null
   if (attachmentMenu.value) { attachmentMenu.value = null; return }
   const rect = event.currentTarget.getBoundingClientRect()
   attachmentMenu.value = { x: Math.max(8, Math.min(rect.left - 4, window.innerWidth - 216)), y: Math.max(8, rect.top - 58) }
 }
 const handleAttachmentAction = async (action) => {
   attachmentMenu.value = null
+  emojiPanelOpen.value = false
   if (action === 'upload') { await nextTick(); fileInput.value?.click(); return }
   const labels = { thread: '子区', poll: '投票', gift: '礼物', gif: 'GIF', sticker: '贴纸', emoji: '表情', app: 'APP' }
   notDeveloped(labels[action] || '该功能')
@@ -886,6 +1036,18 @@ watch(() => backend.noticeSeq, () => {
 watch(themeChoice, (theme) => { if (backend.uid && theme !== 'device') api.changeTheme(theme) })
 watch(() => backend.uid, (uid) => { demoLoginOpen.value = !uid })
 watch(() => backend.connected, (connected) => { if (!connected) demoLoginOpen.value = true })
+watch(() => backend.transferOrder.map((id) => { const task = backend.transfers[id]; return task ? { id, status: task.status } : null }), () => {
+  const remaining = []
+  for (const upload of uploads.value) {
+    const task = upload.transferLocalId ? backend.transfers[upload.transferLocalId] : null
+    if (task && ['已完成','失败','已取消'].includes(task.status)) {
+      if (upload.preview) URL.revokeObjectURL(upload.preview)
+    } else {
+      remaining.push(upload)
+    }
+  }
+  if (remaining.length !== uploads.value.length) uploads.value = remaining
+}, { deep: true })
 watch(() => api.activeConversation.value?.messages.length, async () => { await nextTick(); const log=document.querySelector('.message-scroll, .dm-thread');if(log&&log.scrollHeight-log.scrollTop-log.clientHeight<180)log.scrollTop=log.scrollHeight })
 watch(() => ({ page: activePage.value, key: backend.activeKey, unread: { ...backend.unreadConversations } }), ({ page, key, unread }) => {
   if (page !== 'dm-chat' || !key || !unread[key]) return
@@ -1084,7 +1246,7 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
       <button class="profile-popover-action switch-account-action" @click="profileAccountMenu=!profileAccountMenu;profileStatusMenu=false"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.3"/><path d="M5 20v-1a7 7 0 0 1 14 0v1"/></svg><span>切换账户</span><b>›</b></button>
       <div v-if="profileAccountMenu" class="profile-popover-submenu account-switch-menu"><button @click="profileAccountMenu=false">{{demoNickname}}　当前账户</button><button @click="profileAccountMenu=false;openDemoLoginWindow()">＋　切换账户</button></div>
     </section>
-    <main v-if="activePage==='community'" class="chat" :class="{'members-open':memberPanelOpen}" @click="attachmentMenu = null">
+    <main v-if="activePage==='community'" class="chat" :class="{'members-open':memberPanelOpen}" @click="closeComposerPopovers">
       <aside v-if="memberPanelOpen" class="member-panel" aria-label="社区成员">
         <header><h2>社区成员</h2><span>{{demoCommunityMemberList.length}}</span></header>
         <div class="member-panel-scroll">
@@ -1111,7 +1273,7 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
       </section>
         <section v-else class="message-scroll" :style="{paddingBottom: uploads.length ? `${84 + Math.ceil(uploads.length / 3) * 230}px` : '84px'}" @wheel.prevent="scrollChat" @click="handleMessageAction" @contextmenu.prevent="openContextMenu">
         <div class="messages-inner">
-          <MessageRow v-for="record in channelHistory" :key="record.id" :record="record" />
+          <MessageRow v-for="record in channelHistory" :key="record.id" :record="record" :reactions="messageReactions[record.id]" />
           <article v-if="!channelHistory.length" class="message system-message"><div class="system-row"><span class="system-glyph">#</span><b>这里还没有消息，发送第一条消息吧。</b></div></article>
         </div>
       </section>
@@ -1151,9 +1313,9 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
       </section><div v-if="toast" class="toast friends-toast">{{toast}}</div>
       </section>
     </main>
-    <main v-else-if="activePage==='dm-chat'" class="dm-main" @click="attachmentMenu=null">
+    <main v-else-if="activePage==='dm-chat'" class="dm-main" @click="closeComposerPopovers">
       <header class="dm-top"><div><span class="dm-avatar"><img :src="dmAvatarSrc(selectedDm)" :alt="selectedDm"></span><b>{{selectedDm}}</b><small>{{dmContacts.find(c=>c.name===selectedDm)?.kind}}</small></div><nav><button title="语音通话" @click="notDeveloped('语音通话')">⌕</button><button title="置顶" @click="notDeveloped('置顶消息')">♧</button><button title="搜索" @click="notDeveloped('消息搜索')">⌕</button></nav></header>
-      <section class="dm-thread" @wheel.prevent="scrollChat" @click="handleMessageAction" @contextmenu.prevent="openContextMenu"><div class="dm-thread-intro"><span class="dm-avatar large"><img :src="dmAvatarSrc(selectedDm)" :alt="selectedDm"></span><h2>{{selectedDm}}</h2><p>这是你和 {{selectedDm}} 的私信开头。</p></div><div class="dm-thread-messages"><MessageRow v-for="entry in dmThread" :key="entry.id" :record="entry" :reactions="reactions[entry.id]" :images="entry.images" /></div></section>
+      <section class="dm-thread" @wheel.prevent="scrollChat" @click="handleMessageAction" @contextmenu.prevent="openContextMenu"><div class="dm-thread-intro"><span class="dm-avatar large"><img :src="dmAvatarSrc(selectedDm)" :alt="selectedDm"></span><h2>{{selectedDm}}</h2><p>这是你和 {{selectedDm}} 的私信开头。</p></div><div class="dm-thread-messages"><MessageRow v-for="entry in dmThread" :key="entry.id" :record="entry" :reactions="messageReactions[entry.id]" :images="entry.images" /></div></section>
       <Composer :conversation-key="`dm:${selectedDm}`" :placeholder="`给 ${selectedDm} 发消息`" />
       <div v-if="toast" class="toast">{{toast}}</div>
     </main>
@@ -1163,7 +1325,7 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
   <div v-if="contextMenu" class="context-menu" :style="{left: `${contextMenu.x}px`, top: `${contextMenu.y}px`}" @click.stop="handleMessageAction">
     <div class="context-reactions"><button v-for="emoji in QUICK_EMOJIS" :key="emoji" data-action="react" :data-emoji="emoji">{{ emoji }}</button></div>
     <button class="context-item" data-action="picker"><span>☻</span>添加反应 <b>›</b></button>
-    <button v-if="reactions[contextMenu.id]?.length" class="context-item" data-action="view-reactions"><span><Icon name="smile"/></span>查看反应</button>
+    <button v-if="messageReactions[contextMenu.id]?.length" class="context-item" data-action="view-reactions"><span><Icon name="smile"/></span>查看反应</button>
     <div class="context-separator"></div>
     <button class="context-item" data-action="reply"><span><svg viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></span>回复</button>
     <button class="context-item" data-action="forward"><span><svg viewBox="0 0 24 24"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg></span>转发</button>
@@ -1177,8 +1339,9 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
     <div class="context-separator"></div>
     <button class="context-item report" data-action="report"><span><svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>举报消息</button>
   </div>
-  <div v-if="emojiPicker" class="emoji-picker" :data-message-id="emojiPicker.id" :style="{left: `${emojiPicker.x}px`, top: `${emojiPicker.y}px`}" @click.stop="handleMessageAction">
-    <button v-for="emoji in PICKER_EMOJIS" :key="emoji" data-action="react" :data-emoji="emoji">{{ emoji }}</button>
+  <div v-if="emojiPicker" class="emoji-picker" :data-message-id="emojiPicker.id" :style="{left: `${emojiPicker.x}px`, top: `${emojiPicker.y}px`, width: 'auto', minWidth: '96px', gridTemplateColumns: 'repeat(2, 1fr)', gap: '5px', padding: '8px'}" @click.stop="handleMessageAction">
+    <button v-for="emoji in PICKER_EMOJIS" :key="emoji" data-action="react" :data-emoji="emoji" style="height:42px;min-width:44px;font-size:22px;border-radius:6px;background:transparent">{{ emoji }}</button>
+    <button type="button" @click.stop="openEmojiPanelFromReaction" style="grid-column:1 / -1;height:34px;font-size:12px;display:flex;align-items:center;justify-content:center;background:#303137;color:#d0d1d6;border-radius:6px;cursor:pointer">更多反应</button>
   </div>
   <div v-if="reactionDetails" class="reaction-backdrop" @click.self="reactionDetails = null">
     <div class="reaction-modal">
@@ -1410,3 +1573,11 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
     </section>
   </div>
 </template>
+
+<style>
+.emoji-panel-scroll{scrollbar-width:thin;scrollbar-color:#606168 #1b1c20}
+.emoji-panel-scroll::-webkit-scrollbar{width:12px}
+.emoji-panel-scroll::-webkit-scrollbar-track{background:#1b1c20}
+.emoji-panel-scroll::-webkit-scrollbar-thumb{background:#606168;border:2px solid #1b1c20;border-radius:8px;min-height:56px}
+.emoji-panel-scroll::-webkit-scrollbar-thumb:hover{background:#73757e}
+</style>
