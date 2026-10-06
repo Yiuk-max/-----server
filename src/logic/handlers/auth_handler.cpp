@@ -35,6 +35,11 @@ void finish_login(client_session& s, const std::shared_ptr<account>& acc, const 
     user->set_id(UID);
     user->set_username(acc->getName());
     resp.set_avatar_id(acc->get_avatar_id());
+    // 已绑定邮箱就返回给前端，未绑定则留空（前端以空字符串表示未绑定）
+    const std::string email = s.repo_hub()->emails()->get_email(UID);
+    if (!email.empty()) {
+        resp.set_email(email);
+    }
     s.package_envelope(resp);
 
     logic::show_friend_requests(s); // 登录后自动查看待处理的好友申请

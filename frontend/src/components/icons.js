@@ -15,7 +15,10 @@ export const ICONS = {
   upload: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 18v-7m-3 3 3-3 3 3"/>',
   search: '<circle cx="10.8" cy="10.8" r="6.5"/><path d="m16 16 4.5 4.5"/>',
   doc: '<path d="M5 4h11l3 3v13H5z"/><path d="M8 9h8M8 13h8M8 17h5"/>',
-  list: '<path d="M4 5h16M4 12h16M4 19h16"/>'
+  list: '<path d="M4 5h16M4 12h16M4 19h16"/>',
+  community: '<path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M15 9h4a2 2 0 0 1 2 2v10M8 7h2M8 11h2M8 15h2M15 13h2M15 17h2"/>',
+  enter: '<path d="M14 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 8-4 4 4 4M4 12h10"/>',
+  reset: '<path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/>'
 }
 
 export const Icon = (props) => h('svg', {

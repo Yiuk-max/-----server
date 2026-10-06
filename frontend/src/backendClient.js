@@ -3,12 +3,14 @@ import { decodePacket, encodePacket } from './protobufProtocol.js'
 
 const TOKEN_KEY = 'chat.token'
 const RESUME_KEY = 'chat.upload.resume.v1'
+const EMAIL_KEY = 'chat.email.'
 
 export const backend = reactive({
   connected: false,
   connecting: false,
   uid: null,
   name: '',
+  email: '',
   avatarId: 0,
   contacts: [],
   communities: [],
@@ -194,6 +196,10 @@ function loginSuccess(message) {
   backend.uid = nextUid
   backend.name = message.user?.username || ''
   backend.avatarId = Number(message.avatar_id || 0)
+  try {
+    if (message.email) { backend.email = message.email; localStorage.setItem(EMAIL_KEY + nextUid, message.email) }
+    else { backend.email = localStorage.getItem(EMAIL_KEY + nextUid) || '' }
+  } catch {}
   if (backend.avatarId > 0) ensureFileUrl(backend.avatarId)
   if (message.token) localStorage.setItem(TOKEN_KEY, message.token)
   notice(`欢迎回来，${backend.name}`)
@@ -365,7 +371,7 @@ function systemMessage(content) {
   const addedMember = /Member \[(\d+)\] added to community \[(\d+)\]/i.exec(text)
   const addedToCommunity = /You have been added to community \[(\d+)\]/i.exec(text)
   const failedCommunityAdd = /Failed to add member \((.*?)\)/i.exec(text)
-  const registration = /Registration successful.*UID (\d+)/.exec(text)
+  const registration = /Registration successful.*UID (\d+).*?or ([^\s.]+)\./.exec(text)
   if (addedMember) {
     const targetUid = Number(addedMember[1]); const communityId = Number(addedMember[2])
     const index = communityAddQueue.findIndex((item) => item.communityId === communityId && item.uid === targetUid)
@@ -382,7 +388,7 @@ function systemMessage(content) {
     communityAddQueue.shift()
     notice('添加社区成员失败：仅社区所有者可添加，或该用户已在社区中')
   }
-  else if (registration) notice(`注册成功，UID：${registration[1]}，请登录`)
+  else if (registration) { try { localStorage.setItem(EMAIL_KEY + registration[1], registration[2]) } catch {} notice(`注册成功，UID：${registration[1]}，请登录`) }
   else if (/Avatar updated successfully/.test(text)) { if (pendingAvatarId > 0) backend.avatarId = pendingAvatarId; pendingAvatarId = 0; notice(text) }
   else if (/Failed to update avatar|Invalid file_id|Avatar file not found|not allowed for avatar/i.test(text)) { pendingAvatarId = 0; notice(text) }
   else if (/Logout successful/.test(text)) clearAccount()
@@ -406,6 +412,8 @@ function systemMessage(content) {
   }
   const renamed = /Name updated successfully\. Your new name is \[(.*?)\]\./.exec(text)
   if (renamed) backend.name = renamed[1]
+  const emailUpdated = /Email updated successfully\. Your email is \[(.*?)\]\./.exec(text)
+  if (emailUpdated) { backend.email = emailUpdated[1]; try { localStorage.setItem(EMAIL_KEY + backend.uid, backend.email) } catch {} }
   if (/wants to be friend with you|You are now friends with|rejected your friend request|removed from .*friend list|Failed to handle friend request/i.test(text)) scheduleFriendRefresh()
   if (/Group created|Group deleted|Group name updated|added to group|removed from group/.test(text)) setTimeout(showContacts, 200)
   if (/Join request accepted|Join request rejected/.test(text)) setTimeout(() => {
@@ -426,7 +434,7 @@ function clearAccount() {
   if (friendRefreshTimer) clearTimeout(friendRefreshTimer)
   friendRefreshTimer = null
   pendingAvatarId = 0
-  backend.uid = null; backend.name = ''; backend.avatarId = 0; backend.contacts = []; backend.communities = []
+  backend.uid = null; backend.name = ''; backend.email = ''; backend.avatarId = 0; backend.contacts = []; backend.communities = []
   backend.activeCommunityId = null; backend.channels = {}; backend.members = {}; backend.conversations = {}; backend.activeKey = ''; backend.unreadConversations = {}
   backend.friendRequests = []; backend.groupMembers = {}; backend.groupRequests = {}; backend.communityRequests = {}; backend.files = []
   clearTransportQueues()

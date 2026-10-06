@@ -115,7 +115,7 @@
 .friends-list-heading h2{font-size:16px;font-weight:700;color:var(--text-1)}
 .friends-list-heading p{margin-top:4px;font-size:12.5px;color:var(--text-3)}
 .friends-list-heading>span{font-size:12.5px;color:var(--text-3)}
-.friend-directory-row{min-height:62px;gap:14px;padding:4px 10px;border-bottom:1px solid var(--row-line);border-radius:6px}
+.friend-directory-row{min-height:62px;gap:14px;padding:4px 10px;border-bottom:1px solid var(--row-line);border-radius:6px;cursor:pointer}
 .friend-directory-row:hover{background:#212125}
 .friends-avatar.friend-face{width:32px;height:32px;font-size:16px;background:#33343b}
 .friends-avatar>i{width:12px;height:12px;border:2.5px solid var(--main-bg)}
@@ -705,3 +705,40 @@ html.sidebar-resizing .sidebar-resizer::after{background:#5865f2}
 .dm-thread{padding:16px 0 4px}
 .dm-thread-intro{margin:0 16px 8px}
 .dm-thread-messages>.message:first-child{margin-top:8px}
+
+.chat-search{position:relative;height:32px;width:240px;border:1px solid #303137;background:#15161a}
+.chat-search .search-clear{width:16px;height:16px;flex:none;display:grid;place-items:center;border:0;padding:0;background:transparent;color:#9a9ca5;font-size:16px;line-height:1;cursor:pointer}
+.chat-search .search-clear:hover{color:#e3e4e8}
+.search-panel{position:absolute;top:calc(100% + 6px);right:0;width:min(460px,calc(100vw - 32px));max-height:420px;display:flex;flex-direction:column;border:1px solid #2c2c31;border-radius:10px;background:#1b1c20;box-shadow:0 16px 44px #000b;z-index:90;overflow:hidden}
+.search-panel-head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-bottom:1px solid #2c2c31}
+.search-panel-head b{font-size:13px;color:#f0f1f4}
+.search-panel-head span{font-size:11px;color:#8a8c96}
+.search-panel-list{overflow:auto;padding:6px;scrollbar-width:thin;scrollbar-color:#565861 transparent}
+.search-result-row{padding:9px 10px;border-radius:7px;cursor:default}
+.search-result-row:hover{background:#25262c}
+.search-result-meta{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.search-result-meta b{font-size:12px;color:#8b96ff}
+.search-result-meta span{font-size:11px;color:#c8c9ce}
+.search-result-meta time{margin-left:auto;font-size:10px;color:#858791}
+.search-result-row p{margin:0;font-size:12.5px;line-height:1.5;color:#d7d8dd;word-break:break-word}
+.search-highlight{background:#5865f2;color:#fff;border-radius:4px;padding:0 2px}
+.search-panel-empty{padding:28px 14px;text-align:center;color:#858791;font-size:12px}
+
+.account-inline-form{display:flex;align-items:center;gap:10px;margin:-2px 0 16px}
+.account-inline-form input{height:36px;flex:1;min-width:0;padding:0 11px;border:1px solid #3a3c45;border-radius:7px;outline:0;background:#1a1b20;color:#eee;font-size:13px}
+.account-inline-form input:focus{border-color:#6672f5}
+.account-inline-form .settings-row-button{flex:none}
+
+.crop-dialog{position:relative;width:min(460px,calc(100vw - 32px));padding:24px;border:1px solid #3c3d45;border-radius:14px;background:#23242a;box-shadow:0 18px 55px #0009;color:#e5e6e9}
+.crop-dialog h2{margin:0 0 7px;font-size:20px}
+.crop-dialog p{margin:0 0 18px;color:#a5a7af;font-size:13px}
+.crop-stage{position:relative;margin:0 auto;overflow:hidden;background:#000;border:2px solid #fff;border-radius:6px;cursor:move;touch-action:none}
+.crop-stage img{position:absolute;left:0;top:0;max-width:none;pointer-events:none;user-select:none}
+.crop-grid{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(to right, rgba(255,255,255,.28) 1px, transparent 1px),linear-gradient(to bottom, rgba(255,255,255,.28) 1px, transparent 1px);background-size:calc(100%/3) calc(100%/3)}
+.crop-zoom-row{display:flex;align-items:center;gap:10px;margin:14px 0 0}
+.crop-zoom-row span{font-size:12px;color:#a5a7af}
+.crop-zoom-row input[type=range]{flex:1;accent-color:#5865f2}
+.crop-dialog footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.crop-dialog footer button{height:36px;padding:0 14px;border-radius:6px;background:#303137;color:#e4e5e8}
+.crop-dialog footer .crop-confirm{background:#5865f2;color:#fff}
+.crop-backdrop{z-index:4100}

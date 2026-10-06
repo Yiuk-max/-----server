@@ -1,6 +1,6 @@
 <script setup>
 import { ref, nextTick, computed, h, reactive, watch, onMounted, onUnmounted, withDirectives, vModelText } from 'vue'
-import { DEFAULT_AVATAR, DEFAULT_GROUP_AVATAR, DEFAULT_COMM_AVATAR, QUICK_EMOJIS, PICKER_EMOJIS, AVATAR_TONES } from './data/ui.js'
+import { DEFAULT_AVATAR, DEFAULT_GROUP_AVATAR, DEFAULT_COMM_AVATAR, DEFAULT_COMM_BACKGROUND, QUICK_EMOJIS, PICKER_EMOJIS, AVATAR_TONES } from './data/ui.js'
 import { EMOJI_CATEGORIES } from './data/emoji.js'
 import { Icon } from './components/icons.js'
 import { FileCover } from './components/file-cover.js'
@@ -22,17 +22,17 @@ const communityChannelCategories = ref({})
 const newCommunityChannel = ref('')
 const dissolveConfirm = ref(false)
 const createCommunityOpen = ref(false)
+const createGroupDialogOpen = ref(false)
+const groupManageOpen = ref(false)
+const groupManageTarget = ref(null)
 const newCommunityName = ref('')
 const selectedDm = ref('')
 const friendFilter = ref('全部')
 const friendSearchQuery = ref('')
 const friendMoreMenu = ref('')
-const createGroupFormOpen = ref(false)
 const dmQuickMenu = ref(false)
 const friendRequestModal = ref(false)
 const demoLoginOpen = ref(true)
-const demoHubOpen = ref(false)
-const demoTab = ref('账号')
 const demoAuthMode = ref('登录')
 const demoSignedIn = ref(false)
 const demoAuth = reactive({ identity: '', password: '', username: '', email: '' })
@@ -54,9 +54,7 @@ const resumeFileInput = ref(null)
 const resumeTransferTarget = ref(null)
 const activeTransfer = computed(() => backend.transferOrder.map((id) => backend.transfers[id]).find((task) => task && !task.silent && (!task.ownerUid || Number(task.ownerUid)===Number(backend.uid)) && !['已完成','已取消','失败'].includes(task.status)) || null)
 const profileMenuOpen = ref(false)
-const profileStatusMenu = ref(false)
 const profileAccountMenu = ref(false)
-const currentStatus = ref('在线')
 const memberProfile = ref(null)
 const dmContacts = reactive([])
 const message = ref('')
@@ -97,8 +95,6 @@ const contextMenu = ref(null)
 const emojiPicker = ref(null)
 const reactionDetails = ref(null)
 const toast = ref('')
-const micMuted = ref(true)
-const headphoneOn = ref(false)
 const unreadBanner = ref(false)
 // —— Baka 音效（内置 Baka.mp3）——
 const bakaOnSend = ref(true)
@@ -144,14 +140,13 @@ const profileBackgroundMenu = ref(false)
 const profileBackground = ref('#454347')
 const profileBackgroundImage = ref('')
 const selectedSetting = ref('账户')
-const selectedAppearance = ref('主题')
 const themeChoice = ref('dark')
-const syncTheme = ref(true)
-const shareTheme = ref(false)
-const serverTheme = ref('使用服务器主题')
 const friendSearch = ref('')
 const inviteUrl = ref('功能暂未开发')
 const joinCode = ref('')
+const joinNote = ref('')
+const joinGroupOpen = ref(false)
+const joinGroupUid = ref('')
 const invitedFriends = ref([])
 const filteredFriends = computed(() => {
   const memberUids = new Set((backend.members[currentCommunity.value?.id] || []).map((member) => Number(member.uid)))
@@ -171,7 +166,6 @@ const communityMemberGroups = computed(() => {
     .map(([role, label]) => ({ label, members: list.filter(member => member.role === role) }))
     .filter(group => group.members.length)
 })
-const demoTabIcon = (item) => ({账号:'◉',联系人:'♧',群聊:'◌',社区:'◆',文件:'▤'}[item] || '•')
 const MessageActions = () => h('div', { class: 'message-actions' }, [
   ...QUICK_EMOJIS.map((emoji) => h('button', { 'data-action': 'react', 'data-emoji': emoji, title: `添加 ${emoji}` }, emoji)),
   h('button', { 'data-action': 'picker', title: '添加反应' }, '☻'),
@@ -252,9 +246,6 @@ const Composer = (props) => {
       style: 'flex:1;min-width:30px;border:0;outline:0;background:transparent;color:var(--text-1);font-size:15px;font-family:inherit;resize:none;height:24px;line-height:24px;padding:0;margin:0'
     }), [[vModelText, message.value]]),
     h('div', { class: 'composer-tools' }, [
-      h('button', { type: 'button', class: 'tool-button', 'aria-label': '礼物', title: '礼物', onClick: () => handleAttachmentAction('gift') }, [h(Icon, { name: 'gift' })]),
-      h('button', { type: 'button', class: 'tool-button tool-gif', 'aria-label': 'GIF', title: 'GIF', onClick: () => handleAttachmentAction('gif') }, 'GIF'),
-      h('button', { type: 'button', class: 'tool-button', 'aria-label': '贴纸', title: '贴纸', onClick: () => handleAttachmentAction('sticker') }, [h(Icon, { name: 'sticker' })]),
       h('button', { type: 'button', class: 'tool-button', 'aria-label': '表情', title: '表情', onClick: (e) => toggleEmojiPanel(e) }, [h(Icon, { name: 'smile' })])
     ])
   ]))
@@ -402,13 +393,11 @@ const toggleCategory = (group) => { const key = categoryKey(group); collapsedCat
 const communityNickname = ref('')
 const communityAvatarInput = ref(null)
 const communityBannerInput = ref(null)
-const hideMutedChannels = ref(false)
 // 统一的重命名弹窗：取消返回 null，否则返回去除首尾空白后的输入（是否允许空值由调用方决定）
 const promptRename = (title, current = '') => {
   const next = window.prompt(title, current)
   return next === null ? null : next.trim()
 }
-const editCommunityNickname = () => { communityContextMenu.value = null; notDeveloped('社区内个人展示名') }
 const setCommunityAsset = (kind) => (kind === 'avatar' ? communityAvatarInput.value : communityBannerInput.value)?.click()
 // 读取图片文件为 objectURL（用完记得 revoke）；三个上传入口（社区头像/背景、账号头像）共用
 const readImageFile = (event) => { const file = event.target.files?.[0]; event.target.value=''; return file || null }
@@ -456,7 +445,7 @@ const createCommunity = () => {
 }
 const openCommunityContext = (event, community) => {
   const width = 220
-  const height = 190
+  const height = 180
   communityMenu.value = false
   communityContextMenu.value = {name:community.name,x:Math.min(event.clientX,window.innerWidth-width-8),y:Math.min(event.clientY,window.innerHeight-height-8)}
 }
@@ -618,7 +607,7 @@ const dmContextAction = (action) => {
     else if (contact) closeDm(contact)
     return
   }
-  if (action === 'members' || action === 'groupSettings') { const group=demoGroups.value.find(item=>item.name===target.name);if(group)api.showGroupMembers(group.uid);activePage.value='dm';friendFilter.value='群聊';createGroupFormOpen.value=false;return }
+  if (action === 'members' || action === 'groupSettings') { const group=demoGroups.value.find(item=>item.name===target.name);if(group){api.showGroupMembers(group.uid);groupManageTarget.value=group;groupManageOpen.value=true};return }
   if (action === 'rename') {
     const group = demoGroups.value.find((item) => item.name === target.name)
     if (group) renameDemoGroup(group)
@@ -640,7 +629,6 @@ const communityMenuAction = (action) => {
   const name = communityContextMenu.value?.name
   communityContextMenu.value = null
   if (!name) return
-  if (action === 'read') { notDeveloped('标记社区已读'); return }
   if (action === 'invite') { openCommunityInvite(name); return }
   if (action === 'settings') { openCommunitySettings(name); return }
   if (action === 'leave') { const community=communities.value.find(item=>item.name===name);if(community&&window.confirm(`确定离开“${name}”？`))api.leaveCommunity(community.id) }
@@ -652,33 +640,22 @@ const openCommunitySettings = (name) => {
   newCommunityChannel.value=''
   communityChannelDeleted.value={}
   channelDeleteTarget.value=null
-  syncGuideDraft()
   communitySettingsOpen.value=true
 }
-const saveCommunitySettings = () => notDeveloped('社区资料保存（服务端未返回现有头像/背景 ID，已阻止覆盖）')
+const saveCommunitySettings = () => {
+  const community = currentCommunity.value
+  if (!community) return
+  const name = communitySettingsName.value.trim()
+  if (!name) { demoNotice('社区名称不能为空'); return }
+  api.modifyCommunity(community.id, name, communitySettingsDescription.value.trim(), Number(community.avatarId || 0), Number(community.bannerId || 0))
+  communitySettingsOpen.value = false
+}
 const scrollToCommunitySection = (id) => document.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'})
 const closeCommunitySettings = () => { communitySettingsOpen.value = false; dissolveConfirm.value = false; channelDeleteTarget.value = null }
-const communityGuides = ref({})
-const guideTitleOf = (name) => communityGuides.value[name]?.title || '服务器指南'
-const guideItemsOf = (name) => communityGuides.value[name]?.items || []
-const guideDraftTitle = ref('')
-const guideDraftItems = ref([])
-const newGuideItem = ref({ title: '', body: '' })
-const syncGuideDraft = () => {
-  const name = selectedCommunity.value
-  guideDraftTitle.value = guideTitleOf(name)
-  guideDraftItems.value = guideItemsOf(name).map((item) => ({ ...item }))
-  newGuideItem.value = { title: '', body: '' }
-}
-const addGuideItem = () => notDeveloped('服务器指南编辑')
-const removeGuideItem = () => notDeveloped('服务器指南编辑')
-const saveCommunityGuide = () => notDeveloped('服务器指南编辑')
-// 顶部横幅标题跟随社区里的指南标题
-const guideHeadingOf = (name) => guideTitleOf(name)
 const openGuideEditor = async () => {
   openCommunitySettings(currentCommunity.value?.name || selectedCommunity.value)
   await nextTick()
-  scrollToCommunitySection('community-guide')
+  scrollToCommunitySection('community-overview')
 }
 const communityChannelDeleted = ref({})
 const channelDeleteTarget = ref(null)
@@ -969,19 +946,26 @@ const handleAttachmentAction = async (action) => {
   attachmentMenu.value = null
   emojiPanelOpen.value = false
   if (action === 'upload') { await nextTick(); fileInput.value?.click(); return }
-  const labels = { thread: '子区', poll: '投票', gift: '礼物', gif: 'GIF', sticker: '贴纸', emoji: '表情', app: 'APP' }
+  const labels = { thread: '子区', poll: '投票', emoji: '表情', app: 'APP' }
   notDeveloped(labels[action] || '该功能')
 }
 const copyInvite = async () => notDeveloped('社区邀请链接')
 const joinServer = () => {
-  const id = Number(String(joinCode.value).match(/\d+/)?.[0] || 0)
-  if (!id) { demoNotice('请输入社区 ID'); return }
-  api.joinCommunity(id)
+  const id = Number(String(joinCode.value).trim())
+  if (!id || id <= 0) { demoNotice('请输入社区 UID'); return }
+  api.joinCommunity(id, joinNote.value.trim())
   joinModal.value = false
   joinCode.value = ''
+  joinNote.value = ''
 }
-const selectSetting = (name) => { selectedSetting.value = name; if (!['账户','Baka','外观'].includes(name)) notDeveloped(name) }
-const selectAppearance = (name) => { selectedAppearance.value = name; if (name !== '主题') notDeveloped(name) }
+const submitJoinGroup = () => {
+  const id = Number(String(joinGroupUid.value).trim())
+  if (!id || id <= 0) { demoNotice('请输入群 UID'); return }
+  api.joinGroup(id)
+  joinGroupOpen.value = false
+  joinGroupUid.value = ''
+}
+const selectSetting = (name) => { selectedSetting.value = name; if (!['账户','Baka','文件','外观'].includes(name)) notDeveloped(name) }
 const handleProfileBackground = (event) => { event.target.value = ''; notDeveloped('个人资料背景') }
 const closeSettings = () => { settingsOpen.value = false; profileEditorOpen.value = false; profileBackgroundMenu.value = false }
 const closeProfileEditor = () => { profileEditorOpen.value = false; settingsOpen.value = false; profileBackgroundMenu.value = false }
@@ -993,6 +977,7 @@ const syncBackendState = () => {
   demoSignedIn.value = !!backend.uid
   demoUid.value = backend.uid ? String(backend.uid) : ''
   if (backend.name !== lastSyncedBackendName) { demoNickname.value = backend.name || '未登录'; demoNicknameDraft.value = backend.name || ''; lastSyncedBackendName = backend.name }
+  if (backend.email) demoEmail.value = backend.email
   demoFriends.value = backend.contacts.filter((item) => !item.isGroup).map((item) => ({ uid: String(item.uid), name: item.name, remark: item.name, email: '', online: false }))
   demoGroups.value = backend.contacts.filter((item) => item.isGroup).map((item) => ({ uid: String(item.uid), name: item.name, members: backend.groupMembers[item.uid] || [] }))
   demoFriendRequests.value = backend.friendRequests.map((item) => ({ ...item, email: '' }))
@@ -1002,7 +987,7 @@ const syncBackendState = () => {
   communities.value = backend.communities.map((item) => ({ ...item, mark: item.name.slice(0, 1), color: '#5865f2', icon: '', members: (backend.members[item.id] || []).length, online: 0 }))
   demoFiles.value = [
     ...backend.transferOrder.map((id) => backend.transfers[id]).filter((task) => task && !task.silent && (!task.ownerUid || Number(task.ownerUid)===Number(backend.uid)) && !(task.direction==='upload'&&task.status==='已完成')).map((task) => ({ ...task, id: task.localId, size: task.totalSize, type: task.direction, format: task.format || 'FILE' })),
-    ...backend.files,
+    ...backend.files.filter((file) => file.type !== 'avatar'),
   ]
   if (!selectedCommunity.value && communities.value.length) selectedCommunity.value = communities.value[0].name
   if (selectedCommunity.value && !communities.value.some((item) => item.name === selectedCommunity.value)) selectedCommunity.value = communities.value[0]?.name || ''
@@ -1015,7 +1000,7 @@ const syncBackendState = () => {
   demoCommunityRequests.value = community ? (backend.communityRequests[community.id] || []).map((item) => ({ ...item, community: community.name })) : []
 }
 watch(() => ({
-  uid: backend.uid, name: backend.name,
+  uid: backend.uid, name: backend.name, email: backend.email,
   contacts: backend.contacts.map((item) => ({...item})),
   communities: backend.communities.map((item) => ({...item})),
   friendRequests: backend.friendRequests.map((item) => ({...item})),
@@ -1073,7 +1058,7 @@ const submitDemoAuth = () => {
   }
   demoAuth.password = ''
 }
-const demoLogout = () => { api.logout(); demoAuthMode.value = '登录'; demoAuth.password = ''; demoTab.value = '账号'; demoLoginOpen.value = true }
+const demoLogout = () => { api.logout(); demoAuthMode.value = '登录'; demoAuth.password = ''; demoLoginOpen.value = true }
 const requestDemoFriend = () => {
   const email = demoForm.email.trim().toLowerCase()
   if (!email || !email.includes('@')) return demoNotice('请输入有效的邮箱地址')
@@ -1097,14 +1082,13 @@ const submitDemoLoginWindow = () => {
 const handleDemoFriendRequest = (request, accept) => { if (api.handleFriend(request.uid, accept)) setTimeout(() => { api.showFriendRequests();api.showContacts() }, 200) }
 const removeDemoFriend = (friend) => api.removeFriend(friend.uid)
 const renameDemoFriend = (friend) => { const next=promptRename('设置好友备注名',friend.remark||friend.name);if(next)api.setFriendRemark(friend.uid,next) }
-const createDemoGroup = () => { const name=demoForm.groupName.trim();if(!name)return demoNotice('请输入群聊名称');api.createGroup(name);demoForm.groupName='' }
+const createDemoGroup = () => { const name=demoForm.groupName.trim();if(!name)return demoNotice('请输入群聊名称');api.createGroup(name);demoForm.groupName='';createGroupDialogOpen.value=false }
 const renameDemoGroup = (group) => {const next=promptRename('修改群名称',group.name);if(next)api.groupRename(group.uid,next)}
 const addDemoGroupMember = (group) => {const uid=demoForm.memberUid.trim();if(!uid)return demoNotice('请输入成员 UID');api.groupAdd(group.uid,uid);demoForm.memberUid='';setTimeout(()=>api.showGroupMembers(group.uid),200)}
 const removeDemoGroupMember = (group, member) => api.groupRemove(group.uid,member.uid)
 const toggleDemoGroupRole = (group, member) => api.groupRole(group.uid,member.uid,true)
 const handleDemoGroupRequest = (request, accept) => {if(api.handleGroupRequest(request.groupUid,request.uid,accept))setTimeout(()=>api.showGroupRequests(request.groupUid),200)}
-const requestDemoJoinGroup = () => {const uid=promptRename('输入要申请加入的群 UID','');if(uid&&Number(uid)>0)api.joinGroup(uid)}
-const openDemoFriendChat = (friend) => {const contact=dmContacts.find(item=>Number(item.uid)===Number(friend.uid));if(contact)openDm(contact);demoHubOpen.value=false}
+const openDemoFriendChat = (friend) => {const contact=dmContacts.find(item=>Number(item.uid)===Number(friend.uid));if(contact)openDm(contact)}
 const openGroupChat = (group) => { const contact=dmContacts.find(item=>Number(item.uid)===Number(group.uid));if(contact)openDm(contact);api.showGroupMembers(group.uid);api.showGroupRequests(group.uid) }
 const deleteDemoGroup = (group) => {if(window.confirm(`解散群聊“${group.name}”？`))api.groupDelete(group.uid)}
 const selectDemoFiles = () => demoFilesInput.value?.click()
@@ -1115,7 +1099,6 @@ const downloadDemoFile = (file) => {const task=backend.transfers[file.localId];i
 const toggleFileTransfer = (file) => {if(!file)return;if(['已暂停','已中断','等待选择原文件'].includes(file.status))setDemoFileStatus(file,'继续');else setDemoFileStatus(file,'已暂停')}
 const toggleActiveTransfer = () => toggleFileTransfer(activeTransfer.value)
 const deleteDemoFile = (file) => {const task=backend.transfers[file.localId];if(task){if(['已完成','已取消','失败'].includes(task.status))api.dismissTransfer(task);else api.cancelTransfer(task)}else api.deleteFile(file.fileId||file.id)}
-const joinDemoCommunity = () => {const id=Number(String(demoForm.joinCode).match(/\d+/)?.[0]||0);if(!id)return demoNotice('请输入社区 ID');api.joinCommunity(id);demoForm.joinCode=''}
 const handleDemoCommunityRequest = (request,accept) => {const community=currentCommunity.value;if(!community)return;if(api.handleCommunityRequest(community.id,request.uid,accept))setTimeout(()=>api.showCommunityRequests(community.id),200)}
 const inviteFriendToCommunity = (friend) => {
   const community = currentCommunity.value
@@ -1129,18 +1112,190 @@ const removeDemoCommunityMember = (member) => {const community=currentCommunity.
 const addDemoCommunityMember = () => {const community=currentCommunity.value;const uid=Number(demoForm.memberUid);if(!community||!uid)return demoNotice('请输入成员 UID');api.communityAdd(community.id,uid);demoForm.memberUid=''}
 const saveDemoProfile = () => {if(!demoNicknameDraft.value.trim())return demoNotice('昵称不能为空');api.changeName(demoNicknameDraft.value.trim());if(demoEmail.value.trim())api.setEmail(demoEmail.value.trim())}
 const setDemoAvatar = () => avatarUploadInput.value?.click()
-const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(file)api.uploadFile(file,{type:'avatar'});event.target.value=''}
+const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(file)openAvatarCrop(file);event.target.value=''}
+
+// —— 聊天消息搜索：只检索前端已加载的消息，命中文字用 Discord 蓝底圆角高亮 ——
+const searchQuery = ref('')
+const searchOpen = ref(false)
+const closeSearch = () => { searchQuery.value = ''; searchOpen.value = false }
+const searchResults = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return []
+  const results = []
+  for (const conv of Object.values(backend.conversations)) {
+    for (const record of conv.messages) {
+      if (record.system || isReactionMessage(record)) continue
+      const text = String(record.text || '')
+      const files = (record.files || []).map((f) => f.name).join(' ')
+      const hay = `${text} ${files}`.toLowerCase()
+      if (hay.includes(q)) results.push({ id: record.id, author: record.author, time: record.time, text: text || files, conversation: conv.name })
+    }
+  }
+  return results.slice(0, 60)
+})
+const highlightMatch = (text, query) => {
+  const q = String(query || '').trim()
+  if (!q || !text) return text
+  const lower = text.toLowerCase()
+  const ql = q.toLowerCase()
+  const nodes = []
+  let i = 0
+  for (;;) {
+    const idx = lower.indexOf(ql, i)
+    if (idx === -1) { nodes.push(text.slice(i)); break }
+    if (idx > i) nodes.push(text.slice(i, idx))
+    nodes.push(h('mark', { class: 'search-highlight' }, text.slice(idx, idx + q.length)))
+    i = idx + q.length
+  }
+  return nodes
+}
+const SearchPanel = () => {
+  const results = searchResults.value
+  return h('div', { class: 'search-panel', onClick: (e) => e.stopPropagation() }, [
+    h('div', { class: 'search-panel-head' }, [
+      h('b', null, `搜索消息 — ${results.length} 条`),
+      h('span', null, '仅搜索当前已加载的消息')
+    ]),
+    results.length
+      ? h('div', { class: 'search-panel-list' }, results.map((result) => h('div', { key: `${result.conversation}-${result.id}`, class: 'search-result-row' }, [
+          h('div', { class: 'search-result-meta' }, [
+            h('b', null, result.conversation),
+            h('span', null, result.author),
+            h('time', null, result.time)
+          ]),
+          h('p', null, highlightMatch(result.text, searchQuery.value))
+        ])))
+      : h('div', { class: 'search-panel-empty' }, '没有找到匹配的消息')
+  ])
+}
+// —— 账号设置：邮箱与修改密码 ——
+const emailEditOpen = ref(false)
+const passwordEditOpen = ref(false)
+const oldPassword = ref('')
+const newPassword = ref('')
+const saveEmail = () => {
+  const email = demoEmail.value.trim()
+  if (!email || !email.includes('@')) return demoNotice('请输入有效的邮箱地址')
+  api.setEmail(email)
+  emailEditOpen.value = false
+}
+const savePassword = () => {
+  if (!oldPassword.value || !newPassword.value) return demoNotice('请填写当前密码和新密码')
+  notDeveloped('修改密码（后端暂未提供接口）')
+}
+const resetAvatar = () => {
+  if (!backend.avatarId) return demoNotice('当前已是默认头像')
+  api.setAvatar(-1)
+  backend.avatarId = 0
+  demoNotice('已恢复默认头像')
+}
+
+// —— 头像上传：正方形裁切（拖动图片移动位置，滚轮/滑块缩放）——
+const avatarCrop = ref(null)
+const CROP_STAGE = 320
+const CROP_MIN_ZOOM = 1
+const CROP_MAX_ZOOM = 4
+const crop = reactive({ zoom: 1, ox: 0, oy: 0, naturalW: 0, naturalH: 0, baseScale: 1 })
+const cropDrag = ref(null)
+const cropDisplayW = computed(() => Math.round(crop.naturalW * crop.baseScale * crop.zoom))
+const cropDisplayH = computed(() => Math.round(crop.naturalH * crop.baseScale * crop.zoom))
+const clampCrop = () => {
+  const dw = crop.naturalW * crop.baseScale * crop.zoom
+  const dh = crop.naturalH * crop.baseScale * crop.zoom
+  crop.ox = Math.min(0, Math.max(crop.ox, CROP_STAGE - dw))
+  crop.oy = Math.min(0, Math.max(crop.oy, CROP_STAGE - dh))
+}
+const centerCrop = () => {
+  crop.ox = (CROP_STAGE - crop.naturalW * crop.baseScale * crop.zoom) / 2
+  crop.oy = (CROP_STAGE - crop.naturalH * crop.baseScale * crop.zoom) / 2
+}
+const openAvatarCrop = (file) => {
+  const url = URL.createObjectURL(file)
+  const img = new Image()
+  img.onload = () => {
+    const baseScale = CROP_STAGE / Math.min(img.naturalWidth, img.naturalHeight)
+    Object.assign(crop, { zoom: 1, ox: 0, oy: 0, naturalW: img.naturalWidth, naturalH: img.naturalHeight, baseScale })
+    avatarCrop.value = { url, file, img }
+    centerCrop()
+  }
+  img.src = url
+}
+const cancelAvatarCrop = () => {
+  if (avatarCrop.value?.url) URL.revokeObjectURL(avatarCrop.value.url)
+  avatarCrop.value = null
+  cropDrag.value = null
+}
+const startCropDrag = (e) => {
+  cropDrag.value = { sx: e.clientX, sy: e.clientY, ox: crop.ox, oy: crop.oy }
+  const move = (ev) => {
+    const d = cropDrag.value
+    if (!d) return
+    crop.ox = d.ox + (ev.clientX - d.sx)
+    crop.oy = d.oy + (ev.clientY - d.sy)
+    clampCrop()
+  }
+  const up = () => { cropDrag.value = null; window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up) }
+  window.addEventListener('mousemove', move)
+  window.addEventListener('mouseup', up)
+}
+const onCropWheel = (e) => {
+  const oldZoom = crop.zoom
+  const next = Math.max(CROP_MIN_ZOOM, Math.min(CROP_MAX_ZOOM, oldZoom + (e.deltaY < 0 ? 0.1 : -0.1)))
+  if (next === oldZoom) return
+  const k = next / oldZoom
+  const cx = CROP_STAGE / 2
+  const cy = CROP_STAGE / 2
+  crop.ox = cx - (cx - crop.ox) * k
+  crop.oy = cy - (cy - crop.oy) * k
+  crop.zoom = next
+  clampCrop()
+}
+const onCropZoomInput = (e) => {
+  crop.zoom = Number(e.target.value)
+  clampCrop()
+}
+const confirmAvatarCrop = () => {
+  const data = avatarCrop.value
+  if (!data) return
+  const inv = 1 / (crop.baseScale * crop.zoom)
+  const size = Math.min(Math.round(CROP_STAGE * inv), crop.naturalW, crop.naturalH)
+  const sx = Math.max(0, Math.min(Math.round(-crop.ox * inv), crop.naturalW - size))
+  const sy = Math.max(0, Math.min(Math.round(-crop.oy * inv), crop.naturalH - size))
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  canvas.getContext('2d').drawImage(data.img, sx, sy, size, size, 0, 0, size, size)
+  canvas.toBlob((blob) => {
+    if (!blob) { cancelAvatarCrop(); demoNotice('图片处理失败'); return }
+    const out = new File([blob], data.file.name, { type: data.file.type || 'image/png' })
+    api.uploadFile(out, { type: 'avatar' })
+    cancelAvatarCrop()
+  }, data.file.type || 'image/png')
+}
 </script>
 
 <template>
   <div class="window-bar"><div class="window-title"><span class="tiny-server">🌸</span> {{ ['dm','dm-chat'].includes(activePage) ? (activePage==='dm'?'好友':selectedDm) : activePage==='discover' ? '发现' : selectedCommunity }}</div></div>
   <input ref="avatarUploadInput" class="demo-hidden-input" type="file" accept="image/*" @change="handleAvatarUpload">
+  <div v-if="avatarCrop" class="dialog-backdrop crop-backdrop" @click.self="cancelAvatarCrop">
+    <section class="crop-dialog">
+      <button class="dialog-close" @click="cancelAvatarCrop">×</button>
+      <h2>裁切头像</h2>
+      <p>拖动图片调整位置，滚轮或下方滑块缩放。</p>
+      <div class="crop-stage" :style="{width: `${CROP_STAGE}px`, height: `${CROP_STAGE}px`}" @mousedown.prevent="startCropDrag" @wheel.prevent="onCropWheel">
+        <img :src="avatarCrop.url" :style="{width: `${cropDisplayW}px`, height: `${cropDisplayH}px`, transform: `translate(${crop.ox}px, ${crop.oy}px)`}" draggable="false">
+        <div class="crop-grid"></div>
+      </div>
+      <div class="crop-zoom-row"><span>缩放</span><input type="range" :min="CROP_MIN_ZOOM" :max="CROP_MAX_ZOOM" :step="0.01" :value="crop.zoom" @input="onCropZoomInput"></div>
+      <footer><button @click="cancelAvatarCrop">取消</button><button class="crop-confirm" @click="confirmAvatarCrop">上传头像</button></footer>
+    </section>
+  </div>
   <div class="discord-app" :style="appGridStyle">
     <nav class="server-rail">
       <button class="rail-home" :class="{'rail-selected':['dm','dm-chat'].includes(activePage)}" aria-label="私聊和群聊" data-tooltip="私聊和群聊" title="私聊和群聊" @click="activePage='dm'" @dblclick="playBaka('logo')"><img src="/logo.png" alt="Discord"></button>
       <div class="rail-divider"></div>
       <button v-for="community in communities" :key="community.name" class="server community-server" :class="{'active-server':activePage==='community'&&selectedCommunity===community.name}" :aria-label="community.name" :data-tooltip="community.name" :title="community.name" @click="selectCommunity(community)" @contextmenu.prevent.stop="openCommunityContext($event,community)"><span class="community-mark"><img :src="community.icon || DEFAULT_COMM_AVATAR" :alt="community.name"></span><i></i></button>
-      <div class="rail-action-wrap"><button class="round-add" :class="{'rail-selected':communityMenu}" aria-label="创建社区" data-tooltip="创建社区" title="创建或加入社区" @click="communityMenu=!communityMenu;communityContextMenu=null"><svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></svg></button><div v-if="communityMenu" class="community-menu"><button @click="communityMenu=false;createCommunityOpen=true">＋　创建社区</button><button @click="communityMenu=false;joinModal=true">↗　加入社区</button><button @click="communityMenu=false;friendRequestModal=true">♧　添加好友</button></div></div>
+      <div class="rail-action-wrap"><button class="round-add" :class="{'rail-selected':communityMenu}" aria-label="创建社区" data-tooltip="创建社区" title="创建或加入社区" @click="communityMenu=!communityMenu;communityContextMenu=null"><svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></svg></button><div v-if="communityMenu" class="community-menu"><button @click="communityMenu=false;createCommunityOpen=true"><Icon name="community"/>创建社区</button><button @click="communityMenu=false;createGroupDialogOpen=true"><Icon name="group"/>创建群聊</button><button @click="communityMenu=false;joinModal=true"><Icon name="enter"/>申请加入社区</button><button @click="communityMenu=false;joinGroupOpen=true"><Icon name="enter"/>申请加入群聊</button><button @click="communityMenu=false;friendRequestModal=true"><Icon name="userPlus"/>添加好友</button></div></div>
       <button class="round-discover" :class="{'rail-selected':activePage==='discover'}" aria-label="发现" data-tooltip="发现" title="发现" @click="notDeveloped('发现社区')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 5-4.8 2 2-4.8 5-2.2Z"/></svg></button>
       <div class="rail-divider rail-test-divider"></div>
       <button class="round-test" :class="{'rail-selected':testMenu}" aria-label="测试" data-tooltip="测试菜单" title="测试菜单" @click.stop="openTestMenu"><svg viewBox="0 0 24 24"><path d="M9 3h6M10 3v6.2L5.2 17A2.4 2.4 0 0 0 7.3 20.6h9.4A2.4 2.4 0 0 0 18.8 17L14 9.2V3"/><path d="M7.2 14h9.6"/></svg></button>
@@ -1161,10 +1316,9 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
       <div class="test-menu-label">测试 · 窗口与流程</div>
       <button @click="testMenu=null;friendRequestModal=true"><span class="test-menu-icon">＋</span>添加好友窗口</button>
       <button @click="testMenu=null;createCommunityOpen=true"><span class="test-menu-icon">＋</span>创建社区窗口</button>
-      <button @click="testMenu=null;joinModal=true"><span class="test-menu-icon">↗</span>加入服务器窗口</button>
-      <button @click="testMenu=null;activePage='dm';friendFilter='群聊';createGroupFormOpen=true"><span class="test-menu-icon">◌</span>创建群聊表单</button>
+      <button @click="testMenu=null;joinModal=true"><span class="test-menu-icon">↗</span>申请加入社区窗口</button>
+      <button @click="testMenu=null;createGroupDialogOpen=true"><span class="test-menu-icon">◌</span>创建群聊表单</button>
       <button @click="testMenu=null;openDemoLoginWindow()"><span class="test-menu-icon">⇥</span>登录窗口</button>
-      <button @click="testMenu=null;demoTab='账号';demoHubOpen=true"><span class="test-menu-icon">◈</span>功能工作台</button>
       <button @click="testMenu=null;settingsOpen=true"><span class="test-menu-icon">⚙</span>用户设置</button>
       <div></div>
       <button @click="testSignedOut()"><span class="test-menu-icon">⇤</span>切换为未登录态</button>
@@ -1173,20 +1327,10 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
     </div>
     <div v-if="communityContextMenu" class="community-context-dismiss" @click="communityContextMenu=null" @contextmenu.prevent="communityContextMenu=null"></div>
     <div v-if="communityContextMenu" class="community-context-menu" :style="{left:`${communityContextMenu.x}px`,top:`${communityContextMenu.y}px`}" @click.stop>
-      <button @click="communityMenuAction('read')"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg>标记为已读</button>
-      <button @click="communityMenuAction('invite')"><Icon name="userPlus"/>邀请至服务器</button>
-      <div></div>
-      <button @click="communityContextMenu=null;notDeveloped('社区静音')"><svg viewBox="0 0 24 24"><path d="M5 9v6h4l5 4V5L9 9H5Z"/><path d="m17 9 4 6m0-6-4 6"/></svg>静音服务器<b class="menu-arrow">›</b></button>
-      <button @click="communityContextMenu=null;notDeveloped('社区通知设定')"><svg viewBox="0 0 24 24"><path d="M18 15v-4a6 6 0 0 0-12 0v4l-2 3h16l-2-3Z"/><path d="M10 21h4"/></svg>通知设定<small>所有消息</small><b class="menu-arrow">›</b></button>
-      <label class="menu-check" @click.stop="notDeveloped('隐藏已静音频道')"><span>隐藏已静音的频道</span><i :class="{on:hideMutedChannels}"></i></label>
-      <div></div>
-      <button @click="communityMenuAction('settings')"><Icon name="gear"/>服务器设置<b class="menu-arrow">›</b></button>
-      <button @click="communityContextMenu=null;notDeveloped('社区隐私设置')"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v6c0 4 3 7 7 8 4-1 7-4 7-8V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>隐私设置</button>
-      <button @click="editCommunityNickname()"><Icon name="edit"/>编辑各服务器个人资料</button>
+      <button @click="communityMenuAction('invite')"><Icon name="userPlus"/>邀请至社区</button>
+      <button @click="communityMenuAction('settings')"><Icon name="gear"/>社区设置</button>
       <div></div>
       <button @click="communityContextMenu=null;communitySettingsOpen=true"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>创建频道</button>
-      <button @click="communityContextMenu=null;notDeveloped('频道类别')"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>创建类别</button>
-      <button @click="communityContextMenu=null;notDeveloped('社区活动')"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>创建活动</button>
       <div></div>
       <button class="leave-community" @click="communityMenuAction('leave')"><Icon name="logout"/>离开社区</button>
     </div>
@@ -1211,10 +1355,11 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
       <button @click="dmContextAction('groupSettings')"><Icon name="gear"/>群聊设置</button>
     </div>
     <aside class="channel-sidebar">
-      <div v-if="['dm','dm-chat'].includes(activePage)" class="dm-sidebar"><label class="dm-search"><input placeholder="寻找或开始新的对话" @focus="notDeveloped('全局会话搜索')"></label><div class="dm-list-heading dm-message-heading"><span>私信</span><button class="dm-add-cta" aria-label="私信操作" :aria-expanded="dmQuickMenu" @click.stop="dmQuickMenu=!dmQuickMenu">＋</button><div v-if="dmQuickMenu" class="dm-quick-menu" @click.stop><button @click="dmQuickMenu=false;activePage='dm';friendFilter='群聊';createGroupFormOpen=true"><Icon name="group"/><span>创建群聊</span></button></div></div><button v-for="contact in dmContacts" :key="contact.name" class="dm-contact" :class="{selected:activePage==='dm-chat'&&selectedDm===contact.name}" @click="openDm(contact)" @contextmenu.prevent.stop="openDmContext($event,contact)"><span class="dm-avatar"><img :src="dmAvatarSrc(contact.name)" :alt="contact.name"><i v-if="isDmUnread(contact)" class="dm-presence" aria-label="有未读消息" title="有未读消息" style="border:0;background:#ed4245;box-shadow:0 0 0 2.5px var(--sidebar-bg)"></i><i v-else class="dm-presence" :class="contact.online?'online':contact.idle?'idle':'offline'" :data-tooltip="contact.online?'在线':contact.idle?'闲置':'离线'"></i></span><b class="dm-name">{{contact.name}}</b><span class="dm-close" role="button" aria-label="关闭私信" title="关闭私信" @click.stop="closeDm(contact)">×</span></button></div>
+      <div v-if="['dm','dm-chat'].includes(activePage)" class="dm-sidebar"><label class="dm-search"><input placeholder="寻找或开始新的对话" @focus="notDeveloped('全局会话搜索')"></label><div class="dm-list-heading dm-message-heading"><span>私信</span><button class="dm-add-cta" aria-label="私信操作" :aria-expanded="dmQuickMenu" @click.stop="dmQuickMenu=!dmQuickMenu">＋</button><div v-if="dmQuickMenu" class="dm-quick-menu" @click.stop><button @click="dmQuickMenu=false;createGroupDialogOpen=true"><Icon name="group"/><span>创建群聊</span></button></div></div><button v-for="contact in dmContacts" :key="contact.name" class="dm-contact" :class="{selected:activePage==='dm-chat'&&selectedDm===contact.name}" @click="openDm(contact)" @contextmenu.prevent.stop="openDmContext($event,contact)"><span class="dm-avatar"><img :src="dmAvatarSrc(contact.name)" :alt="contact.name"><i v-if="isDmUnread(contact)" class="dm-presence" aria-label="有未读消息" title="有未读消息" style="border:0;background:#ed4245;box-shadow:0 0 0 2.5px var(--sidebar-bg)"></i><i v-else class="dm-presence" :class="contact.online?'online':contact.idle?'idle':'offline'" :data-tooltip="contact.online?'在线':contact.idle?'闲置':'离线'"></i></span><b class="dm-name">{{contact.name}}</b><span class="dm-close" role="button" aria-label="关闭私信" title="关闭私信" @click.stop="closeDm(contact)">×</span></button></div>
       <div v-else-if="activePage==='community'" class="community-sidebar-content">
+      <div class="community-sidebar-banner"></div>
       <div class="guild-header"><button class="guild-header-title" title="服务器菜单" @click.stop="openCommunityContext($event, currentCommunity)"><b>{{selectedCommunity}}</b><Icon name="caret" class="guild-caret"/></button><div class="guild-header-actions"><button class="invite" title="邀请至服务器" aria-label="邀请至服务器" @click="openCommunityInvite()"><Icon name="userPlus"/></button></div></div>
-      <div class="side-shortcuts"><button :class="{selected:active==='服务器指南'}" @click="notDeveloped('服务器指南')"><Icon name="doc"/>{{guideHeadingOf(selectedCommunity)}}</button><button @click="demoTab='社区';demoHubOpen=true"><Icon name="list"/>频道和身份组</button></div>
+      <div class="side-shortcuts"><button :class="{selected:active==='服务器指南'}" @click="active='服务器指南'"><Icon name="doc"/>服务器指南</button></div>
       <div class="channel-list" @wheel.prevent="scrollChat">
         <template v-for="group in groups" :key="group.title">
           <div class="category" :class="{collapsed:isCategoryCollapsed(group)}">
@@ -1231,19 +1376,16 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
         </template>
       </div>
       </div>
-      <div class="account-bar"><button class="profile-menu-trigger" aria-label="打开个人资料菜单" title="个人资料" @click.stop="profileMenuOpen=!profileMenuOpen;profileStatusMenu=false;profileAccountMenu=false"><span class="profile-pic"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></span></button><div class="profile-label"><b>{{demoNickname}}</b><small>{{backend.connected?(backend.uid?'在线':'未登录'):'离线'}}</small></div><Icon name="caret" class="account-caret"/><button class="mic" :class="{off:micMuted}" aria-label="静音" title="静音" @click="notDeveloped('语音静音')"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M8.5 21h7"/></svg></button><button aria-label="耳机" title="耳机" @click="notDeveloped('耳机模式')"><svg viewBox="0 0 24 24"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13" width="4" height="7" rx="2"/><rect x="17" y="13" width="4" height="7" rx="2"/></svg></button><button aria-label="設定" title="设置" @click="profileMenuOpen=false;profileEditorOpen=false;settingsOpen = true"><Icon name="gear"/></button></div>
+      <div class="account-bar"><button class="profile-menu-trigger" aria-label="打开个人资料菜单" title="个人资料" @click.stop="profileMenuOpen=!profileMenuOpen;profileAccountMenu=false"><span class="profile-pic"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></span></button><div class="profile-label"><b>{{demoNickname}}</b><small>{{backend.connected?(backend.uid?'在线':'未登录'):'离线'}}</small></div><Icon name="caret" class="account-caret"/><button aria-label="設定" title="设置" @click="profileMenuOpen=false;profileEditorOpen=false;settingsOpen = true"><Icon name="gear"/></button></div>
     </aside>
     <div class="sidebar-resizer" role="separator" tabindex="0" aria-orientation="vertical" aria-label="拖动调整频道栏宽度" title="拖动调整频道栏宽度 · 双击复位" :style="{ left: resizerX }" @mousedown.prevent="startSidebarResize" @dblclick="resetSidebarWidth" @keydown="onSidebarResizerKeydown"></div>
-    <div v-if="profileMenuOpen" class="profile-menu-dismiss" @click="profileMenuOpen=false;profileStatusMenu=false;profileAccountMenu=false"></div>
+    <div v-if="profileMenuOpen" class="profile-menu-dismiss" @click="profileMenuOpen=false;profileAccountMenu=false"></div>
     <section v-if="profileMenuOpen" class="user-profile-popover" @click.stop>
       <div class="user-profile-banner"><div class="user-profile-avatar settings-avatar"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></div><div class="user-profile-status-bubble">UID {{demoUid||'—'}}</div></div>
       <div class="user-profile-details"><h2>{{demoNickname}}</h2><p>UID {{demoUid||'—'}}</p>
-        <button class="profile-popover-action edit-profile-action" @click="profileMenuOpen=false;selectedSetting='账户';settingsOpen=true;profileEditorOpen=true"><Icon name="edit"/><span>编辑个人资料</span><b>新的</b></button>
-        <button class="profile-popover-action" @click="setDemoAvatar"><Icon name="upload"/><span>更换头像</span></button>
-        <button class="profile-popover-action status-action" @click="profileStatusMenu=!profileStatusMenu;profileAccountMenu=false"><i :class="'status-'+currentStatus"></i><span>{{currentStatus}}</span><b>›</b></button>
-        <div v-if="profileStatusMenu" class="profile-popover-submenu"><button v-for="status in ['在线','闲置','请勿打扰','隐身']" :key="status" @click="notDeveloped('在线状态设置');profileStatusMenu=false"><i :class="'status-'+status"></i>{{status}}</button></div>
+        <button class="profile-popover-action edit-profile-action" @click="profileMenuOpen=false;selectedSetting='账户';settingsOpen=true;profileEditorOpen=true"><Icon name="edit"/><span>编辑个人资料</span></button>
       </div>
-      <button class="profile-popover-action switch-account-action" @click="profileAccountMenu=!profileAccountMenu;profileStatusMenu=false"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.3"/><path d="M5 20v-1a7 7 0 0 1 14 0v1"/></svg><span>切换账户</span><b>›</b></button>
+      <button class="profile-popover-action switch-account-action" @click="profileAccountMenu=!profileAccountMenu"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.3"/><path d="M5 20v-1a7 7 0 0 1 14 0v1"/></svg><span>切换账户</span><b>›</b></button>
       <div v-if="profileAccountMenu" class="profile-popover-submenu account-switch-menu"><button @click="profileAccountMenu=false">{{demoNickname}}　当前账户</button><button @click="profileAccountMenu=false;openDemoLoginWindow()">＋　切换账户</button></div>
     </section>
     <main v-if="activePage==='community'" class="chat" :class="{'members-open':memberPanelOpen}" @click="closeComposerPopovers">
@@ -1260,13 +1402,13 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
           </section>
         </div>
       </aside>
-      <header class="chat-top"><div class="channel-heading"><span class="hash-big"><Icon name="hash" class="channel-hash"/></span><b>{{ active==='服务器指南'?guideHeadingOf(selectedCommunity):active }}</b><span v-if="active!=='服务器指南'" class="separator"></span><span v-if="active!=='服务器指南'" class="topic">{{currentCommunity?.description||'本频道用于吹水，吹水和吹水。'}}</span></div><div class="chat-tools"><template v-if="active!=='服务器指南'"><button type="button" title="话题" aria-label="话题" @click="notDeveloped('话题')"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.8L3 21l1.9-5A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4Z"/></svg></button><button type="button" title="通知设置" aria-label="通知设置" @click="notDeveloped('通知设置')"><svg viewBox="0 0 24 24"><path d="M18 8.6a6 6 0 1 0-12 0c0 5.6-2 7.4-2 7.4h16s-2-1.8-2-7.4"/><path d="M13.7 20a2 2 0 0 1-3.4 0"/></svg></button><button type="button" title="置顶消息" aria-label="置顶消息" @click="notDeveloped('置顶消息')"><svg viewBox="0 0 24 24"><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 15v5"/></svg></button></template><label class="chat-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg><input type="search" placeholder="搜索" aria-label="搜索" @focus="notDeveloped('消息搜索')"></label><button v-if="active==='服务器指南'" class="guide-edit-button" title="编辑服务器指南" aria-label="编辑服务器指南" @click="openGuideEditor"><Icon name="edit"/></button><button v-else class="members-toggle" :class="{active:memberPanelOpen}" title="社区成员" aria-label="社区成员" :aria-expanded="memberPanelOpen" @click.stop="memberPanelOpen=!memberPanelOpen"><Icon name="group"/></button></div></header>
+      <header class="chat-top"><div class="channel-heading"><span class="hash-big"><Icon name="hash" class="channel-hash"/></span><b>{{ active==='服务器指南'?'服务器指南':active }}</b><span v-if="active!=='服务器指南'" class="separator"></span><span v-if="active!=='服务器指南'" class="topic">{{currentCommunity?.description||'本频道用于吹水，吹水和吹水。'}}</span></div><div class="chat-tools"><div class="chat-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg><input v-model="searchQuery" type="text" placeholder="搜索" aria-label="搜索" @focus="searchOpen=true"><button v-if="searchQuery" type="button" class="search-clear" aria-label="关闭搜索" title="关闭搜索" @click.stop="closeSearch">×</button><SearchPanel v-if="searchOpen && searchQuery" /></div><button v-if="active==='服务器指南'" class="guide-edit-button" title="编辑服务器描述" aria-label="编辑服务器描述" @click="openGuideEditor"><Icon name="edit"/></button><button v-else class="members-toggle" :class="{active:memberPanelOpen}" title="社区成员" aria-label="社区成员" :aria-expanded="memberPanelOpen" @click.stop="memberPanelOpen=!memberPanelOpen"><Icon name="group"/></button></div></header>
       <div v-if="unreadBanner&&active!=='服务器指南'" class="channel-unread-bar"><span>自从 {{unreadBannerInfo.time}} 以来有 {{unreadBannerInfo.count}} 条以上的新消息</span><button @click="notDeveloped('标记已读')">标记为已读</button></div>
       <section v-if="active==='服务器指南'" class="server-guide-page">
         <div class="guide-content-wrap">
-          <div class="guide-banner" :style="currentCommunity?.background?{backgroundImage:`url(${currentCommunity.background})`}:{}"><div class="guide-banner-art"><i></i><b></b><em>✦</em></div></div>
+          <div class="guide-banner" :style="{backgroundImage:`linear-gradient(180deg, rgba(17,18,22,.35), rgba(17,18,22,.78)), url(${currentCommunity?.background || DEFAULT_COMM_BACKGROUND})`, backgroundSize:'cover', backgroundPosition:'center'}"><div class="guide-banner-art"><i></i><b></b><em>✦</em></div></div>
           <div class="guide-server-intro"><span class="guide-server-avatar"><img :src="currentCommunity?.icon || DEFAULT_COMM_AVATAR" :alt="selectedCommunity"></span><div><h1>{{selectedCommunity}} <span>✿</span></h1><p>{{currentCommunity?.description||'欢迎来到我们的社区，一起交流分享吧。'}}</p></div><button @click="openCommunityInvite()">邀请</button></div>
-          <div class="guide-main-grid"><section class="guide-resources"><h2>资源</h2><template v-if="guideItemsOf(selectedCommunity).length"><article v-for="item in guideItemsOf(selectedCommunity)" :key="item.id" class="guide-resource-card"><b>{{item.title}}</b><p v-if="item.body">{{item.body}}</p></article></template><article v-else class="guide-resource-card guide-resource-empty"><b>还没有指南内容</b><p>在「服务器设置 → 服务器指南」里添加资源卡片。</p></article></section>
+          <div class="guide-main-grid">
             <aside class="guide-community-card"><div class="guide-community-banner"></div><div class="guide-community-body"><span class="guide-community-avatar"><img :src="currentCommunity?.icon || DEFAULT_COMM_AVATAR" :alt="selectedCommunity"></span><h3>{{selectedCommunity}} <span>✿</span></h3><p><i></i>{{currentCommunity?.online||0}} 人在线　•　{{currentCommunity?.members||0}} 位成员</p><small>创建日期：暂未提供</small><div class="guide-highlight"><b>热门活动</b><span>社区活动暂未开发</span></div><div class="guide-tags"><span>社区标签暂未开发</span></div></div></aside>
           </div>
         </div>
@@ -1288,7 +1430,7 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
     </main>
     <main v-else-if="activePage==='dm'" class="friends-main" @click="friendMoreMenu='';dmQuickMenu=false">
       <section class="friends-column">
-      <header class="friends-page-header"><div class="friends-page-title"><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="3.5"/><path d="M5.8 19.6a6.2 6.2 0 0 1 12.4 0"/></svg></span><b>好友</b></div><div class="friends-filter-tabs"><button v-for="tab in ['全部','待定','群聊']" :key="tab" :class="{active:friendFilter===tab}" @click="friendFilter=tab;friendMoreMenu=''">{{tab}}<span v-if="tab==='待定'&&demoFriendRequests.length+demoGroupRequests.length+demoCommunityRequests.length" class="friends-tab-dot" aria-hidden="true"></span></button><button class="friends-add-button header-add-friend" @click="friendRequestModal=true">添加好友</button></div></header>
+      <header class="friends-page-header"><div class="friends-page-title"><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="3.5"/><path d="M5.8 19.6a6.2 6.2 0 0 1 12.4 0"/></svg></span><b>好友</b></div><div class="friends-filter-tabs"><button v-for="tab in ['全部','待定']" :key="tab" :class="{active:friendFilter===tab}" @click="friendFilter=tab;friendMoreMenu=''">{{tab}}<span v-if="tab==='待定'&&demoFriendRequests.length+demoGroupRequests.length+demoCommunityRequests.length" class="friends-tab-dot" aria-hidden="true"></span></button></div></header>
       <section class="friends-page-scroll">
         <template v-if="friendFilter==='待定'">
           <div class="friends-list-heading"><div><h2>待处理</h2><p>好友申请、群聊邀请与社区申请都集中在这里。</p></div><span>{{demoFriendRequests.length+demoGroupRequests.length+demoCommunityRequests.length}} 项</span></div>
@@ -1296,25 +1438,19 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
           <section class="friends-request-section"><h3>群聊邀请 <small>{{demoGroupRequests.length}}</small></h3><article v-for="request in demoGroupRequests" :key="`group-${request.uid}-${request.group}`" class="friends-request-row"><span class="friends-avatar group"><img :src="DEFAULT_GROUP_AVATAR" alt="群聊"></span><div class="friends-row-copy"><b>{{request.group}} <small>群 UID {{request.groupUid}}</small></b><p>{{request.outgoing?'你已申请加入，等待群主回应':`${request.name} 申请加入群聊`}}</p></div><span v-if="request.outgoing" class="friends-pending-label">等待回应</span><template v-else><button class="friends-soft-button" @click="handleDemoGroupRequest(request,false)">拒绝</button><button class="friends-primary-button" @click="handleDemoGroupRequest(request,true)">接受</button></template></article><div v-if="!demoGroupRequests.length" class="friends-empty">没有待处理的群聊邀请</div></section>
           <section class="friends-request-section"><h3>社区申请 <small>{{demoCommunityRequests.length}}</small></h3><article v-for="request in demoCommunityRequests" :key="`community-${request.uid}-${request.community}`" class="friends-request-row"><span class="friends-avatar community"><img :src="DEFAULT_COMM_AVATAR" alt="社区"></span><div class="friends-row-copy"><b>{{request.community}} <small>社区</small></b><p>{{request.outgoing?'你已申请加入，等待社区管理员回应':`${request.name} 申请加入社区`}}<template v-if="request.note"> · {{request.note}}</template></p></div><span v-if="request.outgoing" class="friends-pending-label">等待回应</span><template v-else><button class="friends-soft-button" @click="handleDemoCommunityRequest(request,false)">拒绝</button><button class="friends-primary-button" @click="handleDemoCommunityRequest(request,true)">接受</button></template></article><div v-if="!demoCommunityRequests.length" class="friends-empty">没有待处理的社区申请</div></section>
         </template>
-        <template v-else-if="friendFilter==='群聊'">
-          <div class="friends-list-heading"><div><h2>群聊通讯录</h2><p>创建群聊、打开对话并管理群成员。</p></div><button class="friends-add-button" @click="createGroupFormOpen=!createGroupFormOpen">＋ 创建群聊</button></div>
-          <div v-if="createGroupFormOpen" class="friends-add-panel compact"><label>群聊名称<div><input v-model="demoForm.groupName" placeholder="例如：周末旅行计划" @keydown.enter.prevent="createDemoGroup"><button class="friends-add-button" @click="createDemoGroup();createGroupFormOpen=false">创建群聊</button></div></label></div>
-          <article v-for="group in demoGroups" :key="group.uid" class="friend-group-card"><header><span class="friends-avatar group"><img :src="DEFAULT_GROUP_AVATAR" alt="群聊"></span><div class="friends-row-copy"><b>{{group.name}}</b><p>群 UID {{group.uid}} · {{group.members.length}} 位成员</p></div><button class="friends-soft-button" @click="openGroupChat(group)">打开聊天</button><button class="friends-soft-button" @click="renameDemoGroup(group)">改名</button><button class="friends-icon-button danger" title="解散群聊" @click="deleteDemoGroup(group)">×</button></header><div class="friend-group-members"><div v-for="member in group.members" :key="member.uid" class="friend-group-member"><span class="friends-avatar tiny"><img :src="avatarByUid(member.uid)" :alt="member.name"></span><span class="friend-member-name"><b>{{member.name}}</b><small>UID {{member.uid}}</small></span><span class="friend-role-tag">{{member.role}}</span><button v-if="Number(member.uid)!==Number(backend.uid)" class="friends-soft-button compact-button" @click="toggleDemoGroupRole(group,member)">设为群主</button><button v-if="Number(member.uid)!==Number(backend.uid)" class="friends-icon-button danger" title="移除成员" @click="removeDemoGroupMember(group,member)">−</button></div></div><footer><input v-model="demoForm.memberUid" placeholder="输入好友 UID 邀请加入"><button class="friends-soft-button" @click="addDemoGroupMember(group)">邀请好友</button></footer></article>
-          <div v-if="!demoGroups.length" class="friends-empty">还没有群聊，创建一个开始聊天吧。</div>
-        </template>
         <template v-else>
           <label class="friends-directory-search"><svg class="search-glyph" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.4"/><path d="m15.4 15.4 4.6 4.6"/></svg><input v-model="friendSearchQuery" placeholder="搜索好友"></label>
-          <div class="friends-list-heading"><div><h2>{{friendFilter==='在线'?'在线':'全部'}} — {{filteredFriendDirectory.length}}</h2></div><button v-if="friendFilter==='全部'" class="friends-create-group-link" @click="friendFilter='群聊';createGroupFormOpen=true">＋ 新建群聊</button></div>
-          <article v-for="friend in filteredFriendDirectory" :key="friend.uid" class="friend-directory-row" @contextmenu.prevent="friendMoreMenu=friend.uid"><span class="friends-avatar friend-face"><img :src="avatarByUid(friend.uid)" :alt="friend.name"><i :class="{offline:!friend.online,idle:friend.idle}"></i></span><div class="friends-row-copy"><div class="friends-name-line"><b>{{friend.remark||friend.name}}</b></div><p>{{friend.idle?'闲置':friend.online?'在线':'离线'}}</p></div><button class="friends-round-action" title="发送消息" aria-label="发送消息" @click="openDemoFriendChat(friend)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.6c0 3.6-3.6 6.5-8 6.5a9.8 9.8 0 0 1-2.6-.3L5 20l1.2-3.4A6.2 6.2 0 0 1 4 11.6C4 8 7.6 5.1 12 5.1s8 2.9 8 6.5Z"/></svg></button><div class="friend-more-wrap"><button class="friends-round-action" title="更多" aria-label="更多" @click.stop="friendMoreMenu=friendMoreMenu===friend.uid?'':friend.uid"><svg class="dots" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button><div v-if="friendMoreMenu===friend.uid" class="friend-more-menu"><button @click="openDemoFriendChat(friend);friendMoreMenu=''">发送消息</button><button @click="renameDemoFriend(friend);friendMoreMenu=''">设置备注</button><button class="danger" @click="removeDemoFriend(friend);friendMoreMenu=''">删除好友</button></div></div></article>
+          <div class="friends-list-heading"><div><h2>{{friendFilter==='在线'?'在线':'全部'}} — {{filteredFriendDirectory.length}}</h2></div><button v-if="friendFilter==='全部'" class="friends-create-group-link" @click="createGroupDialogOpen=true">＋ 新建群聊</button></div>
+          <article v-for="friend in filteredFriendDirectory" :key="friend.uid" class="friend-directory-row" @contextmenu.prevent="friendMoreMenu=friend.uid" @click="openDemoFriendChat(friend)"><span class="friends-avatar friend-face"><img :src="avatarByUid(friend.uid)" :alt="friend.name"><i :class="{offline:!friend.online,idle:friend.idle}"></i></span><div class="friends-row-copy"><div class="friends-name-line"><b>{{friend.remark||friend.name}}</b></div><p>{{friend.idle?'闲置':friend.online?'在线':'离线'}}</p></div><button class="friends-round-action" title="发送消息" aria-label="发送消息" @click="openDemoFriendChat(friend)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.6c0 3.6-3.6 6.5-8 6.5a9.8 9.8 0 0 1-2.6-.3L5 20l1.2-3.4A6.2 6.2 0 0 1 4 11.6C4 8 7.6 5.1 12 5.1s8 2.9 8 6.5Z"/></svg></button><div class="friend-more-wrap"><button class="friends-round-action" title="更多" aria-label="更多" @click.stop="friendMoreMenu=friendMoreMenu===friend.uid?'':friend.uid"><svg class="dots" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button><div v-if="friendMoreMenu===friend.uid" class="friend-more-menu" @click.stop><button @click="openDemoFriendChat(friend);friendMoreMenu=''">发送消息</button><button @click="renameDemoFriend(friend);friendMoreMenu=''">设置备注</button><button class="danger" @click="removeDemoFriend(friend);friendMoreMenu=''">删除好友</button></div></div></article>
           <div v-if="!filteredFriendDirectory.length" class="friends-empty">没有找到好友</div>
-          <section v-if="friendFilter==='全部'" class="friends-group-preview"><div class="friends-list-heading"><div><h2>群聊</h2><p>你的群聊通讯录</p></div><button class="friends-create-group-link" @click="friendFilter='群聊'">管理群聊　›</button></div><button v-for="group in demoGroups" :key="group.uid" class="friends-group-row" @click="openGroupChat(group)"><span class="friends-avatar group"><img :src="DEFAULT_GROUP_AVATAR" alt="群聊"></span><span><b>{{group.name}}</b><small>{{group.members.length}} 位成员</small></span><span>›</span></button></section>
+          <section v-if="friendFilter==='全部'" class="friends-group-preview"><div class="friends-list-heading"><div><h2>群聊</h2><p>你的群聊通讯录</p></div></div><button v-for="group in demoGroups" :key="group.uid" class="friends-group-row" @click="openGroupChat(group)"><span class="friends-avatar group"><img :src="DEFAULT_GROUP_AVATAR" alt="群聊"></span><span><b>{{group.name}}</b><small>{{group.members.length}} 位成员</small></span><span>›</span></button></section>
           <section v-if="friendFilter==='全部'" class="friends-group-preview friends-community-preview"><div class="friends-list-heading"><div><h2>社区</h2><p>你加入的社区</p></div><button class="friends-create-group-link" @click="notDeveloped('发现社区')">发现社区　›</button></div><button v-for="community in communities" :key="community.name" class="friends-group-row" @click="selectCommunity(community);active='服务器指南'"><span class="friends-avatar community"><img :src="community.icon || DEFAULT_COMM_AVATAR" :alt="community.name"></span><span><b>{{community.name}}</b><small>{{community.description||'社区成员'}}</small></span><span>›</span></button><div v-if="!communities.length" class="friends-empty">还没有加入社区。</div></section>
         </template>
       </section><div v-if="toast" class="toast friends-toast">{{toast}}</div>
       </section>
     </main>
     <main v-else-if="activePage==='dm-chat'" class="dm-main" @click="closeComposerPopovers">
-      <header class="dm-top"><div><span class="dm-avatar"><img :src="dmAvatarSrc(selectedDm)" :alt="selectedDm"></span><b>{{selectedDm}}</b><small>{{dmContacts.find(c=>c.name===selectedDm)?.kind}}</small></div><nav><button title="语音通话" @click="notDeveloped('语音通话')">⌕</button><button title="置顶" @click="notDeveloped('置顶消息')">♧</button><button title="搜索" @click="notDeveloped('消息搜索')">⌕</button></nav></header>
+      <header class="dm-top"><div><span class="dm-avatar"><img :src="dmAvatarSrc(selectedDm)" :alt="selectedDm"></span><b>{{selectedDm}}</b><small>{{dmContacts.find(c=>c.name===selectedDm)?.kind}}</small></div><div class="chat-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg><input v-model="searchQuery" type="text" placeholder="搜索" aria-label="搜索" @focus="searchOpen=true"><button v-if="searchQuery" type="button" class="search-clear" aria-label="关闭搜索" title="关闭搜索" @click.stop="closeSearch">×</button><SearchPanel v-if="searchOpen && searchQuery" /></div></header>
       <section class="dm-thread" @wheel.prevent="scrollChat" @click="handleMessageAction" @contextmenu.prevent="openContextMenu"><div class="dm-thread-intro"><span class="dm-avatar large"><img :src="dmAvatarSrc(selectedDm)" :alt="selectedDm"></span><h2>{{selectedDm}}</h2><p>这是你和 {{selectedDm}} 的私信开头。</p></div><div class="dm-thread-messages"><MessageRow v-for="entry in dmThread" :key="entry.id" :record="entry" :reactions="messageReactions[entry.id]" :images="entry.images" /></div></section>
       <Composer :conversation-key="`dm:${selectedDm}`" :placeholder="`给 ${selectedDm} 发消息`" />
       <div v-if="toast" class="toast">{{toast}}</div>
@@ -1374,48 +1510,6 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
       <button class="demo-login-submit" @click="backend.connected?submitDemoLoginWindow():api.connect()">{{backend.connecting?'连接中…':backend.connected?demoAuthMode:'重新连接'}}</button><small>数据通过 WebSocket + protobuf 与服务器同步。</small>
     </section>
   </div>
-  <div v-if="demoHubOpen" class="demo-hub-backdrop" @click.self="demoHubOpen=false">
-    <section class="demo-hub" role="dialog" aria-modal="true" aria-label="客户端功能工作台">
-      <aside class="demo-hub-nav"><div class="demo-brand"><span>◈</span><div><b>客户端功能</b><small>服务器管理工作台</small></div><button aria-label="关闭" @click="demoHubOpen=false">×</button></div><div class="demo-nav-label">功能目录</div><button v-for="item in ['账号','联系人','群聊','社区','文件']" :key="item" :class="{active:demoTab===item}" @click="demoTab=item"><span>{{demoTabIcon(item)}}</span>{{item}}</button><button class="demo-nav-login" @click="openDemoLoginWindow"><span>⇥</span>登录窗口</button><div class="demo-nav-foot"><span class="demo-live-dot"></span>{{backend.connected?'已连接服务器':'服务器离线'}}</div></aside>
-      <main class="demo-hub-main"><header><div><div class="demo-eyebrow">BAKA COMMUNITY</div><h1>{{demoTab}}管理</h1><p>数据与当前服务器实时同步。</p></div><div class="demo-user-pill"><span>{{demoNickname.slice(0,1)}}</span><div><b>{{demoNickname}}</b><small>UID {{demoUid}}</small></div></div></header>
-        <div class="demo-hub-scroll">
-          <section v-if="demoTab==='账号'" class="demo-section">
-            <div v-if="demoSignedIn" class="demo-account-card"><div class="demo-account-avatar"><img v-if="myAvatarSrc" :src="myAvatarSrc" alt="账号头像"><span v-else>{{demoNickname.slice(0,1)}}</span><i></i></div><div class="demo-account-copy"><span class="demo-status-tag"><i></i> 已登录</span><h2>{{demoNickname}}</h2><p>UID {{demoUid}} <span>·</span> {{demoEmail}}</p><small>当前账号数据来自聊天服务器。</small></div></div>
-            <div v-if="demoSignedIn" class="demo-form-card demo-profile-form"><div class="demo-form-title"><b>个人资料</b><small>昵称、邮箱和头像更新会提交到服务器</small></div><div class="demo-profile-fields"><input v-model="demoNicknameDraft" maxlength="32" placeholder="昵称"><input v-model="demoEmail" placeholder="邮箱"><button class="demo-soft-button" @click="setDemoAvatar">更换头像</button><button class="demo-primary-button" @click="saveDemoProfile">保存资料</button></div></div>
-            <div v-if="demoSignedIn" class="demo-info-grid"><article><span>账户标识</span><b>{{demoUid}}</b><small>私聊和群聊使用 UID</small></article><article><span>联系人</span><b>{{demoFriends.length}}</b><small>服务器好友列表</small></article><article><span>文件</span><b>{{demoFiles.length}}</b><small>服务器文件与传输任务</small></article></div>
-            <div v-if="demoSignedIn" class="demo-account-actions"><div><b>账号会话</b><small>可打开独立登录窗口，体验 UID / 邮箱登录和注册流程。</small></div><div class="demo-account-action-buttons"><button class="demo-soft-button" @click="openDemoLoginWindow">登录窗口</button><button class="demo-danger-button" @click="demoLogout">退出当前账号</button></div></div>
-            <div v-else class="demo-auth-card"><div class="demo-auth-tabs"><button :class="{active:demoAuthMode==='登录'}" @click="demoAuthMode='登录'">登录</button><button :class="{active:demoAuthMode==='注册'}" @click="demoAuthMode='注册'">注册</button></div><h2>{{demoAuthMode}}账号</h2><p>{{demoAuthMode==='登录'?'请输入 UID 或邮箱及密码。':'填写昵称、邮箱和密码创建服务器账号。'}}</p><label v-if="demoAuthMode==='注册'">昵称<input v-model="demoAuth.username" placeholder="例如：小明"></label><label v-if="demoAuthMode==='注册'">邮箱<input v-model="demoAuth.email" placeholder="name@example.com"></label><label v-else>UID 或邮箱<input v-model="demoAuth.identity" placeholder="100001 / name@example.com"></label><label>密码<input v-model="demoAuth.password" type="password" placeholder="输入密码" @keydown.enter.prevent="submitDemoAuth"></label><button class="demo-primary-button wide" @click="submitDemoAuth">{{demoAuthMode}}</button><small class="demo-disclaimer">账号数据将提交到当前服务器。</small></div>
-          </section>
-          <section v-else-if="demoTab==='联系人'" class="demo-section">
-            <div class="demo-panel-heading"><div><h2>好友与申请</h2><p>按 UID 展示联系人，通过邮箱发送好友申请。</p></div><span class="demo-count">{{demoFriends.length}} 位好友</span></div>
-            <div class="demo-form-card"><div class="demo-form-title"><b>添加好友</b><small>通过邮箱发送好友申请</small></div><div class="demo-inline-fields"><input v-model="demoForm.email" placeholder="好友邮箱"><input v-model="demoForm.note" placeholder="申请留言（可选）"><button class="demo-primary-button" @click="requestDemoFriend">发送申请</button></div></div>
-            <div class="demo-panel-heading compact"><div><h3>待处理申请</h3><p>接受后会加入好友列表。</p></div><span class="demo-count">{{demoFriendRequests.length}}</span></div>
-            <div v-if="demoFriendRequests.length" class="demo-request-list"><article v-for="request in demoFriendRequests" :key="request.uid" class="demo-list-row"><span class="demo-person-avatar">{{request.name[0]}}</span><div class="demo-row-copy"><b>{{request.name}} <small>UID {{request.uid}}</small></b><p>{{request.outgoing?'等待对方回应':request.note}}</p></div><div v-if="request.outgoing" class="demo-pending-tag">等待回应</div><template v-else><button class="demo-soft-button" @click="handleDemoFriendRequest(request,false)">拒绝</button><button class="demo-primary-button" @click="handleDemoFriendRequest(request,true)">接受</button></template></article></div><div v-else class="demo-empty-state">目前没有待处理的好友申请。</div>
-            <div class="demo-panel-heading compact"><div><h3>我的好友</h3><p>备注名保存到服务器。</p></div><label class="demo-search"><svg class="search-glyph" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.4"/><path d="m15.4 15.4 4.6 4.6"/></svg><input v-model="demoSearch" placeholder="搜索好友或 UID"></label></div>
-            <div class="demo-contact-list"><article v-for="friend in filteredDemoFriends" :key="friend.uid" class="demo-list-row"><span class="demo-person-avatar friend">{{friend.avatar}}</span><div class="demo-row-copy"><b>{{friend.remark||friend.name}}</b><p>{{friend.email}} <span>·</span> UID {{friend.uid}}</p></div><button class="demo-soft-button" @click="openDemoFriendChat(friend)">发消息</button><button class="demo-icon-action" title="设置备注" @click="renameDemoFriend(friend)">✎</button><button class="demo-icon-action danger" title="删除好友" @click="removeDemoFriend(friend)">×</button></article><div v-if="!filteredDemoFriends.length" class="demo-empty-state">没有匹配的好友。</div></div>
-          </section>
-          <section v-else-if="demoTab==='群聊'" class="demo-section">
-            <div class="demo-panel-heading"><div><h2>群聊管理</h2><p>创建群聊、邀请好友、管理群成员与入群申请。</p></div><span class="demo-count">{{demoGroups.length}} 个群聊</span></div>
-            <div class="demo-form-card"><div class="demo-form-title"><b>创建群聊</b><small>群聊创建后可直接在左侧私信列表打开</small></div><div class="demo-inline-fields"><input v-model="demoForm.groupName" placeholder="输入群聊名称" @keydown.enter.prevent="createDemoGroup"><button class="demo-primary-button" @click="createDemoGroup">创建群聊</button></div></div>
-            <div v-if="demoGroupRequests.length" class="demo-request-list"><article v-for="request in demoGroupRequests" :key="request.uid" class="demo-list-row"><span class="demo-person-avatar">{{request.name[0]}}</span><div class="demo-row-copy"><b>{{request.name}} <small>UID {{request.uid}}</small></b><p>{{request.outgoing?'等待「'+request.group+'」群主回应':'申请加入「'+request.group+'」'}}</p></div><button v-if="request.outgoing" class="demo-soft-button" @click="handleDemoGroupRequest(request,false)">撤回</button><template v-else><button class="demo-soft-button" @click="handleDemoGroupRequest(request,false)">拒绝</button><button class="demo-primary-button" @click="handleDemoGroupRequest(request,true)">接受</button></template></article></div><div v-else class="demo-empty-state">没有待处理的入群申请。</div>
-            <article v-for="group in demoGroups" :key="group.uid" class="demo-group-card"><header><div class="demo-group-avatar">👥</div><div class="demo-row-copy"><h3>{{group.name}}</h3><p>群 UID {{group.uid}} · {{group.members.length}} 位成员</p></div><button class="demo-soft-button" @click="openGroupChat(group);demoHubOpen=false">打开聊天</button><button class="demo-soft-button" @click="requestDemoJoinGroup(group)">申请加入</button><button class="demo-soft-button" @click="renameDemoGroup(group)">改名</button><button class="demo-icon-action danger" title="解散群聊" @click="deleteDemoGroup(group)">×</button></header><div class="demo-member-list"><div v-for="member in group.members" :key="member.uid" class="demo-member-row"><span class="demo-person-avatar tiny">{{member.name[0]}}</span><span><b>{{member.name}}</b><small>UID {{member.uid}}</small></span><span class="demo-role">{{member.role}}</span><button v-if="Number(member.uid)!==Number(backend.uid)" class="demo-soft-button" @click="toggleDemoGroupRole(group,member)">设为群主</button><button v-if="Number(member.uid)!==Number(backend.uid)" class="demo-icon-action danger" title="移除成员" @click="removeDemoGroupMember(group,member)">−</button></div></div><div class="demo-add-member"><input v-model="demoForm.memberUid" placeholder="输入好友 UID"><button class="demo-soft-button" @click="addDemoGroupMember(group)">邀请好友</button><button class="demo-soft-button" @click="demoHubOpen=false;activePage='dm';friendFilter='全部'">查找好友 UID</button></div></article>
-          </section>
-          <section v-else-if="demoTab==='社区'" class="demo-section">
-            <div class="demo-panel-heading"><div><h2>社区与成员</h2><p>管理加入申请、角色和社区成员。</p></div><button class="demo-primary-button" @click="demoHubOpen=false;createCommunityOpen=true">＋ 创建社区</button></div>
-            <div class="demo-form-card"><div class="demo-form-title"><b>加入社区</b><small>输入社区 ID 提交加入申请</small></div><div class="demo-inline-fields"><input v-model="demoForm.joinCode" placeholder="邀请链接 / 社区 ID"><button class="demo-primary-button" @click="joinDemoCommunity">提交申请</button></div></div>
-            <div class="demo-panel-heading compact"><div><h3>加入申请</h3><p>处理发往你所管理社区的申请。</p></div><span class="demo-count">{{demoCommunityRequests.length}}</span></div><div v-if="demoCommunityRequests.length" class="demo-request-list"><article v-for="request in demoCommunityRequests" :key="`${request.uid}-${request.community}`" class="demo-list-row"><span class="demo-person-avatar">{{request.name[0]}}</span><div class="demo-row-copy"><b>{{request.name}} <small>UID {{request.uid}}</small></b><p>{{request.outgoing?'等待社区管理员回应':`申请加入「${request.community}」`}} · {{request.note}}</p></div><button v-if="request.outgoing" class="demo-soft-button" @click="notDeveloped('撤回社区申请')">撤回</button><template v-else><button class="demo-soft-button" @click="handleDemoCommunityRequest(request,false)">拒绝</button><button class="demo-primary-button" @click="handleDemoCommunityRequest(request,true)">接受</button></template></article></div><div v-else class="demo-empty-state">没有待处理的社区申请。</div>
-            <div class="demo-panel-heading compact"><div><h3>社区成员 · {{selectedCommunity}}</h3><p>查看成员并切换管理员身份。</p></div><span class="demo-count">{{demoCommunityMemberList.length}} 位成员</span></div><div class="demo-form-card"><div class="demo-inline-fields"><input v-model="demoForm.memberUid" placeholder="输入好友 UID 邀请加入社区"><button class="demo-primary-button" @click="addDemoCommunityMember">邀请好友</button><button class="demo-soft-button" @click="demoHubOpen=false;activePage='dm';friendFilter='全部'">查看好友</button></div></div><div class="demo-contact-list"><article v-for="member in demoCommunityMemberList" :key="member.uid" class="demo-list-row"><span class="demo-person-avatar">{{member.name[0]}}</span><div class="demo-row-copy"><b>{{member.name}}</b><p>UID {{member.uid}}</p></div><span class="demo-role" :class="member.role">{{member.role==='owner'?'所有者':member.role==='admin'?'管理员':'成员'}}</span><button v-if="member.role!=='owner'" class="demo-soft-button" @click="toggleDemoMemberRole(member)">{{member.role==='admin'?'降为成员':'设为管理员'}}</button><button v-if="member.role!=='owner'" class="demo-icon-action danger" title="移除成员" @click="removeDemoCommunityMember(member)">−</button></article></div><div class="demo-community-switcher"><b>切换社区</b><button v-for="community in communities" :key="community.name" :class="{selected:selectedCommunity===community.name}" @click="selectedCommunity=community.name;activePage='community'"><span class="community-mark"><img :src="community.icon || DEFAULT_COMM_AVATAR" :alt="community.name"></span>{{community.name}}</button></div>
-          </section>
-          <section v-else class="demo-section">
-            <div class="demo-panel-heading"><div><h2>我的文件</h2><p>文件保存在服务器，上传与下载均使用分片传输。</p></div><button class="demo-primary-button" @click="selectDemoFiles">＋ 上传文件</button></div><input ref="demoFilesInput" class="demo-hidden-input" type="file" multiple @change="addDemoFiles"><input ref="resumeFileInput" class="demo-hidden-input" type="file" @change="bindResumeUpload">
-            <div class="demo-transfer-card"><div class="demo-transfer-icon">⇅</div><div><b>{{activeTransfer?.name||'文件传输状态'}}</b><small>{{activeTransfer?`${activeTransfer.status} · ${activeTransfer.progress||0}%`:'当前没有进行中的传输'}}</small></div><span class="demo-transfer-state"><i :class="{paused:!activeTransfer||activeTransfer.status==='已暂停'}"></i>{{activeTransfer?.status||'空闲'}}</span><button v-if="activeTransfer?.transferId" class="demo-soft-button" @click="toggleActiveTransfer">{{['已暂停','已中断','等待选择原文件'].includes(activeTransfer.status)?'继续':'暂停'}}</button><button v-if="activeTransfer?.transferId" class="demo-icon-action danger" title="取消传输" @click="api.cancelTransfer(activeTransfer)">×</button></div>
-            <div class="demo-file-list"><article v-for="file in demoFiles" :key="file.id" class="demo-file-row"><div class="demo-file-thumb"><img v-if="file.url&&file.type==='image'" :src="file.url" :alt="file.name"><span v-else class="demo-file-ext" :class="file.format.toLowerCase()">{{file.format}}</span></div><div class="demo-row-copy"><b>{{file.name}}</b><p>{{file.format}} · {{formatFileSize(file.size)}} <span>·</span> {{file.status}}</p><div class="demo-file-progress"><i :class="{paused:file.status==='已暂停'}" :style="{width:`${file.progress??(file.status==='已完成'?100:0)}%`}"></i></div></div><div class="demo-file-actions"><button v-if="file.status==='已完成'" class="demo-soft-button" @click="downloadDemoFile(file)">下载</button><button v-if="file.localId&&file.transferId&&!['已完成','已取消','失败','正在取消'].includes(file.status)" class="demo-soft-button" @click="toggleFileTransfer(file)">{{['已暂停','已中断','等待选择原文件'].includes(file.status)?(file.status==='等待选择原文件'?'选择原文件续传':'继续'):'暂停'}}</button><button class="demo-icon-action danger" title="删除文件" @click="deleteDemoFile(file)">×</button></div></article><div v-if="!demoFiles.length" class="demo-empty-state">还没有文件，上传一个文件开始使用。</div></div>
-            <div class="demo-doc-note"><b>传输操作</b><span>上传初始化 · 文件分片 · 完成校验 · 断点续传 · 下载 · 暂停 / 继续 / 取消 · 文件列表 / 删除</span><small>文件通过 WebSocket 分片传输，并由服务器持久化。</small></div>
-          </section>
-        </div>
-      </main>
-    </section>
-  </div>
   <div v-if="memberProfile" class="member-profile-backdrop" @click.self="memberProfile=null">
     <section class="member-profile-card" role="dialog" aria-modal="true" aria-label="成员个人资料">
       <button class="member-profile-close" aria-label="关闭" @click="memberProfile=null">×</button>
@@ -1426,7 +1520,7 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
   <div v-if="communitySettingsOpen" class="community-settings-backdrop" @click.self="closeCommunitySettings()">
     <section class="community-settings-window" role="dialog" aria-modal="true" aria-label="社区设置">
       <aside class="community-settings-sidebar"><header><span class="community-settings-icon"><img :src="currentCommunity?.icon || DEFAULT_COMM_AVATAR" :alt="communitySettingsName"></span><div><b>{{communitySettingsName}}</b><small>社区设置</small></div><button aria-label="关闭社区设置" @click="closeCommunitySettings()">×</button></header>
-        <nav><button class="selected" @click="scrollToCommunitySection('community-overview')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></svg>社区概览</button><button @click="scrollToCommunitySection('community-guide')"><Icon name="doc"/>服务器指南</button><button @click="scrollToCommunitySection('community-channels')"><Icon name="list"/>频道管理</button><button class="dissolve-nav" @click="dissolveConfirm=true"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg>解散社区</button></nav>
+        <nav><button class="selected" @click="scrollToCommunitySection('community-overview')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></svg>社区概览</button><button @click="scrollToCommunitySection('community-channels')"><Icon name="list"/>频道管理</button><button class="dissolve-nav" @click="dissolveConfirm=true"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg>解散社区</button></nav>
       </aside>
       <main class="community-settings-main"><header class="community-settings-header"><b>{{communitySettingsName}} 设置</b><button aria-label="关闭社区设置" @click="closeCommunitySettings()">×</button></header>
         <div class="community-settings-scroll">
@@ -1441,13 +1535,6 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
           <div class="community-asset-row"><span class="community-asset-preview avatar"><img :src="currentCommunity?.icon || DEFAULT_COMM_AVATAR" :alt="selectedCommunity"></span><div><b>服务器头像</b><small>建议 512×512 的方形图片，显示在左侧竖栏</small></div><button @click="setCommunityAsset('avatar')">上传头像</button><input ref="communityAvatarInput" class="demo-hidden-input" type="file" accept="image/*" @change="handleCommunityAsset('avatar',$event)"></div>
           <div class="community-asset-row"><span class="community-asset-preview banner" :style="currentCommunity?.background?{backgroundImage:`url(${currentCommunity.background})`}:{}"></span><div><b>服务器背景图片</b><small>显示在频道栏顶部的横幅与服务器指南</small></div><button @click="setCommunityAsset('banner')">上传背景</button><input ref="communityBannerInput" class="demo-hidden-input" type="file" accept="image/*" @change="handleCommunityAsset('banner',$event)"></div>
         </section>
-        <section id="community-guide" class="community-setting-section"><h2>服务器指南</h2><p class="community-settings-hint">左侧保留「服务器指南」入口；当前服务端尚未提供指南编辑与保存接口。</p>
-          <label class="community-field"><span>指南名称</span><input v-model="guideDraftTitle" maxlength="30" placeholder="服务器指南"></label>
-          <div v-if="guideDraftItems.length" class="managed-channel-list guide-item-list"><div v-for="(item,index) in guideDraftItems" :key="item.id"><span>▤</span><b>{{item.title}}</b><small>{{item.body.length}} 字</small><span class="managed-channel-actions"><button @click="removeGuideItem(index)">删除</button></span></div></div>
-          <div v-else class="guide-draft-empty">还没有指南内容，用下面的表单添加第一条。</div>
-          <div class="new-channel-form guide-item-form"><input v-model="newGuideItem.title" placeholder="指南标题（例如：频道规则）" @keydown.enter.prevent="addGuideItem"><input v-model="newGuideItem.body" placeholder="指南内容" @keydown.enter.prevent="addGuideItem"><button @click="addGuideItem">添加</button></div>
-          <div class="community-setting-row guide-save-row"><div class="community-setting-label"><b>保存指南</b><small>把名称与卡片写入这个社区。</small></div><button class="guide-save" @click="saveCommunityGuide">保存服务器指南</button></div>
-        </section>
         <section id="community-channels" class="community-setting-section"><h2>频道管理</h2><p class="community-settings-hint">下面是这个社区当前的频道列表，与左侧频道栏一致。鼠标移到频道上点右侧 × 删除，删除会在「保存更改」后生效。</p><div class="new-channel-form"><span>#</span><input v-model="newCommunityChannel" placeholder="新频道名称" @keydown.enter.prevent="addCommunityChannel"><button @click="addCommunityChannel">新增频道</button></div>
           <div class="settings-channel-groups"><template v-for="group in channelListOf(selectedCommunity)" :key="group.title"><div class="settings-channel-category" :class="{collapsed:isCategoryCollapsed(group)}"><button class="category-toggle" :aria-expanded="!isCategoryCollapsed(group)" :title="isCategoryCollapsed(group)?'展开分区':'收起分区'" @click="toggleCategory(group)"><span class="category-name">{{group.title}}</span><Icon name="caret" class="category-caret"/></button><span class="settings-channel-count">{{group.channels.length}}</span></div><template v-if="!isCategoryCollapsed(group)"><div v-for="channel in group.channels" :key="`${group.title}::${channel}`" class="settings-channel-row"><span class="channel-hash">#</span><span class="channel-label">{{channel}}</span><button class="settings-channel-remove" :aria-label="`删除频道 ${channel}`" :title="`删除频道 ${channel}`" @click.stop="openChannelDelete(selectedCommunity,group.title,channel)">×</button></div></template></template>
           <div v-if="!channelListOf(selectedCommunity).length" class="guide-draft-empty">这个社区还没有频道，用上面的输入框新增一个。</div>
@@ -1461,6 +1548,8 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
     </section>
   </div>
   <div v-if="createCommunityOpen" class="dialog-backdrop" @click.self="createCommunityOpen=false"><section class="create-community-dialog"><button class="dialog-close" @click="createCommunityOpen=false">×</button><h2>创建社区</h2><p>为你的社区取个名字。</p><input v-model="newCommunityName" placeholder="社区名称" @keydown.enter.prevent="createCommunity"><footer><button @click="createCommunityOpen=false">取消</button><button class="create-community-submit" @click="createCommunity">创建社区</button></footer></section></div>
+  <div v-if="createGroupDialogOpen" class="dialog-backdrop" @click.self="createGroupDialogOpen=false"><section class="create-community-dialog"><button class="dialog-close" @click="createGroupDialogOpen=false">×</button><h2>创建群聊</h2><p>为你的群聊取个名字。</p><input v-model="demoForm.groupName" placeholder="群聊名称" @keydown.enter.prevent="createDemoGroup"><footer><button @click="createGroupDialogOpen=false">取消</button><button class="create-community-submit" @click="createDemoGroup">创建群聊</button></footer></section></div>
+  <div v-if="groupManageOpen" class="dialog-backdrop" @click.self="groupManageOpen=false"><section class="create-community-dialog group-manage-dialog"><button class="dialog-close" @click="groupManageOpen=false">×</button><h2>管理群成员</h2><p v-if="groupManageTarget">{{groupManageTarget.name}} · 群 UID {{groupManageTarget.uid}} · {{groupManageTarget.members.length}} 位成员</p><div class="group-manage-members"><div v-for="member in groupManageTarget?.members || []" :key="member.uid" class="friend-group-member"><span class="friends-avatar tiny"><img :src="avatarByUid(member.uid)" :alt="member.name"></span><span class="friend-member-name"><b>{{member.name}}</b><small>UID {{member.uid}}</small></span><span class="friend-role-tag">{{member.role}}</span><button v-if="Number(member.uid)!==Number(backend.uid)" class="friends-soft-button compact-button" @click="toggleDemoGroupRole(groupManageTarget,member)">设为群主</button><button v-if="Number(member.uid)!==Number(backend.uid)" class="friends-icon-button danger" title="移除成员" @click="removeDemoGroupMember(groupManageTarget,member)">−</button></div><div v-if="!(groupManageTarget?.members||[]).length" class="friends-empty">还没有群成员。</div></div><div class="group-manage-invite"><input v-model="demoForm.memberUid" placeholder="输入好友 UID 邀请加入"><button class="friends-soft-button" @click="addDemoGroupMember(groupManageTarget)">邀请好友</button></div><footer><button @click="renameDemoGroup(groupManageTarget)">改名</button><button class="danger" @click="deleteDemoGroup(groupManageTarget)">解散群聊</button><button class="create-community-submit" @click="groupManageOpen=false">完成</button></footer></section></div>
   <div v-if="inviteModal" class="dialog-backdrop invite-backdrop" @click.self="inviteModal = false">
     <section class="invite-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">
       <button class="dialog-close" aria-label="关闭" @click="inviteModal = false">×</button>
@@ -1476,15 +1565,25 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
       <div class="invite-link-panel"><label>或者，向好友发送服务器邀请链接</label><div class="invite-url"><input v-model="inviteUrl" readonly><button @click="copyInvite">复制</button></div><p>您的邀请链接将在 30 天后过期。 <button @click="notDeveloped('社区邀请链接')">编辑邀请链接</button></p></div>
     </section>
   </div>
-  <div v-if="joinModal" class="dialog-backdrop join-backdrop" @click.self="joinModal = false">
-    <section class="join-dialog" role="dialog" aria-modal="true" aria-labelledby="join-title">
-      <button class="dialog-close" aria-label="关闭" @click="joinModal = false">×</button>
-      <header><h2 id="join-title">加入服务器</h2><p>在下方输入邀请以加入现有的服务器</p></header>
-      <label class="invite-code-label">邀请链接 <span>*</span></label>
-      <input v-model="joinCode" class="invite-code-input" placeholder="https://discord.gg/hTKzmak" @keydown.enter.prevent="joinServer">
-      <div class="format-label">邀请的格式应为：</div><div class="invite-examples"><button @click="joinCode = 'hTKzmak'">hTKzmak</button><button @click="joinCode = 'https://discord.gg/hTKzmak'">https://discord.gg/hTKzmak</button><button @click="joinCode = 'https://discord.gg/wumpus-friends'">https://discord.gg/wumpus-friends</button></div>
-      <button class="discover-card" @click="joinModal = false; notDeveloped('发现社区') "><span class="discover-emblem">◈</span><span><b>您没有邀请？</b><small>前往“发现服务器”查看可发现的社区。</small></span><strong>›</strong></button>
-      <footer><button class="back-button" @click="joinModal = false">后退</button><button class="join-submit" @click="joinServer">加入服务器</button></footer>
+  <div v-if="joinModal" class="friend-request-backdrop" @click.self="joinModal=false">
+    <section class="friend-request-window" role="dialog" aria-modal="true" aria-labelledby="join-community-title">
+      <button class="friend-request-close" aria-label="关闭" @click="joinModal=false">×</button>
+      <div class="friend-request-emblem">◆</div>
+      <h1 id="join-community-title">申请加入社区</h1>
+      <p>输入社区 UID，提交加入申请。</p>
+      <label>社区 UID<input v-model="joinCode" type="number" placeholder="例如：10001" @keydown.enter.prevent="joinServer"></label>
+      <label>申请留言 <span>可选</span><textarea v-model="joinNote" rows="4" placeholder="写一句话介绍自己"></textarea></label>
+      <footer><button class="friend-request-cancel" @click="joinModal=false">取消</button><button class="friend-request-submit" @click="joinServer">发送申请</button></footer>
+    </section>
+  </div>
+  <div v-if="joinGroupOpen" class="friend-request-backdrop" @click.self="joinGroupOpen=false">
+    <section class="friend-request-window" role="dialog" aria-modal="true" aria-labelledby="join-group-title">
+      <button class="friend-request-close" aria-label="关闭" @click="joinGroupOpen=false">×</button>
+      <div class="friend-request-emblem">◌</div>
+      <h1 id="join-group-title">申请加入群聊</h1>
+      <p>输入群 UID，提交加入申请。</p>
+      <label>群 UID<input v-model="joinGroupUid" type="number" placeholder="例如：10001" @keydown.enter.prevent="submitJoinGroup"></label>
+      <footer><button class="friend-request-cancel" @click="joinGroupOpen=false">取消</button><button class="friend-request-submit" @click="submitJoinGroup">发送申请</button></footer>
     </section>
   </div>
   <div v-if="settingsOpen" class="settings-backdrop" @click.self="closeSettings">
@@ -1495,41 +1594,27 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
         <nav class="settings-nav">
           <button :class="{active:selectedSetting==='账户'}" @click="selectSetting('账户')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5 20v-1.2a7 7 0 0 1 14 0V20z"/></svg>账户</button>
           <button :class="{active:selectedSetting==='Baka'}" @click="selectSetting('Baka')"><img class="settings-nav-logo" src="/logo.png" alt="">Baka</button>
-          <button :class="{active:selectedSetting==='数据与隐私'}" @click="selectSetting('数据与隐私')"><svg viewBox="0 0 24 24"><path d="M12 3 20 6v5c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>数据与隐私</button>
-          <button :class="{active:selectedSetting==='消息权限'}" @click="selectSetting('消息权限')"><svg viewBox="0 0 24 24"><path d="M4 5h16v12H9l-5 4z"/><path d="M8 9h8m-8 4h5"/></svg>消息权限</button>
-          <button :class="{active:selectedSetting==='通知'}" @click="selectSetting('通知')"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>通知</button>
+          <button :class="{active:selectedSetting==='文件'}" @click="selectSetting('文件')"><svg viewBox="0 0 24 24"><path d="M6 2h8l6 6v14H6z"/><path d="M14 2v6h6"/></svg>文件</button>
           <div class="settings-divider"></div>
           <div class="settings-group-label">体验</div>
           <button :class="{active:selectedSetting==='外观'}" @click="selectSetting('外观')"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.3a2 2 0 0 0 1.5-3.3 1.8 1.8 0 0 1 1.4-3h1.1A3.7 3.7 0 0 0 21 11c0-4.4-4-8-9-8Z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="15" cy="8" r="1"/></svg>外观</button>
-          <div v-if="selectedSetting==='外观'" class="settings-subnav">
-            <button v-for="item in ['主题','应用图标','消息','聊天框','搜索','主播模式']" :key="item" :class="{selected:selectedAppearance===item}" @click="selectAppearance(item)">{{ item }}</button>
-          </div>
           <button :class="{active:selectedSetting==='系统'}" @click="selectSetting('系统')"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8m-4-4v4M7 9h.01M10 9h.01M13 9h.01M16 9h.01M7 13h10"/></svg>系统</button>
-          <button :class="{active:selectedSetting==='语言和时间'}" @click="selectSetting('语言和时间')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>语言和时间</button>
-          <button :class="{active:selectedSetting==='当前状态隐私'}" @click="selectSetting('当前状态隐私')"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1m2-9 2 2 4-4"/></svg>当前状态隐私</button>
-          <button :class="{active:selectedSetting==='已关联 APP'}" @click="selectSetting('已关联 APP')"><svg viewBox="0 0 24 24"><path d="M9 15 15 9m-8 8-2 2a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0m3 0 2-2a4 4 0 0 1 6 6l-5 5a4 4 0 0 1-6 0" transform="translate(2 -1)"/></svg>已关联 APP</button>
+          <button :class="{active:selectedSetting==='语言'}" @click="selectSetting('语言')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>语言</button>
           <div class="settings-divider"></div>
-          <button class="logout-setting" @click="closeSettings();demoLogout();demoHubOpen=true;demoTab='账号'"><Icon name="logout"/>登出</button>
+          <button class="logout-setting" @click="closeSettings();demoLogout()"><Icon name="logout"/>登出</button>
         </nav>
       </aside>
       <main class="settings-main">
         <header class="settings-header"><b>{{ selectedSetting === '外观' ? '外观' : selectedSetting }}</b><button aria-label="关闭设置" @click="closeSettings">×</button></header>
         <div class="settings-scroll">
           <div v-if="selectedSetting==='账户'" class="account-settings-content">
-            <section class="account-section"><h1>账号信息</h1><div class="account-info-row"><span>用户名</span><b>{{demoNickname}}</b><button @click="profileEditorOpen=true">编辑</button></div><div class="account-info-row"><span>账号 UID</span><b>{{demoUid||'—'}} <button class="show-email" @click="notDeveloped('显示绑定邮箱')">查看邮箱</button></b><button @click="notDeveloped('编辑账号邮箱')">编辑</button></div><div class="account-info-row"><span>手机号码</span><b class="secondary-value">暂未支持手机号码。</b><button @click="notDeveloped('手机号码')">添加</button></div></section>
-            <section class="account-section"><h2>密码和安全中心</h2><div class="account-info-row"><span>密码</span><b></b><button @click="notDeveloped('修改密码')">编辑</button></div><div class="account-info-row"><span>多重认证</span><b></b><button class="plain-action" @click="notDeveloped('多重认证')">设置　›</button></div><div class="account-info-row"><span>已登录的设备</span><b></b><button class="plain-action" @click="notDeveloped('登录设备管理')">暂未提供　›</button></div></section>
-            <section class="account-section"><h2>账号信誉</h2><div class="standing-row"><span>✓</span><div><b>账号信誉</b><small>感谢您遵守 Discord 的<a>服务条款</a>和<a>社区守则</a>。如果您有违规行为，将会于此处显示。</small></div><button @click="notDeveloped('账号信誉')">暂未提供　›</button></div></section>
-            <section class="account-section"><h2>家庭中心</h2><p>通过家庭中心了解并管理您的社交活动。</p></section>
+            <section class="account-section"><h1>账号信息</h1><div class="account-info-row"><span>用户名</span><b>{{demoNickname}}</b><button @click="profileEditorOpen=true">编辑</button></div><div class="account-info-row"><span>账号 UID</span><b>{{demoUid||'—'}}</b></div><div class="account-info-row"><span>邮箱</span><b>{{demoEmail||'未绑定'}}</b><button @click="emailEditOpen=!emailEditOpen">{{emailEditOpen?'取消':'编辑'}}</button></div><div v-if="emailEditOpen" class="account-inline-form"><input v-model="demoEmail" type="email" placeholder="name@example.com"><button class="settings-row-button" @click="saveEmail">保存邮箱</button></div></section>
+            <section class="account-section"><h2>密码和安全中心</h2><div class="account-info-row"><span>密码</span><b>••••••••</b><button @click="passwordEditOpen=!passwordEditOpen">{{passwordEditOpen?'取消':'修改'}}</button></div><div v-if="passwordEditOpen" class="account-inline-form password-form"><input v-model="oldPassword" type="password" placeholder="当前密码"><input v-model="newPassword" type="password" placeholder="新密码"><button class="settings-row-button" @click="savePassword">保存密码</button></div></section>
           </div>
-          <div v-else-if="selectedSetting==='外观' && selectedAppearance==='主题'" class="appearance-content">
+          <div v-else-if="selectedSetting==='外观'" class="appearance-content">
             <h1>主题</h1>
-            <div class="appearance-setting device-theme"><div><b>与设备主题相同</b><small>匹配您设备的浅色或深色模式。</small></div><button class="toggle" :class="{on:themeChoice==='device'}" @click="themeChoice=themeChoice==='device'?'dark':'device'"><i></i></button></div>
             <h3>默认主题</h3>
             <div class="theme-options"><button v-for="theme in ['light','gray','dark','black','device']" :key="theme" class="theme-swatch" :class="[theme,{chosen:themeChoice===theme}]" :aria-label="theme" @click="themeChoice=theme"><i v-if="themeChoice===theme">✓</i></button></div>
-            <div class="appearance-setting"><div><b>在我的设备间同步主题</b><small>在此帐户登录的设备上使用相同的主题。</small></div><button class="toggle" :class="{on:syncTheme}" @click="notDeveloped('跨设备同步主题')"><i></i></button></div>
-            <div class="appearance-setting"><div><b>将主题应用至其他用户的个人资料</b><small>在个人资料卡中显示您的主题风格。</small></div><button class="toggle" :class="{on:shareTheme}" @click="notDeveloped('资料主题共享')"><i></i></button></div>
-            <div class="appearance-setting server-theme"><div><b>服务器默认主题</b><small>为此服务器中的频道使用的主题。</small></div><select v-model="serverTheme" @change="notDeveloped('服务器默认主题')"><option>使用服务器主题</option><option>浅色</option><option>深色</option><option>同步设备</option></select></div>
-            <h3 class="related-heading">相关设置</h3>
           </div>
           <div v-else-if="selectedSetting==='Baka'" class="baka-settings-content">
             <section class="settings-section">
@@ -1539,24 +1624,28 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
               <div class="settings-row"><div class="settings-row-copy"><b>收到消息时播放</b><small>收到服务器实时推送的消息时播放一次。</small></div><button class="toggle" :class="{on:bakaOnReceive}" @click="bakaOnReceive=!bakaOnReceive"><i></i></button></div>
               <div class="settings-row"><div class="settings-row-copy"><b>双击 LOGO 播放</b><small>双击左侧竖栏顶部的 LOGO 播放一次。</small></div><button class="toggle" :class="{on:bakaOnLogo}" @click="bakaOnLogo=!bakaOnLogo"><i></i></button></div>
             </section>
-            <section class="settings-section">
-              <h1>试听</h1>
-              <div class="settings-row"><div class="settings-row-copy"><b>播放一次 Baka.mp3</b><small>用来确认音量和音效是否合适。</small></div><button class="settings-row-button" @click="playBaka('logo')">试听</button></div>
-            </section>
           </div>
-          <div v-else class="settings-placeholder"><h1>{{ selectedSetting==='外观'?selectedAppearance:selectedSetting }}</h1><p>在这里调整 {{ selectedSetting==='外观'?selectedAppearance:selectedSetting }} 相关设置。</p><button @click="selectedSetting='外观';selectedAppearance='主题'">返回外观设置</button></div>
+          <div v-else-if="selectedSetting==='文件'" class="account-settings-content">
+            <section class="account-section"><h1>我的文件</h1><p>文件保存在服务器，上传与下载均使用分片传输。</p></section>
+            <input ref="demoFilesInput" class="demo-hidden-input" type="file" multiple @change="addDemoFiles"><input ref="resumeFileInput" class="demo-hidden-input" type="file" @change="bindResumeUpload">
+            <div class="demo-panel-heading"><div><h2>传输与文件列表</h2><p>{{demoFiles.length}} 个文件</p></div><button class="demo-primary-button" @click="selectDemoFiles">＋ 上传文件</button></div>
+            <div class="demo-transfer-card"><div class="demo-transfer-icon">⇅</div><div><b>{{activeTransfer?.name||'文件传输状态'}}</b><small>{{activeTransfer?`${activeTransfer.status} · ${activeTransfer.progress||0}%`:'当前没有进行中的传输'}}</small></div><span class="demo-transfer-state"><i :class="{paused:!activeTransfer||activeTransfer.status==='已暂停'}"></i>{{activeTransfer?.status||'空闲'}}</span><button v-if="activeTransfer?.transferId" class="demo-soft-button" @click="toggleActiveTransfer">{{['已暂停','已中断','等待选择原文件'].includes(activeTransfer.status)?'继续':'暂停'}}</button><button v-if="activeTransfer?.transferId" class="demo-icon-action danger" title="取消传输" @click="api.cancelTransfer(activeTransfer)">×</button></div>
+            <div class="demo-file-list"><article v-for="file in demoFiles" :key="file.id" class="demo-file-row"><div class="demo-file-thumb"><img v-if="file.url&&file.type==='image'" :src="file.url" :alt="file.name"><span v-else class="demo-file-ext" :class="file.format.toLowerCase()">{{file.format}}</span></div><div class="demo-row-copy"><b>{{file.name}}</b><p>{{file.format}} · {{formatFileSize(file.size)}} <span>·</span> {{file.status}}</p><div class="demo-file-progress"><i :class="{paused:file.status==='已暂停'}" :style="{width:`${file.progress??(file.status==='已完成'?100:0)}%`}"></i></div></div><div class="demo-file-actions"><button v-if="file.status==='已完成'" class="demo-soft-button" @click="downloadDemoFile(file)">下载</button><button v-if="file.localId&&file.transferId&&!['已完成','已取消','失败','正在取消'].includes(file.status)" class="demo-soft-button" @click="toggleFileTransfer(file)">{{['已暂停','已中断','等待选择原文件'].includes(file.status)?(file.status==='等待选择原文件'?'选择原文件续传':'继续'):'暂停'}}</button><button class="demo-icon-action danger" title="删除文件" @click="deleteDemoFile(file)">×</button></div></article><div v-if="!demoFiles.length" class="demo-empty-state">还没有文件，上传一个文件开始使用。</div></div>
+            <div class="demo-doc-note"><b>传输操作</b><span>上传初始化 · 文件分片 · 完成校验 · 断点续传 · 下载 · 暂停 / 继续 / 取消 · 文件列表 / 删除</span><small>文件通过 WebSocket 分片传输，并由服务器持久化。</small></div>
+          </div>
+
+          <div v-else class="settings-placeholder"><h1>{{ selectedSetting }}</h1><p>在这里调整 {{ selectedSetting }} 相关设置。</p></div>
         </div>
       </main>
       <section v-if="profileEditorOpen" class="profile-editor" role="dialog" aria-modal="true" aria-label="编辑个人资料">
         <aside class="profile-editor-tools">
           <header><button class="profile-back" @click="closeProfileEditor">‹</button><b>主要个人资料</b><span>⌄</span><button class="profile-editor-close" aria-label="关闭" @click="closeProfileEditor">×</button></header>
           <div class="profile-edit-scroll">
-            <h3>头像</h3><div class="profile-avatar-control"><span class="settings-avatar large-avatar"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></span><button @click="setDemoAvatar">＋</button></div>
-            <h3>头像和装饰</h3><div class="profile-avatar-grid"><button class="avatar-preview" @click="setDemoAvatar"><span class="settings-avatar"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></span></button><button class="avatar-add" @click="notDeveloped('头像装饰')">＋</button></div>
-            <h3>横幅颜色</h3><button class="profile-color-swatch" :style="{background:profileBackground}" @click="notDeveloped('个人资料横幅')"></button>
-            <h3>个人资料特效和边框</h3><div class="profile-decoration-grid"><button @click="notDeveloped('个人资料特效')">＋</button><button @click="notDeveloped('个人资料边框')">＋</button></div>
-            <h3>昵称样式</h3><button class="profile-name-style" @click="notDeveloped('昵称样式')">{{demoNickname}}</button>
-            <h3>个人资料主题</h3><button class="profile-theme-swatch" :style="{background:profileBackground}" @click="notDeveloped('个人资料主题')"></button>
+            <h3>头像</h3>
+            <div class="profile-avatar-control">
+              <span class="settings-avatar large-avatar"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></span>
+              <div class="profile-avatar-buttons"><button class="profile-avatar-upload-btn" @click="setDemoAvatar">上传新头像</button><button class="profile-avatar-upload-btn reset" @click="resetAvatar">恢复默认</button></div>
+            </div>
           </div>
         </aside>
         <div class="profile-editor-preview">
@@ -1580,4 +1669,15 @@ const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(fil
 .emoji-panel-scroll::-webkit-scrollbar-track{background:#1b1c20}
 .emoji-panel-scroll::-webkit-scrollbar-thumb{background:#606168;border:2px solid #1b1c20;border-radius:8px;min-height:56px}
 .emoji-panel-scroll::-webkit-scrollbar-thumb:hover{background:#73757e}
+.profile-avatar-buttons{margin-left:auto;margin-right:12px;display:flex;gap:6px}
+.profile-avatar-upload-btn{width:auto;height:30px;padding:0 11px;border-radius:5px;background:#5865f2;color:#fff;font-size:12px;font-weight:600;border:0;white-space:nowrap;cursor:pointer}
+.profile-avatar-upload-btn:hover{background:#6975ff}
+.profile-avatar-upload-btn:active{background:#4752c4}
+.profile-avatar-upload-btn.reset{background:#4e5058}
+.profile-avatar-upload-btn.reset:hover{background:#5d6069}
+.community-sidebar-content{position:relative}
+.community-sidebar-banner{position:absolute;top:0;left:0;right:0;height:135px;z-index:0;background-image:linear-gradient(180deg, rgba(14,15,19,.2) 0%, #121214 100%), url('/default_background.png');background-size:cover;background-position:center 28%;pointer-events:none}
+.community-sidebar-content .guild-header{position:relative;z-index:1;background:transparent;box-shadow:none;border-bottom:1px solid #00000040}
+.community-sidebar-content .guild-header-title:hover{background:transparent}
+.community-sidebar-content .side-shortcuts{position:relative;z-index:1;background:transparent;margin-top:87px}
 </style>
