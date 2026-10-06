@@ -119,6 +119,7 @@ python3 tests/ws_chat_smoke.py 127.0.0.1 8080 /ws --idle-seconds=3
 
 ## 文档
 
+- **[部署文档.md](Docs/部署文档.md)** —— 从零部署（依赖安装、建库、构建、systemd、Nginx、常见问题）。
 - **[项目说明文档.md](Docs/项目说明文档.md)** —— 技术栈、目录结构、架构与工作流程、核心模块说明、常见问题。
 - **[客户端接口文档.txt](Docs/客户端接口文档.txt)** —— 前后端 protobuf / 帧协议接口规范（建议客户端开发者先读此文档）。
 - **[frontend/README.md](frontend/README.md)** —— 前端（Vite + Vue 3）开发与构建说明。

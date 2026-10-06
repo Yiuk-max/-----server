@@ -1,5 +1,6 @@
 import { computed, reactive } from 'vue'
 import { decodePacket, encodePacket } from './protobufProtocol.js'
+import { t } from './data/i18n.js'
 
 const TOKEN_KEY = 'chat.token'
 const RESUME_KEY = 'chat.upload.resume.v1'
@@ -94,9 +95,9 @@ function ensureConversation(kind, id, name = '') {
 }
 
 function send(message, fileData = null) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) { notice('未连接服务器'); return false }
+  if (!ws || ws.readyState !== WebSocket.OPEN) { notice(t('未连接服务器')); return false }
   try { ws.send(encodePacket(message, fileData)); return true }
-  catch (error) { notice(`协议编码失败：${error.message}`); return false }
+  catch (error) { notice(t('协议编码失败：{0}', error.message)); return false }
 }
 
 export function connect() {
@@ -115,7 +116,7 @@ export function connect() {
     heartbeat = setInterval(() => { if (ws === socket) send({ type: 'heartbeat' }) }, 30000)
     const token = localStorage.getItem(TOKEN_KEY)
     if (token) send({ type: 'verify_token', token })
-    else notice('已连接，请登录')
+    else notice(t('已连接，请登录'))
   }
   socket.onclose = () => {
     if (ws !== socket) return
@@ -126,12 +127,12 @@ export function connect() {
     heartbeat = null
     interruptTransfers()
     clearTransportQueues()
-    notice('与服务器的连接已断开')
+    notice(t('与服务器的连接已断开'))
   }
-  socket.onerror = () => { if (ws === socket) notice('连接服务器失败') }
+  socket.onerror = () => { if (ws === socket) notice(t('连接服务器失败')) }
   socket.onmessage = (event) => {
     receiveChain = receiveChain.then(() => receive(event, socket)).catch((error) => {
-      if (ws === socket) notice(`协议解析失败：${error.message}`)
+      if (ws === socket) notice(t('协议解析失败：{0}', error.message))
     })
   }
 }
@@ -186,7 +187,7 @@ async function receive(event, socket) {
     case 'file_transfer_paused': return transferUpdate(message)
     case 'file_transfer_progress': return transferUpdate(message)
     case 'system': return systemMessage(message.content || '')
-    default: notice(`功能响应：${message.type || 'unknown'}`)
+    default: notice(t('功能响应：{0}', message.type || 'unknown'))
   }
 }
 
@@ -202,7 +203,7 @@ function loginSuccess(message) {
   } catch {}
   if (backend.avatarId > 0) ensureFileUrl(backend.avatarId)
   if (message.token) localStorage.setItem(TOKEN_KEY, message.token)
-  notice(`欢迎回来，${backend.name}`)
+  notice(t('欢迎回来，{0}', backend.name))
   setTimeout(() => {
     showContacts()
     showFriendRequests()
@@ -288,7 +289,7 @@ function liveMessage(message, kind, id) {
   regroup(conv)
   if (Number(message.sender_UID) !== Number(backend.uid)) {
     if (kind === 'private' || kind === 'group') backend.unreadConversations[conv.key] = true
-    notice(`${message.sender_name || conv.name} 发来新消息`)
+    notice(t('{0} 发来新消息', message.sender_name || conv.name))
   }
 }
 
@@ -376,19 +377,19 @@ function systemMessage(content) {
     const targetUid = Number(addedMember[1]); const communityId = Number(addedMember[2])
     const index = communityAddQueue.findIndex((item) => item.communityId === communityId && item.uid === targetUid)
     if (index >= 0) communityAddQueue.splice(index, 1)
-    notice(`已将 UID ${targetUid} 添加到社区`)
+    notice(t('已将 UID {0} 添加到社区', targetUid))
     showMembers(communityId)
   }
   else if (addedToCommunity) {
     const communityId = Number(addedToCommunity[1])
-    notice(`你已被添加到社区（ID：${communityId}）`)
+    notice(t('你已被添加到社区（ID：{0}）', communityId))
     showCommunities()
   }
   else if (failedCommunityAdd) {
     communityAddQueue.shift()
-    notice('添加社区成员失败：仅社区所有者可添加，或该用户已在社区中')
+    notice(t('添加社区成员失败：仅社区所有者可添加，或该用户已在社区中'))
   }
-  else if (registration) { try { localStorage.setItem(EMAIL_KEY + registration[1], registration[2]) } catch {} notice(`注册成功，UID：${registration[1]}，请登录`) }
+  else if (registration) { try { localStorage.setItem(EMAIL_KEY + registration[1], registration[2]) } catch {} notice(t('注册成功，UID：{0}，请登录', registration[1])) }
   else if (/Avatar updated successfully/.test(text)) { if (pendingAvatarId > 0) backend.avatarId = pendingAvatarId; pendingAvatarId = 0; notice(text) }
   else if (/Failed to update avatar|Invalid file_id|Avatar file not found|not allowed for avatar/i.test(text)) { pendingAvatarId = 0; notice(text) }
   else if (/Logout successful/.test(text)) clearAccount()
@@ -438,7 +439,7 @@ function clearAccount() {
   backend.activeCommunityId = null; backend.channels = {}; backend.members = {}; backend.conversations = {}; backend.activeKey = ''; backend.unreadConversations = {}
   backend.friendRequests = []; backend.groupMembers = {}; backend.groupRequests = {}; backend.communityRequests = {}; backend.files = []
   clearTransportQueues()
-  notice('已登出')
+  notice(t('已登出'))
 }
 
 export function login(identity, password) {
@@ -602,7 +603,7 @@ function applyTransfer(task, info = {}) {
 }
 export function uploadFile(file, options = false) {
   if (!file) return false
-  if (!backend.uid) { notice('请先登录'); return false }
+  if (!backend.uid) { notice(t('请先登录')); return false }
   const config = typeof options === 'object' ? options : { attach: !!options }
   const conv = config.attach ? activeConversation.value : null
   const localId = `upload-${Date.now()}-${++transferSeq}`
@@ -677,7 +678,7 @@ function sendFileMessage(key, file) {
   } else messageAcks.push({ key: conv.key, localId: '' })
 }
 export function downloadFile(file, options = {}) {
-  if (!backend.uid) { notice('请先登录'); return false }
+  if (!backend.uid) { notice(t('请先登录')); return false }
   const localId = `download-${Date.now()}-${++transferSeq}`
   addTransfer({ localId, direction: 'download', fileId: String(file.fileId || file.id || ''), name: file.name, format: file.format || 'FILE', totalSize: Number(file.size || 0), size: Number(file.size || 0), mime: file.mime || 'application/octet-stream', status: '初始化', transferred: 0, progress: 0, nextChunk: 0, chunks: [], paused: false, ownerUid: backend.uid, silent: !!options.silent })
   downloadQueue.push(localId)
@@ -729,7 +730,7 @@ function downloadChunk(message, data) {
 export function pauseTransfer(task) { if (!ownsTask(task) || !task.transferId) return false; task.paused = true; task.status = '已暂停'; task.pumpToken = Number(task.pumpToken || 0) + 1; task.pumping = false; persistUploads(); const ok=send({ type: 'file_transfer_pause', transfer_id: Number(task.transferId) });if(!ok)task.status='已中断';return ok }
 export function bindResumeFile(task, file) {
   if (!ownsTask(task) || !file) return false
-  if (file.name !== task.name || file.size !== Number(task.totalSize)) { notice('请选择名称和大小与原文件一致的文件'); return false }
+  if (file.name !== task.name || file.size !== Number(task.totalSize)) { notice(t('请选择名称和大小与原文件一致的文件')); return false }
   task.file = file; task.paused = false; task.status = '正在续传'
   const ok = send({ type: 'file_upload_resume', transfer_id: Number(task.transferId) })
   if (!ok) { task.paused = true; task.status = '已中断' }
