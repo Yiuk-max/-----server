@@ -2,6 +2,7 @@
 import { ref, nextTick, computed, h, reactive, watch, onMounted, onUnmounted, withDirectives, vModelText } from 'vue'
 import { DEFAULT_AVATAR, DEFAULT_GROUP_AVATAR, DEFAULT_COMM_AVATAR, DEFAULT_COMM_BACKGROUND, QUICK_EMOJIS, PICKER_EMOJIS, AVATAR_TONES } from './data/ui.js'
 import { EMOJI_CATEGORIES } from './data/emoji.js'
+import { lang, setLang, t } from './data/i18n.js'
 import { Icon } from './components/icons.js'
 import { FileCover } from './components/file-cover.js'
 import { backend, api } from './backendClient.js'
@@ -167,11 +168,11 @@ const communityMemberGroups = computed(() => {
     .filter(group => group.members.length)
 })
 const MessageActions = () => h('div', { class: 'message-actions' }, [
-  ...QUICK_EMOJIS.map((emoji) => h('button', { 'data-action': 'react', 'data-emoji': emoji, title: `添加 ${emoji}` }, emoji)),
-  h('button', { 'data-action': 'picker', title: '添加反应' }, '☻'),
-  h('button', { 'data-action': 'reply', title: '回复' }, '↶'),
-  h('button', { 'data-action': 'forward', title: '转发' }, '↱'),
-  h('button', { 'data-action': 'more', title: '更多' }, h('svg', { viewBox: '0 0 24 24', class: 'more-dots' }, [h('circle', { cx: '5', cy: '12', r: '1.7' }), h('circle', { cx: '12', cy: '12', r: '1.7' }), h('circle', { cx: '19', cy: '12', r: '1.7' })]))
+  ...QUICK_EMOJIS.map((emoji) => h('button', { 'data-action': 'react', 'data-emoji': emoji, title: t('添加 {0}', emoji) }, emoji)),
+  h('button', { 'data-action': 'picker', title: t('添加反应') }, '☻'),
+  h('button', { 'data-action': 'reply', title: t('回复') }, '↶'),
+  h('button', { 'data-action': 'forward', title: t('转发') }, '↱'),
+  h('button', { 'data-action': 'more', title: t('更多') }, h('svg', { viewBox: '0 0 24 24', class: 'more-dots' }, [h('circle', { cx: '5', cy: '12', r: '1.7' }), h('circle', { cx: '12', cy: '12', r: '1.7' }), h('circle', { cx: '19', cy: '12', r: '1.7' })]))
 ])
 // 消息行：把参考图里的模块（回复引用行 / 服务器标签胶囊 / 共同服务器 M 标 / 链接卡片）
 // 统一收进一个函数式组件，mainHistory 与 channelHistory 共用，避免两处模板各写一遍。
@@ -187,7 +188,7 @@ const ReactionRow = (props) => h('div', { class: 'reaction-row' }, [
   }, [h('span', { class: 'reaction-emoji' }, reaction.emoji), h('span', {}, reaction.count)])),
   h('button', {
     class: 'reaction-add', key: 'reaction-add', type: 'button',
-    'data-action': 'picker', title: '添加反应', 'aria-label': '添加反应'
+    'data-action': 'picker', title: t('添加反应'), 'aria-label': '添加反应'
   }, h('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }, [
     h('circle', { cx: '11', cy: '12', r: '8' }),
     h('path', { d: 'M7.6 13.8s1.4 2 3.4 2 3.4-2 3.4-2' }),
@@ -203,7 +204,7 @@ const Composer = (props) => {
   const parts = []
   if (reply) {
     parts.push(h('div', { class: 'composer-reply' }, [
-      h('span', { class: 'composer-reply-text' }, ['正在回复 ', h('b', { class: reply.tone }, `@${reply.author}`)]),
+      h('span', { class: 'composer-reply-text' }, [t('正在回复') + ' ', h('b', { class: reply.tone }, `@${reply.author}`)]),
       h('span', { class: 'composer-reply-preview' }, reply.text),
       h('button', { type: 'button', class: 'composer-reply-cancel', 'aria-label': '取消回复', title: '取消回复', onClick: () => { replyTarget.value = null } }, '×')
     ]))
@@ -224,12 +225,12 @@ const Composer = (props) => {
             h('i', { style: `display:block;height:100%;border-radius:2px;background:#5865f2;width:${progress}%` })
           ]) : null
         ]),
-        h('button', { type: 'button', class: 'upload-remove', 'aria-label': `移除 ${item.name}`, onClick: () => removeUpload(item.id) }, '×')
+        h('button', { type: 'button', class: 'upload-remove', 'aria-label': t('移除 {0}', item.name), onClick: () => removeUpload(item.id) }, '×')
       ])
     })))
   }
   parts.push(h('div', { class: 'composer-line' }, [
-    h('button', { type: 'button', class: 'add-attachment', 'aria-label': '更多附件选项', title: '更多附件选项', onClick: (e) => { e.stopPropagation(); toggleAttachmentMenu(e) } }, '＋'),
+    h('button', { type: 'button', class: 'add-attachment', 'aria-label': t('更多附件选项'), title: t('更多附件选项'), onClick: (e) => { e.stopPropagation(); toggleAttachmentMenu(e) } }, '＋'),
     h('input', { ref: fileInput, class: 'file-input', type: 'file', multiple: true, onChange: handleFiles }),
     withDirectives(h('textarea', {
       ref: composerInput,
@@ -246,7 +247,7 @@ const Composer = (props) => {
       style: 'flex:1;min-width:30px;border:0;outline:0;background:transparent;color:var(--text-1);font-size:15px;font-family:inherit;resize:none;height:24px;line-height:24px;padding:0;margin:0'
     }), [[vModelText, message.value]]),
     h('div', { class: 'composer-tools' }, [
-      h('button', { type: 'button', class: 'tool-button', 'aria-label': '表情', title: '表情', onClick: (e) => toggleEmojiPanel(e) }, [h(Icon, { name: 'smile' })])
+      h('button', { type: 'button', class: 'tool-button', 'aria-label': t('表情'), title: t('表情'), onClick: (e) => toggleEmojiPanel(e) }, [h(Icon, { name: 'smile' })])
     ])
   ]))
   if (emojiPanelOpen.value) {
@@ -260,7 +261,7 @@ const Composer = (props) => {
         EMOJI_CATEGORIES.map((item) => h('button', {
           key: item.name,
           type: 'button',
-          title: item.name,
+          title: t(item.name),
           onClick: () => { emojiCategory.value = item.name },
           style: `width:32px;height:32px;display:grid;place-items:center;border-radius:6px;border:0;cursor:pointer;font-size:18px;line-height:1;background:${emojiCategory.value === item.name ? '#5865f2' : 'transparent'}`
         }, item.icon))
@@ -278,7 +279,7 @@ const Composer = (props) => {
   }
   if (attachmentMenu.value) {
     parts.push(h('div', { class: 'attachment-menu', style: { left: `${attachmentMenu.value.x}px`, top: `${attachmentMenu.value.y}px` }, onClick: (e) => e.stopPropagation() }, [
-      h('button', { onClick: () => handleAttachmentAction('upload') }, [h(Icon, { name: 'upload', class: 'upload-menu-icon' }), h('b', null, '上传文件')])
+      h('button', { onClick: () => handleAttachmentAction('upload') }, [h(Icon, { name: 'upload', class: 'upload-menu-icon' }), h('b', null, t('上传文件'))])
     ]))
   }
   return h('form', { class: ['composer', { 'has-uploads': uploads.value.length }], onSubmit: (e) => { e.preventDefault(); submit() } }, parts)
@@ -299,7 +300,7 @@ const MessageRow = (props) => {
   const recall = recalled.value[record.id]
   if (recall) {
     return h('article', { class: 'message system-message recalled-message', 'data-message-id': record.id, 'data-recalled': '1' }, [
-      h('div', { class: 'system-row' }, [h('span', { class: 'system-glyph' }, '⟲'), h('b', {}, recall.mine ? '你撤回了一条消息' : `${recall.author} 撤回了一条消息`)])
+      h('div', { class: 'system-row' }, [h('span', { class: 'system-glyph' }, '⟲'), h('b', {}, recall.mine ? t('你撤回了一条消息') : t('{0} 撤回了一条消息', recall.author))])
     ])
   }
   if (record.system) {
@@ -313,7 +314,7 @@ const MessageRow = (props) => {
       class: ['message-reply', { jumpable: !!record.reply.id }],
       'data-action': record.reply.id ? 'jump' : null,
       'data-target': record.reply.id || null,
-      title: record.reply.id ? '跳到原消息' : null
+      title: record.reply.id ? t('跳到原消息') : null
     }, [
       h('span', { class: ['reply-avatar', record.reply.avatar] }, record.reply.avatarImage
         ? h('img', { src: record.reply.avatarImage, alt: record.reply.author })
@@ -326,7 +327,7 @@ const MessageRow = (props) => {
   content.push(h('div', { class: 'meta' }, [
     h('b', { class: record.tone || '' }, record.author),
     ...(record.tags || []).map((tag) => tagPill(tag)),
-    record.mutual ? h('span', { class: 'mutual-badge', title: '共同服务器' }, 'M') : null,
+    record.mutual ? h('span', { class: 'mutual-badge', title: t('共同服务器') }, 'M') : null,
     h('time', {}, record.time)
   ]))
   if (record.text) {
@@ -360,7 +361,7 @@ const MessageRow = (props) => {
         h('a', { href: file.url || '#', download: file.name, title: file.name }, file.name),
         h('small', {}, formatFileSize(file.size || 0))
       ]),
-      h('button', { type: 'button', class: 'message-file-download', 'data-action': 'download', 'data-url': file.url || '', 'data-name': file.name, 'data-file-id': file.fileId || '', 'data-size': file.size || 0, title: '下载', 'aria-label': `下载 ${file.name}` },
+      h('button', { type: 'button', class: 'message-file-download', 'data-action': 'download', 'data-url': file.url || '', 'data-name': file.name, 'data-file-id': file.fileId || '', 'data-size': file.size || 0, title: '下载', 'aria-label': t('下载 {0}', file.name) },
         h('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }, h('path', { d: 'M12 4v11m-5-5 5 5 5-5M5 20h14' })))
     ]))))
   }
@@ -485,7 +486,7 @@ const addTestGroupRequest = () => notDeveloped('测试入群申请')
 const addTestCommunityRequest = () => notDeveloped('测试社区申请')
 const testSignedOut = () => api.logout()
 const testClearLogs = () => notDeveloped('本地清空服务端聊天记录')
-const testResetDemo = () => notDeveloped('重置服务端数据')
+const testResetDemo = () => notDeveloped(t('重置服务端数据'))
 const onMenuKeydown = (event) => {
   if (event.key !== 'Escape') return
   if (replyTarget.value) { replyTarget.value = null; return }
@@ -600,7 +601,7 @@ const dmContextAction = (action) => {
     memberProfile.value = { name: target.name, avatar: '', avatarText: contact?.avatar || target.name[0] }
     return
   }
-  if (action === 'clear') { notDeveloped('清除服务端聊天记录'); return }
+  if (action === 'clear') { notDeveloped(t('清除服务端聊天记录')); return }
   if (action === 'remove') {
     const friend = demoFriends.value.find((item) => item.name === target.name || item.remark === target.name)
     if (friend) removeDemoFriend(friend)
@@ -613,11 +614,11 @@ const dmContextAction = (action) => {
     if (group) renameDemoGroup(group)
     return
   }
-  if (action === 'leave' && contact) { if(window.confirm(`确定退出群聊“${contact.name}”？`))api.groupRemove(contact.uid,backend.uid) }
+  if (action === 'leave' && contact) { if(window.confirm(t('确定退出群聊“{0}”？', contact.name)))api.groupRemove(contact.uid,backend.uid) }
 }
 const openCommunityInvite = (name = selectedCommunity.value) => {
   const community = communities.value.find((item) => item.name === name)
-  if (!community) return demoNotice('请先选择社区')
+  if (!community) return demoNotice(t('请先选择社区'))
   if (community.role !== 'owner') return demoNotice('只有社区所有者可以直接添加成员')
   selectedCommunity.value = community.name
   backend.activeCommunityId = community.id
@@ -631,7 +632,7 @@ const communityMenuAction = (action) => {
   if (!name) return
   if (action === 'invite') { openCommunityInvite(name); return }
   if (action === 'settings') { openCommunitySettings(name); return }
-  if (action === 'leave') { const community=communities.value.find(item=>item.name===name);if(community&&window.confirm(`确定离开“${name}”？`))api.leaveCommunity(community.id) }
+  if (action === 'leave') { const community=communities.value.find(item=>item.name===name);if(community&&window.confirm(t('确定离开“{0}”？', name)))api.leaveCommunity(community.id) }
 }
 const openCommunitySettings = (name) => {
   selectedCommunity.value=name
@@ -646,7 +647,7 @@ const saveCommunitySettings = () => {
   const community = currentCommunity.value
   if (!community) return
   const name = communitySettingsName.value.trim()
-  if (!name) { demoNotice('社区名称不能为空'); return }
+  if (!name) { demoNotice(t('社区名称不能为空')); return }
   api.modifyCommunity(community.id, name, communitySettingsDescription.value.trim(), Number(community.avatarId || 0), Number(community.bannerId || 0))
   communitySettingsOpen.value = false
 }
@@ -756,7 +757,7 @@ const replyInfoFromRow = (row) => {
 const jumpToMessage = (targetId) => {
   if (!targetId) return
   const el = findMessageRow(targetId)
-  if (!el) { demoNotice('原消息不在当前视图'); return }
+  if (!el) { demoNotice(t('原消息不在当前视图')); return }
   el.scrollIntoView({ block: 'center', behavior: 'smooth' })
   el.classList.add('message-flash')
   setTimeout(() => el.classList.remove('message-flash'), 1400)
@@ -783,7 +784,7 @@ const openContextMenu = (event) => {
 // 下载附件：blob 地址直接走 <a download>；将来接后端换成文件接口的下载地址即可
 const downloadAttachment = (attachment) => {
   if (attachment?.fileId) { api.downloadFile({ fileId: attachment.fileId, name: attachment.name, size: attachment.size, format: (attachment.name.split('.').pop()||'FILE').toUpperCase() }); return }
-  if (!attachment?.url) { demoNotice('该附件没有可下载的文件'); return }
+  if (!attachment?.url) { demoNotice(t('该附件没有可下载的文件')); return }
   const link = document.createElement('a')
   link.href = attachment.url
   link.download = attachment.name || 'download'
@@ -791,7 +792,7 @@ const downloadAttachment = (attachment) => {
   document.body.appendChild(link)
   link.click()
   link.remove()
-  demoNotice(`开始下载 ${attachment.name}`)
+  demoNotice(t('开始下载 {0}', attachment.name))
 }
 const handleMessageAction = async (event) => {
   const avatar = event.target.closest('.avatar')
@@ -829,7 +830,7 @@ const handleMessageAction = async (event) => {
     contextMenu.value = null
   }
   if (action === 'recall' && contextMenu.value) {
-    if (contextMenu.value.mine) api.deleteMessage(contextMenu.value.id); else demoNotice('只能撤回自己的消息')
+    if (contextMenu.value.mine) api.deleteMessage(contextMenu.value.id); else demoNotice(t('只能撤回自己的消息'))
     contextMenu.value = null
   }
   if (action === 'forward') { notDeveloped('消息转发'); contextMenu.value = null }
@@ -839,18 +840,18 @@ const handleMessageAction = async (event) => {
       const ok = await copyToClipboard(text)
       demoNotice(ok ? '消息已复制' : '复制失败')
     } else {
-      demoNotice('该消息没有可复制的文字')
+      demoNotice(t('该消息没有可复制的文字'))
     }
     contextMenu.value = null
   }
-  if (action === 'unread') { notDeveloped('标记未读'); contextMenu.value = null }
+  if (action === 'unread') { notDeveloped(t('标记未读')); contextMenu.value = null }
   if (action === 'delete' && contextMenu.value?.mine) { api.deleteMessage(contextMenu.value.id); contextMenu.value = null }
   if (action === 'link' && contextMenu.value) {
     const ok = await copyToClipboard(`${location.origin}${location.pathname}#${contextMenu.value.id}`)
     demoNotice(ok ? '消息链接已复制' : '复制失败')
     contextMenu.value = null
   }
-  if (action === 'report') { notDeveloped('举报消息'); contextMenu.value = null }
+  if (action === 'report') { notDeveloped(t('举报消息')); contextMenu.value = null }
 }
 const submit = async () => {
   const text = message.value.trim()
@@ -949,10 +950,10 @@ const handleAttachmentAction = async (action) => {
   const labels = { thread: '子区', poll: '投票', emoji: '表情', app: 'APP' }
   notDeveloped(labels[action] || '该功能')
 }
-const copyInvite = async () => notDeveloped('社区邀请链接')
+const copyInvite = async () => notDeveloped(t('社区邀请链接'))
 const joinServer = () => {
   const id = Number(String(joinCode.value).trim())
-  if (!id || id <= 0) { demoNotice('请输入社区 UID'); return }
+  if (!id || id <= 0) { demoNotice(t('请输入社区 UID')); return }
   api.joinCommunity(id, joinNote.value.trim())
   joinModal.value = false
   joinCode.value = ''
@@ -960,17 +961,17 @@ const joinServer = () => {
 }
 const submitJoinGroup = () => {
   const id = Number(String(joinGroupUid.value).trim())
-  if (!id || id <= 0) { demoNotice('请输入群 UID'); return }
+  if (!id || id <= 0) { demoNotice(t('请输入群 UID')); return }
   api.joinGroup(id)
   joinGroupOpen.value = false
   joinGroupUid.value = ''
 }
-const selectSetting = (name) => { selectedSetting.value = name; if (!['账户','Baka','文件','外观'].includes(name)) notDeveloped(name) }
-const handleProfileBackground = (event) => { event.target.value = ''; notDeveloped('个人资料背景') }
+const selectSetting = (name) => { selectedSetting.value = name; if (!['账户','Baka','文件','外观','语言'].includes(name)) notDeveloped(name) }
+const handleProfileBackground = (event) => { event.target.value = ''; notDeveloped(t('个人资料背景')) }
 const closeSettings = () => { settingsOpen.value = false; profileEditorOpen.value = false; profileBackgroundMenu.value = false }
 const closeProfileEditor = () => { profileEditorOpen.value = false; settingsOpen.value = false; profileBackgroundMenu.value = false }
 const demoNotice = (text) => { toast.value = text; setTimeout(() => { if (toast.value === text) toast.value = '' }, 1800) }
-const notDeveloped = (name = '该功能') => demoNotice(`${name}暂未开发`)
+const notDeveloped = (name = '该功能') => demoNotice(t('{0}暂未开发', t(name)))
 
 let lastSyncedBackendName = ''
 const syncBackendState = () => {
@@ -1050,10 +1051,10 @@ watch(() => backend.channels, () => {
 watch(selectedCommunity, () => { const community=currentCommunity.value;demoCommunityRequests.value=community?(backend.communityRequests[community.id]||[]).map(item=>({...item,community:community.name})):[] })
 const submitDemoAuth = () => {
   if (demoAuthMode.value === '注册') {
-    if (!demoAuth.username.trim() || !demoAuth.email.trim() || !demoAuth.password.trim()) return demoNotice('请填写昵称、邮箱和密码')
+    if (!demoAuth.username.trim() || !demoAuth.email.trim() || !demoAuth.password.trim()) return demoNotice(t('请填写昵称、邮箱和密码'))
     api.register(demoAuth.username.trim(), demoAuth.email.trim(), demoAuth.password)
   } else {
-    if (!demoAuth.identity.trim() || !demoAuth.password.trim()) return demoNotice('请输入账号和密码')
+    if (!demoAuth.identity.trim() || !demoAuth.password.trim()) return demoNotice(t('请输入账号和密码'))
     api.login(demoAuth.identity.trim(), demoAuth.password)
   }
   demoAuth.password = ''
@@ -1061,7 +1062,7 @@ const submitDemoAuth = () => {
 const demoLogout = () => { api.logout(); demoAuthMode.value = '登录'; demoAuth.password = ''; demoLoginOpen.value = true }
 const requestDemoFriend = () => {
   const email = demoForm.email.trim().toLowerCase()
-  if (!email || !email.includes('@')) return demoNotice('请输入有效的邮箱地址')
+  if (!email || !email.includes('@')) return demoNotice(t('请输入有效的邮箱地址'))
   api.addFriend(email, demoForm.note.trim())
   demoForm.email=''; demoForm.note=''
 }
@@ -1081,16 +1082,16 @@ const submitDemoLoginWindow = () => {
 }
 const handleDemoFriendRequest = (request, accept) => { if (api.handleFriend(request.uid, accept)) setTimeout(() => { api.showFriendRequests();api.showContacts() }, 200) }
 const removeDemoFriend = (friend) => api.removeFriend(friend.uid)
-const renameDemoFriend = (friend) => { const next=promptRename('设置好友备注名',friend.remark||friend.name);if(next)api.setFriendRemark(friend.uid,next) }
-const createDemoGroup = () => { const name=demoForm.groupName.trim();if(!name)return demoNotice('请输入群聊名称');api.createGroup(name);demoForm.groupName='';createGroupDialogOpen.value=false }
-const renameDemoGroup = (group) => {const next=promptRename('修改群名称',group.name);if(next)api.groupRename(group.uid,next)}
-const addDemoGroupMember = (group) => {const uid=demoForm.memberUid.trim();if(!uid)return demoNotice('请输入成员 UID');api.groupAdd(group.uid,uid);demoForm.memberUid='';setTimeout(()=>api.showGroupMembers(group.uid),200)}
+const renameDemoFriend = (friend) => { const next=promptRename(t('设置好友备注名'),friend.remark||friend.name);if(next)api.setFriendRemark(friend.uid,next) }
+const createDemoGroup = () => { const name=demoForm.groupName.trim();if(!name)return demoNotice(t('请输入群聊名称'));api.createGroup(name);demoForm.groupName='';createGroupDialogOpen.value=false }
+const renameDemoGroup = (group) => {const next=promptRename(t('修改群名称'),group.name);if(next)api.groupRename(group.uid,next)}
+const addDemoGroupMember = (group) => {const uid=demoForm.memberUid.trim();if(!uid)return demoNotice(t('请输入成员 UID'));api.groupAdd(group.uid,uid);demoForm.memberUid='';setTimeout(()=>api.showGroupMembers(group.uid),200)}
 const removeDemoGroupMember = (group, member) => api.groupRemove(group.uid,member.uid)
 const toggleDemoGroupRole = (group, member) => api.groupRole(group.uid,member.uid,true)
 const handleDemoGroupRequest = (request, accept) => {if(api.handleGroupRequest(request.groupUid,request.uid,accept))setTimeout(()=>api.showGroupRequests(request.groupUid),200)}
 const openDemoFriendChat = (friend) => {const contact=dmContacts.find(item=>Number(item.uid)===Number(friend.uid));if(contact)openDm(contact)}
 const openGroupChat = (group) => { const contact=dmContacts.find(item=>Number(item.uid)===Number(group.uid));if(contact)openDm(contact);api.showGroupMembers(group.uid);api.showGroupRequests(group.uid) }
-const deleteDemoGroup = (group) => {if(window.confirm(`解散群聊“${group.name}”？`))api.groupDelete(group.uid)}
+const deleteDemoGroup = (group) => {if(window.confirm(t('解散群聊“{0}”？', group.name)))api.groupDelete(group.uid)}
 const selectDemoFiles = () => demoFilesInput.value?.click()
 const addDemoFiles = (event) => {for(const file of Array.from(event.target.files||[]))api.uploadFile(file,false);event.target.value=''}
 const setDemoFileStatus = (file,status) => {const task=backend.transfers[file.localId];if(!task)return;if(status==='已暂停')api.pauseTransfer(task);else if(task.direction==='upload'&&!task.file&&['已中断','等待选择原文件'].includes(task.status)){resumeTransferTarget.value=task;resumeFileInput.value?.click()}else api.resumeTransfer(task)}
@@ -1102,15 +1103,15 @@ const deleteDemoFile = (file) => {const task=backend.transfers[file.localId];if(
 const handleDemoCommunityRequest = (request,accept) => {const community=currentCommunity.value;if(!community)return;if(api.handleCommunityRequest(community.id,request.uid,accept))setTimeout(()=>api.showCommunityRequests(community.id),200)}
 const inviteFriendToCommunity = (friend) => {
   const community = currentCommunity.value
-  if (!community) return demoNotice('请先选择社区')
+  if (!community) return demoNotice(t('请先选择社区'))
   if (community.role !== 'owner') return demoNotice('只有社区所有者可以直接添加成员')
   api.communityAdd(community.id, friend.uid)
 }
 const createDemoCommunity = () => {newCommunityName.value=demoForm.communityName;createCommunity();demoForm.communityName=''}
 const toggleDemoMemberRole = (member) => {const community=currentCommunity.value;if(!community||member.role==='owner')return;api.communityRole(community.id,member.uid,member.role!=='admin')}
 const removeDemoCommunityMember = (member) => {const community=currentCommunity.value;if(community&&member.role!=='owner')api.communityRemove(community.id,member.uid)}
-const addDemoCommunityMember = () => {const community=currentCommunity.value;const uid=Number(demoForm.memberUid);if(!community||!uid)return demoNotice('请输入成员 UID');api.communityAdd(community.id,uid);demoForm.memberUid=''}
-const saveDemoProfile = () => {if(!demoNicknameDraft.value.trim())return demoNotice('昵称不能为空');api.changeName(demoNicknameDraft.value.trim());if(demoEmail.value.trim())api.setEmail(demoEmail.value.trim())}
+const addDemoCommunityMember = () => {const community=currentCommunity.value;const uid=Number(demoForm.memberUid);if(!community||!uid)return demoNotice(t('请输入成员 UID'));api.communityAdd(community.id,uid);demoForm.memberUid=''}
+const saveDemoProfile = () => {if(!demoNicknameDraft.value.trim())return demoNotice(t('昵称不能为空'));api.changeName(demoNicknameDraft.value.trim());if(demoEmail.value.trim())api.setEmail(demoEmail.value.trim())}
 const setDemoAvatar = () => avatarUploadInput.value?.click()
 const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(file)openAvatarCrop(file);event.target.value=''}
 
@@ -1153,8 +1154,8 @@ const SearchPanel = () => {
   const results = searchResults.value
   return h('div', { class: 'search-panel', onClick: (e) => e.stopPropagation() }, [
     h('div', { class: 'search-panel-head' }, [
-      h('b', null, `搜索消息 — ${results.length} 条`),
-      h('span', null, '仅搜索当前已加载的消息')
+      h('b', null, t('搜索消息 — {0} 条', results.length)),
+      h('span', null, t('仅搜索当前已加载的消息'))
     ]),
     results.length
       ? h('div', { class: 'search-panel-list' }, results.map((result) => h('div', { key: `${result.conversation}-${result.id}`, class: 'search-result-row' }, [
@@ -1165,7 +1166,7 @@ const SearchPanel = () => {
           ]),
           h('p', null, highlightMatch(result.text, searchQuery.value))
         ])))
-      : h('div', { class: 'search-panel-empty' }, '没有找到匹配的消息')
+      : h('div', { class: 'search-panel-empty' }, t('没有找到匹配的消息'))
   ])
 }
 // —— 账号设置：邮箱与修改密码 ——
@@ -1175,19 +1176,19 @@ const oldPassword = ref('')
 const newPassword = ref('')
 const saveEmail = () => {
   const email = demoEmail.value.trim()
-  if (!email || !email.includes('@')) return demoNotice('请输入有效的邮箱地址')
+  if (!email || !email.includes('@')) return demoNotice(t('请输入有效的邮箱地址'))
   api.setEmail(email)
   emailEditOpen.value = false
 }
 const savePassword = () => {
-  if (!oldPassword.value || !newPassword.value) return demoNotice('请填写当前密码和新密码')
+  if (!oldPassword.value || !newPassword.value) return demoNotice(t('请填写当前密码和新密码'))
   notDeveloped('修改密码（后端暂未提供接口）')
 }
 const resetAvatar = () => {
-  if (!backend.avatarId) return demoNotice('当前已是默认头像')
+  if (!backend.avatarId) return demoNotice(t('当前已是默认头像'))
   api.setAvatar(-1)
   backend.avatarId = 0
-  demoNotice('已恢复默认头像')
+  demoNotice(t('已恢复默认头像'))
 }
 
 // —— 头像上传：正方形裁切（拖动图片移动位置，滚轮/滑块缩放）——
@@ -1266,7 +1267,7 @@ const confirmAvatarCrop = () => {
   canvas.height = size
   canvas.getContext('2d').drawImage(data.img, sx, sy, size, size, 0, 0, size, size)
   canvas.toBlob((blob) => {
-    if (!blob) { cancelAvatarCrop(); demoNotice('图片处理失败'); return }
+    if (!blob) { cancelAvatarCrop(); demoNotice(t('图片处理失败')); return }
     const out = new File([blob], data.file.name, { type: data.file.type || 'image/png' })
     api.uploadFile(out, { type: 'avatar' })
     cancelAvatarCrop()
@@ -1280,143 +1281,143 @@ const confirmAvatarCrop = () => {
   <div v-if="avatarCrop" class="dialog-backdrop crop-backdrop" @click.self="cancelAvatarCrop">
     <section class="crop-dialog">
       <button class="dialog-close" @click="cancelAvatarCrop">×</button>
-      <h2>裁切头像</h2>
-      <p>拖动图片调整位置，滚轮或下方滑块缩放。</p>
+      <h2>{{ t("裁切头像") }}</h2>
+      <p>{{ t("拖动图片调整位置，滚轮或下方滑块缩放。") }}</p>
       <div class="crop-stage" :style="{width: `${CROP_STAGE}px`, height: `${CROP_STAGE}px`}" @mousedown.prevent="startCropDrag" @wheel.prevent="onCropWheel">
         <img :src="avatarCrop.url" :style="{width: `${cropDisplayW}px`, height: `${cropDisplayH}px`, transform: `translate(${crop.ox}px, ${crop.oy}px)`}" draggable="false">
         <div class="crop-grid"></div>
       </div>
-      <div class="crop-zoom-row"><span>缩放</span><input type="range" :min="CROP_MIN_ZOOM" :max="CROP_MAX_ZOOM" :step="0.01" :value="crop.zoom" @input="onCropZoomInput"></div>
-      <footer><button @click="cancelAvatarCrop">取消</button><button class="crop-confirm" @click="confirmAvatarCrop">上传头像</button></footer>
+      <div class="crop-zoom-row"><span>{{ t("缩放") }}</span><input type="range" :min="CROP_MIN_ZOOM" :max="CROP_MAX_ZOOM" :step="0.01" :value="crop.zoom" @input="onCropZoomInput"></div>
+      <footer><button @click="cancelAvatarCrop">{{ t("取消") }}</button><button class="crop-confirm" @click="confirmAvatarCrop">{{ t("上传头像") }}</button></footer>
     </section>
   </div>
   <div class="discord-app" :style="appGridStyle">
     <nav class="server-rail">
-      <button class="rail-home" :class="{'rail-selected':['dm','dm-chat'].includes(activePage)}" aria-label="私聊和群聊" data-tooltip="私聊和群聊" title="私聊和群聊" @click="activePage='dm'" @dblclick="playBaka('logo')"><img src="/logo.png" alt="Discord"></button>
+      <button class="rail-home" :class="{'rail-selected':['dm','dm-chat'].includes(activePage)}" :aria-label="t('私聊和群聊')" :data-tooltip="t('私聊和群聊')" :title="t('私聊和群聊')" @click="activePage='dm'" @dblclick="playBaka('logo')"><img src="/logo.png" alt="Discord"></button>
       <div class="rail-divider"></div>
       <button v-for="community in communities" :key="community.name" class="server community-server" :class="{'active-server':activePage==='community'&&selectedCommunity===community.name}" :aria-label="community.name" :data-tooltip="community.name" :title="community.name" @click="selectCommunity(community)" @contextmenu.prevent.stop="openCommunityContext($event,community)"><span class="community-mark"><img :src="community.icon || DEFAULT_COMM_AVATAR" :alt="community.name"></span><i></i></button>
-      <div class="rail-action-wrap"><button class="round-add" :class="{'rail-selected':communityMenu}" aria-label="创建社区" data-tooltip="创建社区" title="创建或加入社区" @click="communityMenu=!communityMenu;communityContextMenu=null"><svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></svg></button><div v-if="communityMenu" class="community-menu"><button @click="communityMenu=false;createCommunityOpen=true"><Icon name="community"/>创建社区</button><button @click="communityMenu=false;createGroupDialogOpen=true"><Icon name="group"/>创建群聊</button><button @click="communityMenu=false;joinModal=true"><Icon name="enter"/>申请加入社区</button><button @click="communityMenu=false;joinGroupOpen=true"><Icon name="enter"/>申请加入群聊</button><button @click="communityMenu=false;friendRequestModal=true"><Icon name="userPlus"/>添加好友</button></div></div>
-      <button class="round-discover" :class="{'rail-selected':activePage==='discover'}" aria-label="发现" data-tooltip="发现" title="发现" @click="notDeveloped('发现社区')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 5-4.8 2 2-4.8 5-2.2Z"/></svg></button>
+      <div class="rail-action-wrap"><button class="round-add" :class="{'rail-selected':communityMenu}" :aria-label="t('创建社区')" :data-tooltip="t('创建社区')" :title="t('创建或加入社区')" @click="communityMenu=!communityMenu;communityContextMenu=null"><svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></svg></button><div v-if="communityMenu" class="community-menu"><button @click="communityMenu=false;createCommunityOpen=true"><Icon name="community"/>{{ t("创建社区") }}</button><button @click="communityMenu=false;createGroupDialogOpen=true"><Icon name="group"/>{{ t("创建群聊") }}</button><button @click="communityMenu=false;joinModal=true"><Icon name="enter"/>{{ t("申请加入社区") }}</button><button @click="communityMenu=false;joinGroupOpen=true"><Icon name="enter"/>{{ t("申请加入群聊") }}</button><button @click="communityMenu=false;friendRequestModal=true"><Icon name="userPlus"/>{{ t("添加好友") }}</button></div></div>
+      <button class="round-discover" :class="{'rail-selected':activePage==='discover'}" :aria-label="t('发现')" :data-tooltip="t('发现')" :title="t('发现')" @click="notDeveloped(t('发现社区'))"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 5-4.8 2 2-4.8 5-2.2Z"/></svg></button>
       <div class="rail-divider rail-test-divider"></div>
-      <button class="round-test" :class="{'rail-selected':testMenu}" aria-label="测试" data-tooltip="测试菜单" title="测试菜单" @click.stop="openTestMenu"><svg viewBox="0 0 24 24"><path d="M9 3h6M10 3v6.2L5.2 17A2.4 2.4 0 0 0 7.3 20.6h9.4A2.4 2.4 0 0 0 18.8 17L14 9.2V3"/><path d="M7.2 14h9.6"/></svg></button>
+      <button class="round-test" :class="{'rail-selected':testMenu}" :aria-label="t('测试')" :data-tooltip="t('测试菜单')" :title="t('测试菜单')" @click.stop="openTestMenu"><svg viewBox="0 0 24 24"><path d="M9 3h6M10 3v6.2L5.2 17A2.4 2.4 0 0 0 7.3 20.6h9.4A2.4 2.4 0 0 0 18.8 17L14 9.2V3"/><path d="M7.2 14h9.6"/></svg></button>
     </nav>
     <div v-if="testMenu" class="community-context-dismiss" @click="testMenu=null" @contextmenu.prevent="testMenu=null"></div>
     <div v-if="testMenu" class="community-context-menu test-menu" :style="{left:`${testMenu.x}px`,bottom:`${testMenu.bottom}px`}" @click.stop>
-      <div class="test-menu-label">测试 · 好友与群聊</div>
-      <button @click="addTestFriendRequest()"><span class="test-menu-icon">♧</span>收到一条好友申请<b v-if="demoFriendRequests.length" class="test-menu-count">{{demoFriendRequests.length}}</b></button>
-      <button @click="addTestGroupRequest()"><span class="test-menu-icon">◌</span>收到一条入群申请</button>
-      <button @click="addTestCommunityRequest()"><span class="test-menu-icon">◆</span>收到一条入社区申请</button>
-      <button @click="activePage='dm';friendFilter='待定'"><span class="test-menu-icon">▤</span>打开待处理列表</button>
+      <div class="test-menu-label">{{ t("测试 · 好友与群聊") }}</div>
+      <button @click="addTestFriendRequest()"><span class="test-menu-icon">♧</span>{{ t("收到一条好友申请") }}<b v-if="demoFriendRequests.length" class="test-menu-count">{{demoFriendRequests.length}}</b></button>
+      <button @click="addTestGroupRequest()"><span class="test-menu-icon">◌</span>{{ t("收到一条入群申请") }}</button>
+      <button @click="addTestCommunityRequest()"><span class="test-menu-icon">◆</span>{{ t("收到一条入社区申请") }}</button>
+      <button @click="activePage='dm';friendFilter='待定'"><span class="test-menu-icon">▤</span>{{ t("打开待处理列表") }}</button>
       <div></div>
-      <div class="test-menu-label">测试 · 消息与音效</div>
-      <button @click="pushTestIncoming()"><span class="test-menu-icon">✉</span>推送一条私信</button>
-      <button @click="pushTestIncoming()"><span class="test-menu-icon">#</span>推送一条频道消息</button>
-      <button @click="playBaka('logo')"><span class="test-menu-icon">♪</span>试听 Baka 音效</button>
+      <div class="test-menu-label">{{ t("测试 · 消息与音效") }}</div>
+      <button @click="pushTestIncoming()"><span class="test-menu-icon">✉</span>{{ t("推送一条私信") }}</button>
+      <button @click="pushTestIncoming()"><span class="test-menu-icon">#</span>{{ t("推送一条频道消息") }}</button>
+      <button @click="playBaka('logo')"><span class="test-menu-icon">♪</span>{{ t("试听 Baka 音效") }}</button>
       <div></div>
-      <div class="test-menu-label">测试 · 窗口与流程</div>
-      <button @click="testMenu=null;friendRequestModal=true"><span class="test-menu-icon">＋</span>添加好友窗口</button>
-      <button @click="testMenu=null;createCommunityOpen=true"><span class="test-menu-icon">＋</span>创建社区窗口</button>
-      <button @click="testMenu=null;joinModal=true"><span class="test-menu-icon">↗</span>申请加入社区窗口</button>
-      <button @click="testMenu=null;createGroupDialogOpen=true"><span class="test-menu-icon">◌</span>创建群聊表单</button>
-      <button @click="testMenu=null;openDemoLoginWindow()"><span class="test-menu-icon">⇥</span>登录窗口</button>
-      <button @click="testMenu=null;settingsOpen=true"><span class="test-menu-icon">⚙</span>用户设置</button>
+      <div class="test-menu-label">{{ t("测试 · 窗口与流程") }}</div>
+      <button @click="testMenu=null;friendRequestModal=true"><span class="test-menu-icon">＋</span>{{ t("添加好友窗口") }}</button>
+      <button @click="testMenu=null;createCommunityOpen=true"><span class="test-menu-icon">＋</span>{{ t("创建社区窗口") }}</button>
+      <button @click="testMenu=null;joinModal=true"><span class="test-menu-icon">↗</span>{{ t("申请加入社区窗口") }}</button>
+      <button @click="testMenu=null;createGroupDialogOpen=true"><span class="test-menu-icon">◌</span>{{ t("创建群聊表单") }}</button>
+      <button @click="testMenu=null;openDemoLoginWindow()"><span class="test-menu-icon">⇥</span>{{ t("登录窗口") }}</button>
+      <button @click="testMenu=null;settingsOpen=true"><span class="test-menu-icon">⚙</span>{{ t("用户设置") }}</button>
       <div></div>
-      <button @click="testSignedOut()"><span class="test-menu-icon">⇤</span>切换为未登录态</button>
-      <button @click="testClearLogs()"><span class="test-menu-icon">⌫</span>清空本机聊天记录</button>
-      <button class="leave-community" @click="testResetDemo()"><span class="test-menu-icon">↺</span>重置服务端数据</button>
+      <button @click="testSignedOut()"><span class="test-menu-icon">⇤</span>{{ t("切换为未登录态") }}</button>
+      <button @click="testClearLogs()"><span class="test-menu-icon">⌫</span>{{ t("清空本机聊天记录") }}</button>
+      <button class="leave-community" @click="testResetDemo()"><span class="test-menu-icon">↺</span>{{ t("重置服务端数据") }}</button>
     </div>
     <div v-if="communityContextMenu" class="community-context-dismiss" @click="communityContextMenu=null" @contextmenu.prevent="communityContextMenu=null"></div>
     <div v-if="communityContextMenu" class="community-context-menu" :style="{left:`${communityContextMenu.x}px`,top:`${communityContextMenu.y}px`}" @click.stop>
-      <button @click="communityMenuAction('invite')"><Icon name="userPlus"/>邀请至社区</button>
-      <button @click="communityMenuAction('settings')"><Icon name="gear"/>社区设置</button>
+      <button @click="communityMenuAction('invite')"><Icon name="userPlus"/>{{ t("邀请至社区") }}</button>
+      <button @click="communityMenuAction('settings')"><Icon name="gear"/>{{ t("社区设置") }}</button>
       <div></div>
-      <button @click="communityContextMenu=null;communitySettingsOpen=true"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>创建频道</button>
+      <button @click="communityContextMenu=null;communitySettingsOpen=true"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>{{ t("创建频道") }}</button>
       <div></div>
-      <button class="leave-community" @click="communityMenuAction('leave')"><Icon name="logout"/>离开社区</button>
+      <button class="leave-community" @click="communityMenuAction('leave')"><Icon name="logout"/>{{ t("离开社区") }}</button>
     </div>
     <div v-if="dmContextMenu" class="community-context-dismiss" @click="dmContextMenu=null" @contextmenu.prevent="dmContextMenu=null"></div>
     <div v-if="dmContextMenu" class="community-context-menu dm-context-menu" :style="{left:`${dmContextMenu.x}px`,top:`${dmContextMenu.y}px`}" @click.stop>
       <template v-if="dmContextMenu.kind==='群聊'">
-        <button @click.stop="openDmEditMenu"><Icon name="edit"/>编辑群聊<b class="menu-arrow">›</b></button>
+        <button @click.stop="openDmEditMenu"><Icon name="edit"/>{{ t("编辑群聊") }}<b class="menu-arrow">›</b></button>
         <div></div>
-        <button class="leave-community" @click="dmContextAction('leave')"><Icon name="logout"/>退出群聊</button>
+        <button class="leave-community" @click="dmContextAction('leave')"><Icon name="logout"/>{{ t("退出群聊") }}</button>
       </template>
       <template v-else>
-        <button @click="dmContextAction('profile')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5 20v-1.2a7 7 0 0 1 14 0V20z"/></svg>打开他人主页</button>
-        <button @click="dmContextAction('clear')"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6.5 7l1 13h9l1-13"/></svg>清除聊天记录</button>
+        <button @click="dmContextAction('profile')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5 20v-1.2a7 7 0 0 1 14 0V20z"/></svg>{{ t("打开他人主页") }}</button>
+        <button @click="dmContextAction('clear')"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6.5 7l1 13h9l1-13"/></svg>{{ t("清除聊天记录") }}</button>
         <div></div>
-        <button class="leave-community" @click="dmContextAction('remove')"><svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.4"/><path d="M4 20v-1.2A6 6 0 0 1 16 18v2M17 9l5 5m0-5-5 5"/></svg>删除好友</button>
+        <button class="leave-community" @click="dmContextAction('remove')"><svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.4"/><path d="M4 20v-1.2A6 6 0 0 1 16 18v2M17 9l5 5m0-5-5 5"/></svg>{{ t("删除好友") }}</button>
       </template>
     </div>
     <div v-if="dmEditMenu" class="community-context-menu dm-context-menu dm-edit-menu" :style="{left:`${dmEditMenu.x}px`,top:`${dmEditMenu.y}px`}" @click.stop>
-      <button @click="dmContextAction('rename')"><Icon name="edit"/>修改群聊名称</button>
-      <button @click="dmContextAction('members')"><Icon name="group"/>管理群成员</button>
+      <button @click="dmContextAction('rename')"><Icon name="edit"/>{{ t("修改群聊名称") }}</button>
+      <button @click="dmContextAction('members')"><Icon name="group"/>{{ t("管理群成员") }}</button>
       <div></div>
-      <button @click="dmContextAction('groupSettings')"><Icon name="gear"/>群聊设置</button>
+      <button @click="dmContextAction('groupSettings')"><Icon name="gear"/>{{ t("群聊设置") }}</button>
     </div>
     <aside class="channel-sidebar">
-      <div v-if="['dm','dm-chat'].includes(activePage)" class="dm-sidebar"><label class="dm-search"><input placeholder="寻找或开始新的对话" @focus="notDeveloped('全局会话搜索')"></label><div class="dm-list-heading dm-message-heading"><span>私信</span><button class="dm-add-cta" aria-label="私信操作" :aria-expanded="dmQuickMenu" @click.stop="dmQuickMenu=!dmQuickMenu">＋</button><div v-if="dmQuickMenu" class="dm-quick-menu" @click.stop><button @click="dmQuickMenu=false;createGroupDialogOpen=true"><Icon name="group"/><span>创建群聊</span></button></div></div><button v-for="contact in dmContacts" :key="contact.name" class="dm-contact" :class="{selected:activePage==='dm-chat'&&selectedDm===contact.name}" @click="openDm(contact)" @contextmenu.prevent.stop="openDmContext($event,contact)"><span class="dm-avatar"><img :src="dmAvatarSrc(contact.name)" :alt="contact.name"><i v-if="isDmUnread(contact)" class="dm-presence" aria-label="有未读消息" title="有未读消息" style="border:0;background:#ed4245;box-shadow:0 0 0 2.5px var(--sidebar-bg)"></i><i v-else class="dm-presence" :class="contact.online?'online':contact.idle?'idle':'offline'" :data-tooltip="contact.online?'在线':contact.idle?'闲置':'离线'"></i></span><b class="dm-name">{{contact.name}}</b><span class="dm-close" role="button" aria-label="关闭私信" title="关闭私信" @click.stop="closeDm(contact)">×</span></button></div>
+      <div v-if="['dm','dm-chat'].includes(activePage)" class="dm-sidebar"><label class="dm-search"><input :placeholder="t('寻找或开始新的对话')" @focus="notDeveloped(t('全局会话搜索'))"></label><div class="dm-list-heading dm-message-heading"><span>{{ t("私信") }}</span><button class="dm-add-cta" :aria-label="t('私信操作')" :aria-expanded="dmQuickMenu" @click.stop="dmQuickMenu=!dmQuickMenu">＋</button><div v-if="dmQuickMenu" class="dm-quick-menu" @click.stop><button @click="dmQuickMenu=false;createGroupDialogOpen=true"><Icon name="group"/><span>{{ t("创建群聊") }}</span></button></div></div><button v-for="contact in dmContacts" :key="contact.name" class="dm-contact" :class="{selected:activePage==='dm-chat'&&selectedDm===contact.name}" @click="openDm(contact)" @contextmenu.prevent.stop="openDmContext($event,contact)"><span class="dm-avatar"><img :src="dmAvatarSrc(contact.name)" :alt="contact.name"><i v-if="isDmUnread(contact)" class="dm-presence" :aria-label="t('有未读消息')" :title="t('有未读消息')" style="border:0;background:#ed4245;box-shadow:0 0 0 2.5px var(--sidebar-bg)"></i><i v-else class="dm-presence" :class="contact.online?'online':contact.idle?'idle':'offline'" :data-tooltip="contact.online?'在线':contact.idle?t('闲置'):t('离线')"></i></span><b class="dm-name">{{contact.name}}</b><span class="dm-close" role="button" :aria-label="t('关闭私信')" :title="t('关闭私信')" @click.stop="closeDm(contact)">×</span></button></div>
       <div v-else-if="activePage==='community'" class="community-sidebar-content">
       <div class="community-sidebar-banner"></div>
-      <div class="guild-header"><button class="guild-header-title" title="服务器菜单" @click.stop="openCommunityContext($event, currentCommunity)"><b>{{selectedCommunity}}</b><Icon name="caret" class="guild-caret"/></button><div class="guild-header-actions"><button class="invite" title="邀请至服务器" aria-label="邀请至服务器" @click="openCommunityInvite()"><Icon name="userPlus"/></button></div></div>
-      <div class="side-shortcuts"><button :class="{selected:active==='服务器指南'}" @click="active='服务器指南'"><Icon name="doc"/>服务器指南</button></div>
+      <div class="guild-header"><button class="guild-header-title" :title="t('服务器菜单')" @click.stop="openCommunityContext($event, currentCommunity)"><b>{{selectedCommunity}}</b><Icon name="caret" class="guild-caret"/></button><div class="guild-header-actions"><button class="invite" :title="t('邀请至服务器')" :aria-label="t('邀请至服务器')" @click="openCommunityInvite()"><Icon name="userPlus"/></button></div></div>
+      <div class="side-shortcuts"><button :class="{selected:active==='服务器指南'}" @click="active='服务器指南'"><Icon name="doc"/>{{ t("服务器指南") }}</button></div>
       <div class="channel-list" @wheel.prevent="scrollChat">
         <template v-for="group in groups" :key="group.title">
           <div class="category" :class="{collapsed:isCategoryCollapsed(group)}">
-            <button class="category-toggle" :aria-expanded="!isCategoryCollapsed(group)" :title="isCategoryCollapsed(group)?'展开分区':'收起分区'" @click="toggleCategory(group)"><span class="category-name">{{ group.title }}</span><Icon name="caret" class="category-caret"/></button>
-            <button class="category-add" title="新建频道" @click="communitySettingsOpen=true">＋</button>
+            <button class="category-toggle" :aria-expanded="!isCategoryCollapsed(group)" :title="isCategoryCollapsed(group)?t('展开分区'):t('收起分区')" @click="toggleCategory(group)"><span class="category-name">{{ group.title }}</span><Icon name="caret" class="category-caret"/></button>
+            <button class="category-add" :title="t('新建频道')" @click="communitySettingsOpen=true">＋</button>
           </div>
           <template v-if="!isCategoryCollapsed(group)">
           <button v-for="channel in group.channels" :key="channel" class="channel-row" :class="{selected: active === channel}" :title="channel" @click="switchChannel(channel)"><Icon name="hash" class="channel-hash"/><span class="channel-label">{{ channel }}</span></button>
           </template>
         </template>
-        <div v-if="communityChannels[selectedCommunity]?.length" class="category custom-channel-category" :class="{collapsed:customChannelsCollapsed}"><button class="category-toggle" :aria-expanded="!customChannelsCollapsed" @click="customChannelsCollapsed=!customChannelsCollapsed"><span class="category-name">新建频道</span><Icon name="caret" class="category-caret"/></button></div>
+        <div v-if="communityChannels[selectedCommunity]?.length" class="category custom-channel-category" :class="{collapsed:customChannelsCollapsed}"><button class="category-toggle" :aria-expanded="!customChannelsCollapsed" @click="customChannelsCollapsed=!customChannelsCollapsed"><span class="category-name">{{ t("新建频道") }}</span><Icon name="caret" class="category-caret"/></button></div>
         <template v-if="!customChannelsCollapsed">
         <button v-for="channel in communityChannels[selectedCommunity]||[]" :key="channel" class="channel-row" :class="{selected:active===channel}" :title="channel" @click="switchChannel(channel)"><Icon name="hash" class="channel-hash"/><span class="channel-label">{{channel}}</span></button>
         </template>
       </div>
       </div>
-      <div class="account-bar"><button class="profile-menu-trigger" aria-label="打开个人资料菜单" title="个人资料" @click.stop="profileMenuOpen=!profileMenuOpen;profileAccountMenu=false"><span class="profile-pic"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></span></button><div class="profile-label"><b>{{demoNickname}}</b><small>{{backend.connected?(backend.uid?'在线':'未登录'):'离线'}}</small></div><Icon name="caret" class="account-caret"/><button aria-label="設定" title="设置" @click="profileMenuOpen=false;profileEditorOpen=false;settingsOpen = true"><Icon name="gear"/></button></div>
+      <div class="account-bar"><button class="profile-menu-trigger" :aria-label="t('打开个人资料菜单')" :title="t('个人资料')" @click.stop="profileMenuOpen=!profileMenuOpen;profileAccountMenu=false"><span class="profile-pic"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></span></button><div class="profile-label"><b>{{demoNickname}}</b><small>{{backend.connected?(backend.uid?t('在线'):t('未登录')):t('离线')}}</small></div><Icon name="caret" class="account-caret"/><button aria-label="設定" :title="t('设置')" @click="profileMenuOpen=false;profileEditorOpen=false;settingsOpen = true"><Icon name="gear"/></button></div>
     </aside>
-    <div class="sidebar-resizer" role="separator" tabindex="0" aria-orientation="vertical" aria-label="拖动调整频道栏宽度" title="拖动调整频道栏宽度 · 双击复位" :style="{ left: resizerX }" @mousedown.prevent="startSidebarResize" @dblclick="resetSidebarWidth" @keydown="onSidebarResizerKeydown"></div>
+    <div class="sidebar-resizer" role="separator" tabindex="0" aria-orientation="vertical" :aria-label="t('拖动调整频道栏宽度')" :title="t('拖动调整频道栏宽度 · 双击复位')" :style="{ left: resizerX }" @mousedown.prevent="startSidebarResize" @dblclick="resetSidebarWidth" @keydown="onSidebarResizerKeydown"></div>
     <div v-if="profileMenuOpen" class="profile-menu-dismiss" @click="profileMenuOpen=false;profileAccountMenu=false"></div>
     <section v-if="profileMenuOpen" class="user-profile-popover" @click.stop>
       <div class="user-profile-banner"><div class="user-profile-avatar settings-avatar"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></div><div class="user-profile-status-bubble">UID {{demoUid||'—'}}</div></div>
       <div class="user-profile-details"><h2>{{demoNickname}}</h2><p>UID {{demoUid||'—'}}</p>
-        <button class="profile-popover-action edit-profile-action" @click="profileMenuOpen=false;selectedSetting='账户';settingsOpen=true;profileEditorOpen=true"><Icon name="edit"/><span>编辑个人资料</span></button>
+        <button class="profile-popover-action edit-profile-action" @click="profileMenuOpen=false;selectedSetting='账户';settingsOpen=true;profileEditorOpen=true"><Icon name="edit"/><span>{{ t("编辑个人资料") }}</span></button>
       </div>
-      <button class="profile-popover-action switch-account-action" @click="profileAccountMenu=!profileAccountMenu"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.3"/><path d="M5 20v-1a7 7 0 0 1 14 0v1"/></svg><span>切换账户</span><b>›</b></button>
+      <button class="profile-popover-action switch-account-action" @click="profileAccountMenu=!profileAccountMenu"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.3"/><path d="M5 20v-1a7 7 0 0 1 14 0v1"/></svg><span>{{ t("切换账户") }}</span><b>›</b></button>
       <div v-if="profileAccountMenu" class="profile-popover-submenu account-switch-menu"><button @click="profileAccountMenu=false">{{demoNickname}}　当前账户</button><button @click="profileAccountMenu=false;openDemoLoginWindow()">＋　切换账户</button></div>
     </section>
     <main v-if="activePage==='community'" class="chat" :class="{'members-open':memberPanelOpen}" @click="closeComposerPopovers">
-      <aside v-if="memberPanelOpen" class="member-panel" aria-label="社区成员">
-        <header><h2>社区成员</h2><span>{{demoCommunityMemberList.length}}</span></header>
+      <aside v-if="memberPanelOpen" class="member-panel" :aria-label="t('社区成员')">
+        <header><h2>{{ t("社区成员") }}</h2><span>{{demoCommunityMemberList.length}}</span></header>
         <div class="member-panel-scroll">
           <section v-for="group in communityMemberGroups" :key="group.label">
             <h3>{{group.label}} — {{group.members.length}}</h3>
             <article v-for="member in group.members" :key="member.uid" class="member-panel-row" @click="memberProfile={name:member.name,uid:member.uid,avatar:'',avatarText:member.name[0]}">
               <span class="member-panel-avatar">{{member.name[0]}}<i :class="{offline:!member.online}"></i></span>
-              <div><b>{{member.name}}</b><small>{{member.online?'在线':'离线'}}</small></div>
-              <span v-if="member.role!=='member'" class="member-panel-role">{{member.role==='owner'?'所有者':'管理员'}}</span>
+              <div><b>{{member.name}}</b><small>{{member.online?t('在线'):t('离线')}}</small></div>
+              <span v-if="member.role!=='member'" class="member-panel-role">{{member.role==='owner'?t('所有者'):t('管理员')}}</span>
             </article>
           </section>
         </div>
       </aside>
-      <header class="chat-top"><div class="channel-heading"><span class="hash-big"><Icon name="hash" class="channel-hash"/></span><b>{{ active==='服务器指南'?'服务器指南':active }}</b><span v-if="active!=='服务器指南'" class="separator"></span><span v-if="active!=='服务器指南'" class="topic">{{currentCommunity?.description||'本频道用于吹水，吹水和吹水。'}}</span></div><div class="chat-tools"><div class="chat-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg><input v-model="searchQuery" type="text" placeholder="搜索" aria-label="搜索" @focus="searchOpen=true"><button v-if="searchQuery" type="button" class="search-clear" aria-label="关闭搜索" title="关闭搜索" @click.stop="closeSearch">×</button><SearchPanel v-if="searchOpen && searchQuery" /></div><button v-if="active==='服务器指南'" class="guide-edit-button" title="编辑服务器描述" aria-label="编辑服务器描述" @click="openGuideEditor"><Icon name="edit"/></button><button v-else class="members-toggle" :class="{active:memberPanelOpen}" title="社区成员" aria-label="社区成员" :aria-expanded="memberPanelOpen" @click.stop="memberPanelOpen=!memberPanelOpen"><Icon name="group"/></button></div></header>
-      <div v-if="unreadBanner&&active!=='服务器指南'" class="channel-unread-bar"><span>自从 {{unreadBannerInfo.time}} 以来有 {{unreadBannerInfo.count}} 条以上的新消息</span><button @click="notDeveloped('标记已读')">标记为已读</button></div>
+      <header class="chat-top"><div class="channel-heading"><span class="hash-big"><Icon name="hash" class="channel-hash"/></span><b>{{ active==='服务器指南'?'服务器指南':active }}</b><span v-if="active!=='服务器指南'" class="separator"></span><span v-if="active!=='服务器指南'" class="topic">{{currentCommunity?.description||'本频道用于吹水，吹水和吹水。'}}</span></div><div class="chat-tools"><div class="chat-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg><input v-model="searchQuery" type="text" :placeholder="t('搜索')" :aria-label="t('搜索')" @focus="searchOpen=true"><button v-if="searchQuery" type="button" class="search-clear" :aria-label="t('关闭搜索')" :title="t('关闭搜索')" @click.stop="closeSearch">×</button><SearchPanel v-if="searchOpen && searchQuery" /></div><button v-if="active==='服务器指南'" class="guide-edit-button" :title="t('编辑服务器描述')" :aria-label="t('编辑服务器描述')" @click="openGuideEditor"><Icon name="edit"/></button><button v-else class="members-toggle" :class="{active:memberPanelOpen}" :title="t('社区成员')" :aria-label="t('社区成员')" :aria-expanded="memberPanelOpen" @click.stop="memberPanelOpen=!memberPanelOpen"><Icon name="group"/></button></div></header>
+      <div v-if="unreadBanner&&active!=='服务器指南'" class="channel-unread-bar"><span>自从 {{unreadBannerInfo.time}} 以来有 {{unreadBannerInfo.count}} 条以上的新消息</span><button @click="notDeveloped(t('标记已读'))">{{ t("标记为已读") }}</button></div>
       <section v-if="active==='服务器指南'" class="server-guide-page">
         <div class="guide-content-wrap">
           <div class="guide-banner" :style="{backgroundImage:`linear-gradient(180deg, rgba(17,18,22,.35), rgba(17,18,22,.78)), url(${currentCommunity?.background || DEFAULT_COMM_BACKGROUND})`, backgroundSize:'cover', backgroundPosition:'center'}"><div class="guide-banner-art"><i></i><b></b><em>✦</em></div></div>
-          <div class="guide-server-intro"><span class="guide-server-avatar"><img :src="currentCommunity?.icon || DEFAULT_COMM_AVATAR" :alt="selectedCommunity"></span><div><h1>{{selectedCommunity}} <span>✿</span></h1><p>{{currentCommunity?.description||'欢迎来到我们的社区，一起交流分享吧。'}}</p></div><button @click="openCommunityInvite()">邀请</button></div>
+          <div class="guide-server-intro"><span class="guide-server-avatar"><img :src="currentCommunity?.icon || DEFAULT_COMM_AVATAR" :alt="selectedCommunity"></span><div><h1>{{selectedCommunity}} <span>✿</span></h1><p>{{currentCommunity?.description||'欢迎来到我们的社区，一起交流分享吧。'}}</p></div><button @click="openCommunityInvite()">{{ t("邀请") }}</button></div>
           <div class="guide-main-grid">
-            <aside class="guide-community-card"><div class="guide-community-banner"></div><div class="guide-community-body"><span class="guide-community-avatar"><img :src="currentCommunity?.icon || DEFAULT_COMM_AVATAR" :alt="selectedCommunity"></span><h3>{{selectedCommunity}} <span>✿</span></h3><p><i></i>{{currentCommunity?.online||0}} 人在线　•　{{currentCommunity?.members||0}} 位成员</p><small>创建日期：暂未提供</small><div class="guide-highlight"><b>热门活动</b><span>社区活动暂未开发</span></div><div class="guide-tags"><span>社区标签暂未开发</span></div></div></aside>
+            <aside class="guide-community-card"><div class="guide-community-banner"></div><div class="guide-community-body"><span class="guide-community-avatar"><img :src="currentCommunity?.icon || DEFAULT_COMM_AVATAR" :alt="selectedCommunity"></span><h3>{{selectedCommunity}} <span>✿</span></h3><p><i></i>{{currentCommunity?.online||0}} 人在线　•　{{currentCommunity?.members||0}} 位成员</p><small>{{ t("创建日期：暂未提供") }}</small><div class="guide-highlight"><b>{{ t("热门活动") }}</b><span>{{ t("社区活动暂未开发") }}</span></div><div class="guide-tags"><span>{{ t("社区标签暂未开发") }}</span></div></div></aside>
           </div>
         </div>
       </section>
         <section v-else class="message-scroll" :style="{paddingBottom: uploads.length ? `${84 + Math.ceil(uploads.length / 3) * 230}px` : '84px'}" @wheel.prevent="scrollChat" @click="handleMessageAction" @contextmenu.prevent="openContextMenu">
         <div class="messages-inner">
           <MessageRow v-for="record in channelHistory" :key="record.id" :record="record" :reactions="messageReactions[record.id]" />
-          <article v-if="!channelHistory.length" class="message system-message"><div class="system-row"><span class="system-glyph">#</span><b>这里还没有消息，发送第一条消息吧。</b></div></article>
+          <article v-if="!channelHistory.length" class="message system-message"><div class="system-row"><span class="system-glyph">#</span><b>{{ t("这里还没有消息，发送第一条消息吧。") }}</b></div></article>
         </div>
       </section>
       <div v-if="toast" class="toast community-toast">{{ toast }}</div>
@@ -1424,33 +1425,33 @@ const confirmAvatarCrop = () => {
         <span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>
         <b>{{typingUsers[0].author}}</b>
         <span v-if="typingUsers[0].tag" class="tag"><span class="tag-icon">{{typingUsers[0].tag.icon}}</span>{{typingUsers[0].tag.label}}</span>
-        <span class="typing-text">正在输入…</span>
+        <span class="typing-text">{{ t("正在输入…") }}</span>
       </div>
       <Composer v-if="active!=='服务器指南'" :conversation-key="active" :placeholder="`给 ${active} 发消息`" />
     </main>
     <main v-else-if="activePage==='dm'" class="friends-main" @click="friendMoreMenu='';dmQuickMenu=false">
       <section class="friends-column">
-      <header class="friends-page-header"><div class="friends-page-title"><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="3.5"/><path d="M5.8 19.6a6.2 6.2 0 0 1 12.4 0"/></svg></span><b>好友</b></div><div class="friends-filter-tabs"><button v-for="tab in ['全部','待定']" :key="tab" :class="{active:friendFilter===tab}" @click="friendFilter=tab;friendMoreMenu=''">{{tab}}<span v-if="tab==='待定'&&demoFriendRequests.length+demoGroupRequests.length+demoCommunityRequests.length" class="friends-tab-dot" aria-hidden="true"></span></button></div></header>
+      <header class="friends-page-header"><div class="friends-page-title"><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="3.5"/><path d="M5.8 19.6a6.2 6.2 0 0 1 12.4 0"/></svg></span><b>{{ t("好友") }}</b></div><div class="friends-filter-tabs"><button v-for="tab in ['全部','待定']" :key="tab" :class="{active:friendFilter===tab}" @click="friendFilter=tab;friendMoreMenu=''">{{tab}}<span v-if="tab==='待定'&&demoFriendRequests.length+demoGroupRequests.length+demoCommunityRequests.length" class="friends-tab-dot" aria-hidden="true"></span></button></div></header>
       <section class="friends-page-scroll">
         <template v-if="friendFilter==='待定'">
-          <div class="friends-list-heading"><div><h2>待处理</h2><p>好友申请、群聊邀请与社区申请都集中在这里。</p></div><span>{{demoFriendRequests.length+demoGroupRequests.length+demoCommunityRequests.length}} 项</span></div>
-          <section class="friends-request-section"><h3>好友申请 <small>{{demoFriendRequests.length}}</small></h3><article v-for="request in demoFriendRequests" :key="`friend-${request.uid}`" class="friends-request-row"><span class="friends-avatar"><img :src="avatarByUid(request.uid)" :alt="request.name"></span><div class="friends-row-copy"><b>{{request.name}} <small>UID {{request.uid}}</small></b><p>{{request.outgoing?'等待对方回应':request.note}}</p></div><span v-if="request.outgoing" class="friends-pending-label">等待回应</span><template v-else><button class="friends-soft-button" @click="handleDemoFriendRequest(request,false)">忽略</button><button class="friends-primary-button" @click="handleDemoFriendRequest(request,true)">接受</button></template></article><div v-if="!demoFriendRequests.length" class="friends-empty">没有待处理的好友申请</div></section>
-          <section class="friends-request-section"><h3>群聊邀请 <small>{{demoGroupRequests.length}}</small></h3><article v-for="request in demoGroupRequests" :key="`group-${request.uid}-${request.group}`" class="friends-request-row"><span class="friends-avatar group"><img :src="DEFAULT_GROUP_AVATAR" alt="群聊"></span><div class="friends-row-copy"><b>{{request.group}} <small>群 UID {{request.groupUid}}</small></b><p>{{request.outgoing?'你已申请加入，等待群主回应':`${request.name} 申请加入群聊`}}</p></div><span v-if="request.outgoing" class="friends-pending-label">等待回应</span><template v-else><button class="friends-soft-button" @click="handleDemoGroupRequest(request,false)">拒绝</button><button class="friends-primary-button" @click="handleDemoGroupRequest(request,true)">接受</button></template></article><div v-if="!demoGroupRequests.length" class="friends-empty">没有待处理的群聊邀请</div></section>
-          <section class="friends-request-section"><h3>社区申请 <small>{{demoCommunityRequests.length}}</small></h3><article v-for="request in demoCommunityRequests" :key="`community-${request.uid}-${request.community}`" class="friends-request-row"><span class="friends-avatar community"><img :src="DEFAULT_COMM_AVATAR" alt="社区"></span><div class="friends-row-copy"><b>{{request.community}} <small>社区</small></b><p>{{request.outgoing?'你已申请加入，等待社区管理员回应':`${request.name} 申请加入社区`}}<template v-if="request.note"> · {{request.note}}</template></p></div><span v-if="request.outgoing" class="friends-pending-label">等待回应</span><template v-else><button class="friends-soft-button" @click="handleDemoCommunityRequest(request,false)">拒绝</button><button class="friends-primary-button" @click="handleDemoCommunityRequest(request,true)">接受</button></template></article><div v-if="!demoCommunityRequests.length" class="friends-empty">没有待处理的社区申请</div></section>
+          <div class="friends-list-heading"><div><h2>{{ t("待处理") }}</h2><p>好友申请、群聊邀请与社区申请都集中在这里。</p></div><span>{{demoFriendRequests.length+demoGroupRequests.length+demoCommunityRequests.length}} 项</span></div>
+          <section class="friends-request-section"><h3>好友申请 <small>{{demoFriendRequests.length}}</small></h3><article v-for="request in demoFriendRequests" :key="`friend-${request.uid}`" class="friends-request-row"><span class="friends-avatar"><img :src="avatarByUid(request.uid)" :alt="request.name"></span><div class="friends-row-copy"><b>{{request.name}} <small>UID {{request.uid}}</small></b><p>{{request.outgoing?'等待对方回应':request.note}}</p></div><span v-if="request.outgoing" class="friends-pending-label">{{ t("等待回应") }}</span><template v-else><button class="friends-soft-button" @click="handleDemoFriendRequest(request,false)">{{ t("忽略") }}</button><button class="friends-primary-button" @click="handleDemoFriendRequest(request,true)">{{ t("接受") }}</button></template></article><div v-if="!demoFriendRequests.length" class="friends-empty">{{ t("没有待处理的好友申请") }}</div></section>
+          <section class="friends-request-section"><h3>群聊邀请 <small>{{demoGroupRequests.length}}</small></h3><article v-for="request in demoGroupRequests" :key="`group-${request.uid}-${request.group}`" class="friends-request-row"><span class="friends-avatar group"><img :src="DEFAULT_GROUP_AVATAR" alt="群聊"></span><div class="friends-row-copy"><b>{{request.group}} <small>群 UID {{request.groupUid}}</small></b><p>{{request.outgoing?'你已申请加入，等待群主回应':t('{0} 申请加入群聊', request.name)}}</p></div><span v-if="request.outgoing" class="friends-pending-label">{{ t("等待回应") }}</span><template v-else><button class="friends-soft-button" @click="handleDemoGroupRequest(request,false)">{{ t("拒绝") }}</button><button class="friends-primary-button" @click="handleDemoGroupRequest(request,true)">{{ t("接受") }}</button></template></article><div v-if="!demoGroupRequests.length" class="friends-empty">{{ t("没有待处理的群聊邀请") }}</div></section>
+          <section class="friends-request-section"><h3>社区申请 <small>{{demoCommunityRequests.length}}</small></h3><article v-for="request in demoCommunityRequests" :key="`community-${request.uid}-${request.community}`" class="friends-request-row"><span class="friends-avatar community"><img :src="DEFAULT_COMM_AVATAR" alt="社区"></span><div class="friends-row-copy"><b>{{request.community}} <small>{{ t("社区") }}</small></b><p>{{request.outgoing?'你已申请加入，等待社区管理员回应':t('{0} 申请加入社区', request.name)}}<template v-if="request.note"> · {{request.note}}</template></p></div><span v-if="request.outgoing" class="friends-pending-label">{{ t("等待回应") }}</span><template v-else><button class="friends-soft-button" @click="handleDemoCommunityRequest(request,false)">{{ t("拒绝") }}</button><button class="friends-primary-button" @click="handleDemoCommunityRequest(request,true)">{{ t("接受") }}</button></template></article><div v-if="!demoCommunityRequests.length" class="friends-empty">{{ t("没有待处理的社区申请") }}</div></section>
         </template>
         <template v-else>
-          <label class="friends-directory-search"><svg class="search-glyph" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.4"/><path d="m15.4 15.4 4.6 4.6"/></svg><input v-model="friendSearchQuery" placeholder="搜索好友"></label>
-          <div class="friends-list-heading"><div><h2>{{friendFilter==='在线'?'在线':'全部'}} — {{filteredFriendDirectory.length}}</h2></div><button v-if="friendFilter==='全部'" class="friends-create-group-link" @click="createGroupDialogOpen=true">＋ 新建群聊</button></div>
-          <article v-for="friend in filteredFriendDirectory" :key="friend.uid" class="friend-directory-row" @contextmenu.prevent="friendMoreMenu=friend.uid" @click="openDemoFriendChat(friend)"><span class="friends-avatar friend-face"><img :src="avatarByUid(friend.uid)" :alt="friend.name"><i :class="{offline:!friend.online,idle:friend.idle}"></i></span><div class="friends-row-copy"><div class="friends-name-line"><b>{{friend.remark||friend.name}}</b></div><p>{{friend.idle?'闲置':friend.online?'在线':'离线'}}</p></div><button class="friends-round-action" title="发送消息" aria-label="发送消息" @click="openDemoFriendChat(friend)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.6c0 3.6-3.6 6.5-8 6.5a9.8 9.8 0 0 1-2.6-.3L5 20l1.2-3.4A6.2 6.2 0 0 1 4 11.6C4 8 7.6 5.1 12 5.1s8 2.9 8 6.5Z"/></svg></button><div class="friend-more-wrap"><button class="friends-round-action" title="更多" aria-label="更多" @click.stop="friendMoreMenu=friendMoreMenu===friend.uid?'':friend.uid"><svg class="dots" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button><div v-if="friendMoreMenu===friend.uid" class="friend-more-menu" @click.stop><button @click="openDemoFriendChat(friend);friendMoreMenu=''">发送消息</button><button @click="renameDemoFriend(friend);friendMoreMenu=''">设置备注</button><button class="danger" @click="removeDemoFriend(friend);friendMoreMenu=''">删除好友</button></div></div></article>
-          <div v-if="!filteredFriendDirectory.length" class="friends-empty">没有找到好友</div>
-          <section v-if="friendFilter==='全部'" class="friends-group-preview"><div class="friends-list-heading"><div><h2>群聊</h2><p>你的群聊通讯录</p></div></div><button v-for="group in demoGroups" :key="group.uid" class="friends-group-row" @click="openGroupChat(group)"><span class="friends-avatar group"><img :src="DEFAULT_GROUP_AVATAR" alt="群聊"></span><span><b>{{group.name}}</b><small>{{group.members.length}} 位成员</small></span><span>›</span></button></section>
-          <section v-if="friendFilter==='全部'" class="friends-group-preview friends-community-preview"><div class="friends-list-heading"><div><h2>社区</h2><p>你加入的社区</p></div><button class="friends-create-group-link" @click="notDeveloped('发现社区')">发现社区　›</button></div><button v-for="community in communities" :key="community.name" class="friends-group-row" @click="selectCommunity(community);active='服务器指南'"><span class="friends-avatar community"><img :src="community.icon || DEFAULT_COMM_AVATAR" :alt="community.name"></span><span><b>{{community.name}}</b><small>{{community.description||'社区成员'}}</small></span><span>›</span></button><div v-if="!communities.length" class="friends-empty">还没有加入社区。</div></section>
+          <label class="friends-directory-search"><svg class="search-glyph" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.4"/><path d="m15.4 15.4 4.6 4.6"/></svg><input v-model="friendSearchQuery" :placeholder="t('搜索好友')"></label>
+          <div class="friends-list-heading"><div><h2>{{friendFilter==='在线'?t('在线'):t('全部')}} — {{filteredFriendDirectory.length}}</h2></div><button v-if="friendFilter==='全部'" class="friends-create-group-link" @click="createGroupDialogOpen=true">＋ 新建群聊</button></div>
+          <article v-for="friend in filteredFriendDirectory" :key="friend.uid" class="friend-directory-row" @contextmenu.prevent="friendMoreMenu=friend.uid" @click="openDemoFriendChat(friend)"><span class="friends-avatar friend-face"><img :src="avatarByUid(friend.uid)" :alt="friend.name"><i :class="{offline:!friend.online,idle:friend.idle}"></i></span><div class="friends-row-copy"><div class="friends-name-line"><b>{{friend.remark||friend.name}}</b></div><p>{{friend.idle?'闲置':friend.online?t('在线'):t('离线')}}</p></div><button class="friends-round-action" :title="t('发送消息')" :aria-label="t('发送消息')" @click="openDemoFriendChat(friend)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.6c0 3.6-3.6 6.5-8 6.5a9.8 9.8 0 0 1-2.6-.3L5 20l1.2-3.4A6.2 6.2 0 0 1 4 11.6C4 8 7.6 5.1 12 5.1s8 2.9 8 6.5Z"/></svg></button><div class="friend-more-wrap"><button class="friends-round-action" :title="t('更多')" :aria-label="t('更多')" @click.stop="friendMoreMenu=friendMoreMenu===friend.uid?'':friend.uid"><svg class="dots" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button><div v-if="friendMoreMenu===friend.uid" class="friend-more-menu" @click.stop><button @click="openDemoFriendChat(friend);friendMoreMenu=''">{{ t("发送消息") }}</button><button @click="renameDemoFriend(friend);friendMoreMenu=''">{{ t("设置备注") }}</button><button class="danger" @click="removeDemoFriend(friend);friendMoreMenu=''">{{ t("删除好友") }}</button></div></div></article>
+          <div v-if="!filteredFriendDirectory.length" class="friends-empty">{{ t("没有找到好友") }}</div>
+          <section v-if="friendFilter==='全部'" class="friends-group-preview"><div class="friends-list-heading"><div><h2>{{ t("群聊") }}</h2><p>{{ t("你的群聊通讯录") }}</p></div></div><button v-for="group in demoGroups" :key="group.uid" class="friends-group-row" @click="openGroupChat(group)"><span class="friends-avatar group"><img :src="DEFAULT_GROUP_AVATAR" alt="群聊"></span><span><b>{{group.name}}</b><small>{{group.members.length}} 位成员</small></span><span>›</span></button></section>
+          <section v-if="friendFilter==='全部'" class="friends-group-preview friends-community-preview"><div class="friends-list-heading"><div><h2>{{ t("社区") }}</h2><p>{{ t("你加入的社区") }}</p></div><button class="friends-create-group-link" @click="notDeveloped(t('发现社区'))">发现社区　›</button></div><button v-for="community in communities" :key="community.name" class="friends-group-row" @click="selectCommunity(community);active='服务器指南'"><span class="friends-avatar community"><img :src="community.icon || DEFAULT_COMM_AVATAR" :alt="community.name"></span><span><b>{{community.name}}</b><small>{{community.description||'社区成员'}}</small></span><span>›</span></button><div v-if="!communities.length" class="friends-empty">{{ t("还没有加入社区。") }}</div></section>
         </template>
       </section><div v-if="toast" class="toast friends-toast">{{toast}}</div>
       </section>
     </main>
     <main v-else-if="activePage==='dm-chat'" class="dm-main" @click="closeComposerPopovers">
-      <header class="dm-top"><div><span class="dm-avatar"><img :src="dmAvatarSrc(selectedDm)" :alt="selectedDm"></span><b>{{selectedDm}}</b><small>{{dmContacts.find(c=>c.name===selectedDm)?.kind}}</small></div><div class="chat-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg><input v-model="searchQuery" type="text" placeholder="搜索" aria-label="搜索" @focus="searchOpen=true"><button v-if="searchQuery" type="button" class="search-clear" aria-label="关闭搜索" title="关闭搜索" @click.stop="closeSearch">×</button><SearchPanel v-if="searchOpen && searchQuery" /></div></header>
+      <header class="dm-top"><div><span class="dm-avatar"><img :src="dmAvatarSrc(selectedDm)" :alt="selectedDm"></span><b>{{selectedDm}}</b><small>{{dmContacts.find(c=>c.name===selectedDm)?.kind}}</small></div><div class="chat-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg><input v-model="searchQuery" type="text" :placeholder="t('搜索')" :aria-label="t('搜索')" @focus="searchOpen=true"><button v-if="searchQuery" type="button" class="search-clear" :aria-label="t('关闭搜索')" :title="t('关闭搜索')" @click.stop="closeSearch">×</button><SearchPanel v-if="searchOpen && searchQuery" /></div></header>
       <section class="dm-thread" @wheel.prevent="scrollChat" @click="handleMessageAction" @contextmenu.prevent="openContextMenu"><div class="dm-thread-intro"><span class="dm-avatar large"><img :src="dmAvatarSrc(selectedDm)" :alt="selectedDm"></span><h2>{{selectedDm}}</h2><p>这是你和 {{selectedDm}} 的私信开头。</p></div><div class="dm-thread-messages"><MessageRow v-for="entry in dmThread" :key="entry.id" :record="entry" :reactions="messageReactions[entry.id]" :images="entry.images" /></div></section>
       <Composer :conversation-key="`dm:${selectedDm}`" :placeholder="`给 ${selectedDm} 发消息`" />
       <div v-if="toast" class="toast">{{toast}}</div>
@@ -1461,19 +1462,19 @@ const confirmAvatarCrop = () => {
   <div v-if="contextMenu" class="context-menu" :style="{left: `${contextMenu.x}px`, top: `${contextMenu.y}px`}" @click.stop="handleMessageAction">
     <div class="context-reactions"><button v-for="emoji in QUICK_EMOJIS" :key="emoji" data-action="react" :data-emoji="emoji">{{ emoji }}</button></div>
     <button class="context-item" data-action="picker"><span>☻</span>添加反应 <b>›</b></button>
-    <button v-if="messageReactions[contextMenu.id]?.length" class="context-item" data-action="view-reactions"><span><Icon name="smile"/></span>查看反应</button>
+    <button v-if="messageReactions[contextMenu.id]?.length" class="context-item" data-action="view-reactions"><span><Icon name="smile"/></span>{{ t("查看反应") }}</button>
     <div class="context-separator"></div>
-    <button class="context-item" data-action="reply"><span><svg viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></span>回复</button>
-    <button class="context-item" data-action="forward"><span><svg viewBox="0 0 24 24"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg></span>转发</button>
+    <button class="context-item" data-action="reply"><span><svg viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></span>{{ t("回复") }}</button>
+    <button class="context-item" data-action="forward"><span><svg viewBox="0 0 24 24"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg></span>{{ t("转发") }}</button>
     <div class="context-separator"></div>
-    <button v-if="contextMenu.attachment" class="context-item" data-action="download"><span><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>下载</button>
-    <button class="context-item" data-action="copy"><span><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span>复制文字</button>
-    <button class="context-item" data-action="unread"><span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg></span>标记未读</button>
-    <button class="context-item" data-action="recall"><span><svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></span>撤回</button>
-    <button v-if="contextMenu.mine" class="context-item delete-message-action" data-action="delete"><span><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></span>删除消息</button>
-    <button class="context-item" data-action="link"><span><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>复制消息链接</button>
+    <button v-if="contextMenu.attachment" class="context-item" data-action="download"><span><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>{{ t("下载") }}</button>
+    <button class="context-item" data-action="copy"><span><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span>{{ t("复制文字") }}</button>
+    <button class="context-item" data-action="unread"><span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg></span>{{ t("标记未读") }}</button>
+    <button class="context-item" data-action="recall"><span><svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></span>{{ t("撤回") }}</button>
+    <button v-if="contextMenu.mine" class="context-item delete-message-action" data-action="delete"><span><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></span>{{ t("删除消息") }}</button>
+    <button class="context-item" data-action="link"><span><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>{{ t("复制消息链接") }}</button>
     <div class="context-separator"></div>
-    <button class="context-item report" data-action="report"><span><svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>举报消息</button>
+    <button class="context-item report" data-action="report"><span><svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>{{ t("举报消息") }}</button>
   </div>
   <div v-if="emojiPicker" class="emoji-picker" :data-message-id="emojiPicker.id" :style="{left: `${emojiPicker.x}px`, top: `${emojiPicker.y}px`, width: 'auto', minWidth: '96px', gridTemplateColumns: 'repeat(2, 1fr)', gap: '5px', padding: '8px'}" @click.stop="handleMessageAction">
     <button v-for="emoji in PICKER_EMOJIS" :key="emoji" data-action="react" :data-emoji="emoji" style="height:42px;min-width:44px;font-size:22px;border-radius:6px;background:transparent">{{ emoji }}</button>
@@ -1481,183 +1482,186 @@ const confirmAvatarCrop = () => {
   </div>
   <div v-if="reactionDetails" class="reaction-backdrop" @click.self="reactionDetails = null">
     <div class="reaction-modal">
-      <div class="reaction-modal-head"><b>查看反应</b><button @click="reactionDetails = null" aria-label="关闭">×</button></div>
+      <div class="reaction-modal-head"><b>{{ t("查看反应") }}</b><button @click="reactionDetails = null" :aria-label="t('关闭')">×</button></div>
       <div v-for="reaction in reactionDetails.items" :key="reaction.emoji" class="reaction-group"><div class="reaction-group-title">{{ reaction.emoji }} <span>{{ reaction.count }}</span></div><div v-for="person in reaction.users" :key="person" class="reaction-person"><span class="person-avatar">{{ person[0] }}</span><b>{{ person }}</b><small>已回应</small></div></div>
-      <div v-if="!reactionDetails.items.length" class="empty-reactions">还没有可显示的反应</div>
+      <div v-if="!reactionDetails.items.length" class="empty-reactions">{{ t("还没有可显示的反应") }}</div>
     </div>
   </div>
   <div v-if="friendRequestModal" class="friend-request-backdrop" @click.self="friendRequestModal=false">
     <section class="friend-request-window" role="dialog" aria-modal="true" aria-labelledby="friend-request-title">
-      <button class="friend-request-close" aria-label="关闭" @click="friendRequestModal=false">×</button>
+      <button class="friend-request-close" :aria-label="t('关闭')" @click="friendRequestModal=false">×</button>
       <div class="friend-request-emblem">♧</div>
-      <h1 id="friend-request-title">添加好友</h1>
-      <p>通过邮箱向朋友发送好友申请。</p>
-      <label>好友邮箱<input v-model="demoForm.email" type="email" placeholder="name@example.com" @keydown.enter.prevent="sendFriendRequestFromModal"></label>
-      <label>申请留言 <span>可选</span><textarea v-model="demoForm.note" rows="4" placeholder="写一句话介绍自己"></textarea></label>
-      <footer><button class="friend-request-cancel" @click="friendRequestModal=false">取消</button><button class="friend-request-submit" @click="sendFriendRequestFromModal">发送好友申请</button></footer>
+      <h1 id="friend-request-title">{{ t("添加好友") }}</h1>
+      <p>{{ t("通过邮箱向朋友发送好友申请。") }}</p>
+      <label>{{ t("好友邮箱") }}<input v-model="demoForm.email" type="email" placeholder="name@example.com" @keydown.enter.prevent="sendFriendRequestFromModal"></label>
+      <label>申请留言 <span>{{ t("可选") }}</span><textarea v-model="demoForm.note" rows="4" :placeholder="t('写一句话介绍自己')"></textarea></label>
+      <footer><button class="friend-request-cancel" @click="friendRequestModal=false">{{ t("取消") }}</button><button class="friend-request-submit" @click="sendFriendRequestFromModal">{{ t("发送好友申请") }}</button></footer>
     </section>
   </div>
   <div v-if="demoLoginOpen" class="demo-login-backdrop" @click.self="backend.uid&&(demoLoginOpen=false)">
     <section class="demo-login-window" role="dialog" aria-modal="true" aria-labelledby="demo-login-title">
-      <button v-if="backend.uid" class="friend-request-close" aria-label="关闭" @click="demoLoginOpen=false">×</button>
+      <button v-if="backend.uid" class="friend-request-close" :aria-label="t('关闭')" @click="demoLoginOpen=false">×</button>
       <div class="demo-login-logo"><img src="/logo.png" alt="LOGO"></div>
-      <h1 id="demo-login-title">欢迎回来</h1><p>{{backend.connecting?'正在连接服务器…':backend.connected?'登录账号，继续使用 Baka Community。':'服务器连接失败，请稍后重试。'}}</p>
-      <div class="demo-login-tabs"><button :class="{active:demoAuthMode==='登录'}" @click="demoAuthMode='登录'">登录</button><button :class="{active:demoAuthMode==='注册'}" @click="demoAuthMode='注册'">注册</button></div>
-      <label v-if="demoAuthMode==='注册'">昵称<input v-model="demoAuth.username" placeholder="例如：小明"></label>
-      <label v-if="demoAuthMode==='注册'">邮箱<input v-model="demoAuth.email" placeholder="name@example.com"></label>
-      <label v-else>UID 或邮箱<input v-model="demoAuth.identity" placeholder="100001 / name@example.com"></label>
-      <label>密码<input v-model="demoAuth.password" type="password" placeholder="输入密码" @keydown.enter.prevent="submitDemoLoginWindow"></label>
-      <button class="demo-login-submit" @click="backend.connected?submitDemoLoginWindow():api.connect()">{{backend.connecting?'连接中…':backend.connected?demoAuthMode:'重新连接'}}</button><small>数据通过 WebSocket + protobuf 与服务器同步。</small>
+      <h1 id="demo-login-title">欢迎回来</h1><p>{{backend.connecting?'正在连接服务器…':backend.connected?t('登录账号，继续使用 Baka Community。'):t('服务器连接失败，请稍后重试。')}}</p>
+      <div class="demo-login-tabs"><button :class="{active:demoAuthMode==='登录'}" @click="demoAuthMode='登录'">{{ t("登录") }}</button><button :class="{active:demoAuthMode==='注册'}" @click="demoAuthMode='注册'">{{ t("注册") }}</button></div>
+      <label v-if="demoAuthMode==='注册'">昵称<input v-model="demoAuth.username" :placeholder="t('例如：小明')"></label>
+      <label v-if="demoAuthMode==='注册'">{{ t("邮箱") }}<input v-model="demoAuth.email" placeholder="name@example.com"></label>
+      <label v-else>{{ t("UID 或邮箱") }}<input v-model="demoAuth.identity" placeholder="100001 / name@example.com"></label>
+      <label>{{ t("密码") }}<input v-model="demoAuth.password" type="password" :placeholder="t('输入密码')" @keydown.enter.prevent="submitDemoLoginWindow"></label>
+      <button class="demo-login-submit" @click="backend.connected?submitDemoLoginWindow():api.connect()">{{backend.connecting?'连接中…':backend.connected?demoAuthMode:'重新连接'}}</button><small>{{ t("数据通过 WebSocket + protobuf 与服务器同步。") }}</small>
     </section>
   </div>
   <div v-if="memberProfile" class="member-profile-backdrop" @click.self="memberProfile=null">
     <section class="member-profile-card" role="dialog" aria-modal="true" aria-label="成员个人资料">
-      <button class="member-profile-close" aria-label="关闭" @click="memberProfile=null">×</button>
+      <button class="member-profile-close" :aria-label="t('关闭')" @click="memberProfile=null">×</button>
       <div class="member-profile-banner"></div>
-      <div class="member-profile-content"><div class="member-profile-avatar" :class="memberProfile.avatar">{{memberProfile.avatarText}}</div><span class="member-online-dot"></span><h2>{{memberProfile.name}}</h2><p class="member-profile-handle">UID <span>{{memberProfile.uid||'暂未提供'}}</span></p><div class="member-profile-actions"><button @click="message=`@${memberProfile.name} `;memberProfile=null;nextTick(()=>composerInput?.focus())">消息</button><button title="更多" @click="notDeveloped('成员更多操作')">•••</button></div><div class="member-profile-about"><label>关于我</label><p>暂未提供</p><label>服务器成员</label><p>{{selectedCommunity||'暂未提供'}}</p><label>成员加入时间</label><p>暂未提供</p></div></div>
+      <div class="member-profile-content"><div class="member-profile-avatar" :class="memberProfile.avatar">{{memberProfile.avatarText}}</div><span class="member-online-dot"></span><h2>{{memberProfile.name}}</h2><p class="member-profile-handle">UID <span>{{memberProfile.uid||'暂未提供'}}</span></p><div class="member-profile-actions"><button @click="message=`@${memberProfile.name} `;memberProfile=null;nextTick(()=>composerInput?.focus())">{{ t("消息") }}</button><button :title="t('更多')" @click="notDeveloped('成员更多操作')">•••</button></div><div class="member-profile-about"><label>{{ t("关于我") }}</label><p>{{ t("暂未提供") }}</p><label>{{ t("服务器成员") }}</label><p>{{selectedCommunity||'暂未提供'}}</p><label>{{ t("成员加入时间") }}</label><p>{{ t("暂未提供") }}</p></div></div>
     </section>
   </div>
   <div v-if="communitySettingsOpen" class="community-settings-backdrop" @click.self="closeCommunitySettings()">
-    <section class="community-settings-window" role="dialog" aria-modal="true" aria-label="社区设置">
-      <aside class="community-settings-sidebar"><header><span class="community-settings-icon"><img :src="currentCommunity?.icon || DEFAULT_COMM_AVATAR" :alt="communitySettingsName"></span><div><b>{{communitySettingsName}}</b><small>社区设置</small></div><button aria-label="关闭社区设置" @click="closeCommunitySettings()">×</button></header>
-        <nav><button class="selected" @click="scrollToCommunitySection('community-overview')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></svg>社区概览</button><button @click="scrollToCommunitySection('community-channels')"><Icon name="list"/>频道管理</button><button class="dissolve-nav" @click="dissolveConfirm=true"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg>解散社区</button></nav>
+    <section class="community-settings-window" role="dialog" aria-modal="true" :aria-label="t('社区设置')">
+      <aside class="community-settings-sidebar"><header><span class="community-settings-icon"><img :src="currentCommunity?.icon || DEFAULT_COMM_AVATAR" :alt="communitySettingsName"></span><div><b>{{communitySettingsName}}</b><small>{{ t("社区设置") }}</small></div><button :aria-label="t('关闭社区设置')" @click="closeCommunitySettings()">×</button></header>
+        <nav><button class="selected" @click="scrollToCommunitySection('community-overview')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></svg>{{ t("社区概览") }}</button><button @click="scrollToCommunitySection('community-channels')"><Icon name="list"/>{{ t("频道管理") }}</button><button class="dissolve-nav" @click="dissolveConfirm=true"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg>{{ t("解散社区") }}</button></nav>
       </aside>
-      <main class="community-settings-main"><header class="community-settings-header"><b>{{communitySettingsName}} 设置</b><button aria-label="关闭社区设置" @click="closeCommunitySettings()">×</button></header>
+      <main class="community-settings-main"><header class="community-settings-header"><b>{{communitySettingsName}} 设置</b><button :aria-label="t('关闭社区设置')" @click="closeCommunitySettings()">×</button></header>
         <div class="community-settings-scroll">
-          <section id="community-overview" class="community-setting-section"><h1>社区概览</h1><p class="community-settings-hint">管理社区的名称、介绍和外观。</p>
-            <div class="community-setting-row"><div class="community-setting-label"><b>社区头像</b><small>选择一张图片作为社区标识。</small></div><div class="community-avatar-editor"><span class="community-settings-icon large"><img :src="currentCommunity?.icon || DEFAULT_COMM_AVATAR" :alt="communitySettingsName"></span><label class="settings-upload-button">更换头像<input type="file" accept="image/*" @change="handleCommunityAsset('avatar',$event)"></label></div></div>
-            <label class="community-field"><span>社区名称</span><input v-model="communitySettingsName" maxlength="60" placeholder="输入社区名称"></label>
-            <label class="community-field"><span>介绍文字</span><textarea v-model="communitySettingsDescription" maxlength="300" rows="3" placeholder="介绍一下你的社区"></textarea><small>{{communitySettingsDescription.length}} / 300</small></label>
-            <div class="community-setting-row background-upload-row"><div class="community-setting-label"><b>背景图片</b><small>显示在社区侧栏顶部。</small></div><label class="settings-upload-button">上传背景图片<input type="file" accept="image/*" @change="handleCommunityAsset('banner',$event)"></label></div>
+          <section id="community-overview" class="community-setting-section"><h1>{{ t("社区概览") }}</h1><p class="community-settings-hint">{{ t("管理社区的名称、介绍和外观。") }}</p>
+            <div class="community-setting-row"><div class="community-setting-label"><b>社区头像</b><small>{{ t("选择一张图片作为社区标识。") }}</small></div><div class="community-avatar-editor"><span class="community-settings-icon large"><img :src="currentCommunity?.icon || DEFAULT_COMM_AVATAR" :alt="communitySettingsName"></span><label class="settings-upload-button">{{ t("更换头像") }}<input type="file" accept="image/*" @change="handleCommunityAsset('avatar',$event)"></label></div></div>
+            <label class="community-field"><span>{{ t("社区名称") }}</span><input v-model="communitySettingsName" maxlength="60" :placeholder="t('输入社区名称')"></label>
+            <label class="community-field"><span>{{ t("介绍文字") }}</span><textarea v-model="communitySettingsDescription" maxlength="300" rows="3" placeholder="介绍一下你的社区"></textarea><small>{{communitySettingsDescription.length}} / 300</small></label>
+            <div class="community-setting-row background-upload-row"><div class="community-setting-label"><b>背景图片</b><small>显示在社区侧栏顶部。</small></div><label class="settings-upload-button">{{ t("上传背景图片") }}<input type="file" accept="image/*" @change="handleCommunityAsset('banner',$event)"></label></div>
             <div class="community-banner-preview" :style="currentCommunity?.background?{backgroundImage:`url(${currentCommunity.background})`}:{}"><span>{{communitySettingsName}}</span></div>
           </section>
-        <section class="community-setting-section"><h2>服务器资料</h2><p class="community-settings-hint">头像、背景图片与名称会同步显示在竖栏和顶部横幅。</p>
-          <div class="community-asset-row"><span class="community-asset-preview avatar"><img :src="currentCommunity?.icon || DEFAULT_COMM_AVATAR" :alt="selectedCommunity"></span><div><b>服务器头像</b><small>建议 512×512 的方形图片，显示在左侧竖栏</small></div><button @click="setCommunityAsset('avatar')">上传头像</button><input ref="communityAvatarInput" class="demo-hidden-input" type="file" accept="image/*" @change="handleCommunityAsset('avatar',$event)"></div>
-          <div class="community-asset-row"><span class="community-asset-preview banner" :style="currentCommunity?.background?{backgroundImage:`url(${currentCommunity.background})`}:{}"></span><div><b>服务器背景图片</b><small>显示在频道栏顶部的横幅与服务器指南</small></div><button @click="setCommunityAsset('banner')">上传背景</button><input ref="communityBannerInput" class="demo-hidden-input" type="file" accept="image/*" @change="handleCommunityAsset('banner',$event)"></div>
+        <section class="community-setting-section"><h2>{{ t("服务器资料") }}</h2><p class="community-settings-hint">头像、背景图片与名称会同步显示在竖栏和顶部横幅。</p>
+          <div class="community-asset-row"><span class="community-asset-preview avatar"><img :src="currentCommunity?.icon || DEFAULT_COMM_AVATAR" :alt="selectedCommunity"></span><div><b>{{ t("服务器头像") }}</b><small>建议 512×512 的方形图片，显示在左侧竖栏</small></div><button @click="setCommunityAsset('avatar')">{{ t("上传头像") }}</button><input ref="communityAvatarInput" class="demo-hidden-input" type="file" accept="image/*" @change="handleCommunityAsset('avatar',$event)"></div>
+          <div class="community-asset-row"><span class="community-asset-preview banner" :style="currentCommunity?.background?{backgroundImage:`url(${currentCommunity.background})`}:{}"></span><div><b>{{ t("服务器背景图片") }}</b><small>显示在频道栏顶部的横幅与服务器指南</small></div><button @click="setCommunityAsset('banner')">上传背景</button><input ref="communityBannerInput" class="demo-hidden-input" type="file" accept="image/*" @change="handleCommunityAsset('banner',$event)"></div>
         </section>
-        <section id="community-channels" class="community-setting-section"><h2>频道管理</h2><p class="community-settings-hint">下面是这个社区当前的频道列表，与左侧频道栏一致。鼠标移到频道上点右侧 × 删除，删除会在「保存更改」后生效。</p><div class="new-channel-form"><span>#</span><input v-model="newCommunityChannel" placeholder="新频道名称" @keydown.enter.prevent="addCommunityChannel"><button @click="addCommunityChannel">新增频道</button></div>
-          <div class="settings-channel-groups"><template v-for="group in channelListOf(selectedCommunity)" :key="group.title"><div class="settings-channel-category" :class="{collapsed:isCategoryCollapsed(group)}"><button class="category-toggle" :aria-expanded="!isCategoryCollapsed(group)" :title="isCategoryCollapsed(group)?'展开分区':'收起分区'" @click="toggleCategory(group)"><span class="category-name">{{group.title}}</span><Icon name="caret" class="category-caret"/></button><span class="settings-channel-count">{{group.channels.length}}</span></div><template v-if="!isCategoryCollapsed(group)"><div v-for="channel in group.channels" :key="`${group.title}::${channel}`" class="settings-channel-row"><span class="channel-hash">#</span><span class="channel-label">{{channel}}</span><button class="settings-channel-remove" :aria-label="`删除频道 ${channel}`" :title="`删除频道 ${channel}`" @click.stop="openChannelDelete(selectedCommunity,group.title,channel)">×</button></div></template></template>
-          <div v-if="!channelListOf(selectedCommunity).length" class="guide-draft-empty">这个社区还没有频道，用上面的输入框新增一个。</div>
+        <section id="community-channels" class="community-setting-section"><h2>{{ t("频道管理") }}</h2><p class="community-settings-hint">下面是这个社区当前的频道列表，与左侧频道栏一致。鼠标移到频道上点右侧 × 删除，删除会在「保存更改」后生效。</p><div class="new-channel-form"><span>#</span><input v-model="newCommunityChannel" :placeholder="t('新频道名称')" @keydown.enter.prevent="addCommunityChannel"><button @click="addCommunityChannel">新增频道</button></div>
+          <div class="settings-channel-groups"><template v-for="group in channelListOf(selectedCommunity)" :key="group.title"><div class="settings-channel-category" :class="{collapsed:isCategoryCollapsed(group)}"><button class="category-toggle" :aria-expanded="!isCategoryCollapsed(group)" :title="isCategoryCollapsed(group)?t('展开分区'):t('收起分区')" @click="toggleCategory(group)"><span class="category-name">{{group.title}}</span><Icon name="caret" class="category-caret"/></button><span class="settings-channel-count">{{group.channels.length}}</span></div><template v-if="!isCategoryCollapsed(group)"><div v-for="channel in group.channels" :key="`${group.title}::${channel}`" class="settings-channel-row"><span class="channel-hash">#</span><span class="channel-label">{{channel}}</span><button class="settings-channel-remove" :aria-label="t('删除频道 {0}', channel)" :title="t('删除频道 {0}', channel)" @click.stop="openChannelDelete(selectedCommunity,group.title,channel)">×</button></div></template></template>
+          <div v-if="!channelListOf(selectedCommunity).length" class="guide-draft-empty">{{ t("这个社区还没有频道，用上面的输入框新增一个。") }}</div>
         </div></section>
-          <section class="community-setting-section danger-zone"><h2>解散社区</h2><p class="community-settings-hint">解散后，社区将从你的列表中移除。</p><button @click="dissolveConfirm=true">解散社区</button></section>
+          <section class="community-setting-section danger-zone"><h2>{{ t("解散社区") }}</h2><p class="community-settings-hint">{{ t("解散后，社区将从你的列表中移除。") }}</p><button @click="dissolveConfirm=true">{{ t("解散社区") }}</button></section>
         </div>
-        <footer class="community-settings-footer"><span>更改尚未保存</span><button @click="closeCommunitySettings()">取消</button><button class="save-community-settings" @click="saveCommunitySettings">保存更改</button></footer>
-        <div v-if="channelDeleteTarget" class="server-dissolve-overlay"><section><h2>删除“{{channelDeleteTarget.channel}}”？</h2><p>该频道会从这个社区移除，点「保存更改」后生效。</p><footer><button @click="channelDeleteTarget=null">取消</button><button @click="confirmChannelDelete">删除频道</button></footer></section></div>
-        <div v-if="dissolveConfirm" class="server-dissolve-overlay"><section><h2>解散“{{communitySettingsName}}”？</h2><p>此操作会从你的社区列表中移除该社区。</p><footer><button @click="dissolveConfirm=false">取消</button><button @click="confirmDissolveCommunity">解散社区</button></footer></section></div>
+        <footer class="community-settings-footer"><span>{{ t("更改尚未保存") }}</span><button @click="closeCommunitySettings()">{{ t("取消") }}</button><button class="save-community-settings" @click="saveCommunitySettings">{{ t("保存更改") }}</button></footer>
+        <div v-if="channelDeleteTarget" class="server-dissolve-overlay"><section><h2>删除“{{channelDeleteTarget.channel}}”？</h2><p>{{ t("该频道会从这个社区移除，点「保存更改」后生效。") }}</p><footer><button @click="channelDeleteTarget=null">{{ t("取消") }}</button><button @click="confirmChannelDelete">{{ t("删除频道") }}</button></footer></section></div>
+        <div v-if="dissolveConfirm" class="server-dissolve-overlay"><section><h2>解散“{{communitySettingsName}}”？</h2><p>此操作会从你的社区列表中移除该社区。</p><footer><button @click="dissolveConfirm=false">{{ t("取消") }}</button><button @click="confirmDissolveCommunity">{{ t("解散社区") }}</button></footer></section></div>
       </main>
     </section>
   </div>
-  <div v-if="createCommunityOpen" class="dialog-backdrop" @click.self="createCommunityOpen=false"><section class="create-community-dialog"><button class="dialog-close" @click="createCommunityOpen=false">×</button><h2>创建社区</h2><p>为你的社区取个名字。</p><input v-model="newCommunityName" placeholder="社区名称" @keydown.enter.prevent="createCommunity"><footer><button @click="createCommunityOpen=false">取消</button><button class="create-community-submit" @click="createCommunity">创建社区</button></footer></section></div>
-  <div v-if="createGroupDialogOpen" class="dialog-backdrop" @click.self="createGroupDialogOpen=false"><section class="create-community-dialog"><button class="dialog-close" @click="createGroupDialogOpen=false">×</button><h2>创建群聊</h2><p>为你的群聊取个名字。</p><input v-model="demoForm.groupName" placeholder="群聊名称" @keydown.enter.prevent="createDemoGroup"><footer><button @click="createGroupDialogOpen=false">取消</button><button class="create-community-submit" @click="createDemoGroup">创建群聊</button></footer></section></div>
-  <div v-if="groupManageOpen" class="dialog-backdrop" @click.self="groupManageOpen=false"><section class="create-community-dialog group-manage-dialog"><button class="dialog-close" @click="groupManageOpen=false">×</button><h2>管理群成员</h2><p v-if="groupManageTarget">{{groupManageTarget.name}} · 群 UID {{groupManageTarget.uid}} · {{groupManageTarget.members.length}} 位成员</p><div class="group-manage-members"><div v-for="member in groupManageTarget?.members || []" :key="member.uid" class="friend-group-member"><span class="friends-avatar tiny"><img :src="avatarByUid(member.uid)" :alt="member.name"></span><span class="friend-member-name"><b>{{member.name}}</b><small>UID {{member.uid}}</small></span><span class="friend-role-tag">{{member.role}}</span><button v-if="Number(member.uid)!==Number(backend.uid)" class="friends-soft-button compact-button" @click="toggleDemoGroupRole(groupManageTarget,member)">设为群主</button><button v-if="Number(member.uid)!==Number(backend.uid)" class="friends-icon-button danger" title="移除成员" @click="removeDemoGroupMember(groupManageTarget,member)">−</button></div><div v-if="!(groupManageTarget?.members||[]).length" class="friends-empty">还没有群成员。</div></div><div class="group-manage-invite"><input v-model="demoForm.memberUid" placeholder="输入好友 UID 邀请加入"><button class="friends-soft-button" @click="addDemoGroupMember(groupManageTarget)">邀请好友</button></div><footer><button @click="renameDemoGroup(groupManageTarget)">改名</button><button class="danger" @click="deleteDemoGroup(groupManageTarget)">解散群聊</button><button class="create-community-submit" @click="groupManageOpen=false">完成</button></footer></section></div>
+  <div v-if="createCommunityOpen" class="dialog-backdrop" @click.self="createCommunityOpen=false"><section class="create-community-dialog"><button class="dialog-close" @click="createCommunityOpen=false">×</button><h2>{{ t("创建社区") }}</h2><p>{{ t("为你的社区取个名字。") }}</p><input v-model="newCommunityName" :placeholder="t('社区名称')" @keydown.enter.prevent="createCommunity"><footer><button @click="createCommunityOpen=false">{{ t("取消") }}</button><button class="create-community-submit" @click="createCommunity">{{ t("创建社区") }}</button></footer></section></div>
+  <div v-if="createGroupDialogOpen" class="dialog-backdrop" @click.self="createGroupDialogOpen=false"><section class="create-community-dialog"><button class="dialog-close" @click="createGroupDialogOpen=false">×</button><h2>{{ t("创建群聊") }}</h2><p>{{ t("为你的群聊取个名字。") }}</p><input v-model="demoForm.groupName" placeholder="群聊名称" @keydown.enter.prevent="createDemoGroup"><footer><button @click="createGroupDialogOpen=false">{{ t("取消") }}</button><button class="create-community-submit" @click="createDemoGroup">{{ t("创建群聊") }}</button></footer></section></div>
+  <div v-if="groupManageOpen" class="dialog-backdrop" @click.self="groupManageOpen=false"><section class="create-community-dialog group-manage-dialog"><button class="dialog-close" @click="groupManageOpen=false">×</button><h2>{{ t("管理群成员") }}</h2><p v-if="groupManageTarget">{{groupManageTarget.name}} · 群 UID {{groupManageTarget.uid}} · {{groupManageTarget.members.length}} 位成员</p><div class="group-manage-members"><div v-for="member in groupManageTarget?.members || []" :key="member.uid" class="friend-group-member"><span class="friends-avatar tiny"><img :src="avatarByUid(member.uid)" :alt="member.name"></span><span class="friend-member-name"><b>{{member.name}}</b><small>UID {{member.uid}}</small></span><span class="friend-role-tag">{{member.role}}</span><button v-if="Number(member.uid)!==Number(backend.uid)" class="friends-soft-button compact-button" @click="toggleDemoGroupRole(groupManageTarget,member)">{{ t("设为群主") }}</button><button v-if="Number(member.uid)!==Number(backend.uid)" class="friends-icon-button danger" :title="t('移除成员')" @click="removeDemoGroupMember(groupManageTarget,member)">−</button></div><div v-if="!(groupManageTarget?.members||[]).length" class="friends-empty">{{ t("还没有群成员。") }}</div></div><div class="group-manage-invite"><input v-model="demoForm.memberUid" :placeholder="t('输入好友 UID 邀请加入')"><button class="friends-soft-button" @click="addDemoGroupMember(groupManageTarget)">{{ t("邀请好友") }}</button></div><footer><button @click="renameDemoGroup(groupManageTarget)">改名</button><button class="danger" @click="deleteDemoGroup(groupManageTarget)">{{ t("解散群聊") }}</button><button class="create-community-submit" @click="groupManageOpen=false">完成</button></footer></section></div>
   <div v-if="inviteModal" class="dialog-backdrop invite-backdrop" @click.self="inviteModal = false">
     <section class="invite-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title">
-      <button class="dialog-close" aria-label="关闭" @click="inviteModal = false">×</button>
+      <button class="dialog-close" :aria-label="t('关闭')" @click="inviteModal = false">×</button>
       <div class="invite-content">
         <h2 id="invite-title">添加朋友到 {{selectedCommunity}}</h2>
         <p class="dialog-subtitle">当前服务端没有待接受的社区邀请；社区所有者会将好友直接加入。</p>
-        <label class="friend-search"><Icon name="search"/><input v-model="friendSearch" placeholder="搜索好友"></label>
+        <label class="friend-search"><Icon name="search"/><input v-model="friendSearch" :placeholder="t('搜索好友')"></label>
         <div class="friend-list">
           <div v-for="friend in filteredFriends" :key="friend.handle" class="friend-row"><span class="friend-avatar" :class="friend.color">{{ friend.avatar }}</span><span class="friend-names"><b>{{ friend.name }}</b><small>{{ friend.handle }}</small></span><button @click="inviteFriendToCommunity(friend)">直接添加</button></div>
-          <div v-if="!filteredFriends.length" class="no-friends">没有找到好友</div>
+          <div v-if="!filteredFriends.length" class="no-friends">{{ t("没有找到好友") }}</div>
         </div>
       </div>
-      <div class="invite-link-panel"><label>或者，向好友发送服务器邀请链接</label><div class="invite-url"><input v-model="inviteUrl" readonly><button @click="copyInvite">复制</button></div><p>您的邀请链接将在 30 天后过期。 <button @click="notDeveloped('社区邀请链接')">编辑邀请链接</button></p></div>
+      <div class="invite-link-panel"><label>或者，向好友发送服务器邀请链接</label><div class="invite-url"><input v-model="inviteUrl" readonly><button @click="copyInvite">{{ t("复制") }}</button></div><p>您的邀请链接将在 30 天后过期。 <button @click="notDeveloped(t('社区邀请链接'))">{{ t("编辑邀请链接") }}</button></p></div>
     </section>
   </div>
   <div v-if="joinModal" class="friend-request-backdrop" @click.self="joinModal=false">
     <section class="friend-request-window" role="dialog" aria-modal="true" aria-labelledby="join-community-title">
-      <button class="friend-request-close" aria-label="关闭" @click="joinModal=false">×</button>
+      <button class="friend-request-close" :aria-label="t('关闭')" @click="joinModal=false">×</button>
       <div class="friend-request-emblem">◆</div>
-      <h1 id="join-community-title">申请加入社区</h1>
-      <p>输入社区 UID，提交加入申请。</p>
-      <label>社区 UID<input v-model="joinCode" type="number" placeholder="例如：10001" @keydown.enter.prevent="joinServer"></label>
-      <label>申请留言 <span>可选</span><textarea v-model="joinNote" rows="4" placeholder="写一句话介绍自己"></textarea></label>
-      <footer><button class="friend-request-cancel" @click="joinModal=false">取消</button><button class="friend-request-submit" @click="joinServer">发送申请</button></footer>
+      <h1 id="join-community-title">{{ t("申请加入社区") }}</h1>
+      <p>{{ t("输入社区 UID，提交加入申请。") }}</p>
+      <label>{{ t("社区 UID") }}<input v-model="joinCode" type="number" :placeholder="t('例如：10001')" @keydown.enter.prevent="joinServer"></label>
+      <label>申请留言 <span>{{ t("可选") }}</span><textarea v-model="joinNote" rows="4" :placeholder="t('写一句话介绍自己')"></textarea></label>
+      <footer><button class="friend-request-cancel" @click="joinModal=false">{{ t("取消") }}</button><button class="friend-request-submit" @click="joinServer">{{ t("发送申请") }}</button></footer>
     </section>
   </div>
   <div v-if="joinGroupOpen" class="friend-request-backdrop" @click.self="joinGroupOpen=false">
     <section class="friend-request-window" role="dialog" aria-modal="true" aria-labelledby="join-group-title">
-      <button class="friend-request-close" aria-label="关闭" @click="joinGroupOpen=false">×</button>
+      <button class="friend-request-close" :aria-label="t('关闭')" @click="joinGroupOpen=false">×</button>
       <div class="friend-request-emblem">◌</div>
-      <h1 id="join-group-title">申请加入群聊</h1>
-      <p>输入群 UID，提交加入申请。</p>
-      <label>群 UID<input v-model="joinGroupUid" type="number" placeholder="例如：10001" @keydown.enter.prevent="submitJoinGroup"></label>
-      <footer><button class="friend-request-cancel" @click="joinGroupOpen=false">取消</button><button class="friend-request-submit" @click="submitJoinGroup">发送申请</button></footer>
+      <h1 id="join-group-title">{{ t("申请加入群聊") }}</h1>
+      <p>{{ t("输入群 UID，提交加入申请。") }}</p>
+      <label>{{ t("群 UID") }}<input v-model="joinGroupUid" type="number" :placeholder="t('例如：10001')" @keydown.enter.prevent="submitJoinGroup"></label>
+      <footer><button class="friend-request-cancel" @click="joinGroupOpen=false">{{ t("取消") }}</button><button class="friend-request-submit" @click="submitJoinGroup">{{ t("发送申请") }}</button></footer>
     </section>
   </div>
   <div v-if="settingsOpen" class="settings-backdrop" @click.self="closeSettings">
-    <section class="settings-window" :class="{'settings-suspended':profileEditorOpen}" role="dialog" aria-modal="true" aria-label="用户设置">
+    <section class="settings-window" :class="{'settings-suspended':profileEditorOpen}" role="dialog" aria-modal="true" :aria-label="t('用户设置')">
       <aside class="settings-sidebar">
         <div class="settings-profile"><span class="settings-avatar"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></span><span><b>{{demoNickname}}</b><button @click="profileEditorOpen=true">编辑个人资料　✎</button></span></div>
-        <label class="settings-search"><Icon name="search"/><input placeholder="搜索" @focus="notDeveloped('设置搜索')"></label>
+        <label class="settings-search"><Icon name="search"/><input :placeholder="t('搜索')" @focus="notDeveloped(t('设置搜索'))"></label>
         <nav class="settings-nav">
-          <button :class="{active:selectedSetting==='账户'}" @click="selectSetting('账户')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5 20v-1.2a7 7 0 0 1 14 0V20z"/></svg>账户</button>
+          <button :class="{active:selectedSetting==='账户'}" @click="selectSetting('账户')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5 20v-1.2a7 7 0 0 1 14 0V20z"/></svg>{{ t("账户") }}</button>
           <button :class="{active:selectedSetting==='Baka'}" @click="selectSetting('Baka')"><img class="settings-nav-logo" src="/logo.png" alt="">Baka</button>
-          <button :class="{active:selectedSetting==='文件'}" @click="selectSetting('文件')"><svg viewBox="0 0 24 24"><path d="M6 2h8l6 6v14H6z"/><path d="M14 2v6h6"/></svg>文件</button>
+          <button :class="{active:selectedSetting==='文件'}" @click="selectSetting('文件')"><svg viewBox="0 0 24 24"><path d="M6 2h8l6 6v14H6z"/><path d="M14 2v6h6"/></svg>{{ t("文件") }}</button>
           <div class="settings-divider"></div>
           <div class="settings-group-label">体验</div>
-          <button :class="{active:selectedSetting==='外观'}" @click="selectSetting('外观')"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.3a2 2 0 0 0 1.5-3.3 1.8 1.8 0 0 1 1.4-3h1.1A3.7 3.7 0 0 0 21 11c0-4.4-4-8-9-8Z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="15" cy="8" r="1"/></svg>外观</button>
-          <button :class="{active:selectedSetting==='系统'}" @click="selectSetting('系统')"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8m-4-4v4M7 9h.01M10 9h.01M13 9h.01M16 9h.01M7 13h10"/></svg>系统</button>
-          <button :class="{active:selectedSetting==='语言'}" @click="selectSetting('语言')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>语言</button>
+          <button :class="{active:selectedSetting==='外观'}" @click="selectSetting('外观')"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.3a2 2 0 0 0 1.5-3.3 1.8 1.8 0 0 1 1.4-3h1.1A3.7 3.7 0 0 0 21 11c0-4.4-4-8-9-8Z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="15" cy="8" r="1"/></svg>{{ t("外观") }}</button>
+          <button :class="{active:selectedSetting==='系统'}" @click="selectSetting('系统')"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8m-4-4v4M7 9h.01M10 9h.01M13 9h.01M16 9h.01M7 13h10"/></svg>{{ t("系统") }}</button>
+          <button :class="{active:selectedSetting==='语言'}" @click="selectSetting('语言')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>{{ t("语言") }}</button>
           <div class="settings-divider"></div>
-          <button class="logout-setting" @click="closeSettings();demoLogout()"><Icon name="logout"/>登出</button>
+          <button class="logout-setting" @click="closeSettings();demoLogout()"><Icon name="logout"/>{{ t("登出") }}</button>
         </nav>
       </aside>
       <main class="settings-main">
         <header class="settings-header"><b>{{ selectedSetting === '外观' ? '外观' : selectedSetting }}</b><button aria-label="关闭设置" @click="closeSettings">×</button></header>
         <div class="settings-scroll">
           <div v-if="selectedSetting==='账户'" class="account-settings-content">
-            <section class="account-section"><h1>账号信息</h1><div class="account-info-row"><span>用户名</span><b>{{demoNickname}}</b><button @click="profileEditorOpen=true">编辑</button></div><div class="account-info-row"><span>账号 UID</span><b>{{demoUid||'—'}}</b></div><div class="account-info-row"><span>邮箱</span><b>{{demoEmail||'未绑定'}}</b><button @click="emailEditOpen=!emailEditOpen">{{emailEditOpen?'取消':'编辑'}}</button></div><div v-if="emailEditOpen" class="account-inline-form"><input v-model="demoEmail" type="email" placeholder="name@example.com"><button class="settings-row-button" @click="saveEmail">保存邮箱</button></div></section>
-            <section class="account-section"><h2>密码和安全中心</h2><div class="account-info-row"><span>密码</span><b>••••••••</b><button @click="passwordEditOpen=!passwordEditOpen">{{passwordEditOpen?'取消':'修改'}}</button></div><div v-if="passwordEditOpen" class="account-inline-form password-form"><input v-model="oldPassword" type="password" placeholder="当前密码"><input v-model="newPassword" type="password" placeholder="新密码"><button class="settings-row-button" @click="savePassword">保存密码</button></div></section>
+            <section class="account-section"><h1>{{ t("账号信息") }}</h1><div class="account-info-row"><span>{{ t("用户名") }}</span><b>{{demoNickname}}</b><button @click="profileEditorOpen=true">{{ t("编辑") }}</button></div><div class="account-info-row"><span>{{ t("账号 UID") }}</span><b>{{demoUid||'—'}}</b></div><div class="account-info-row"><span>{{ t("邮箱") }}</span><b>{{demoEmail||'未绑定'}}</b><button @click="emailEditOpen=!emailEditOpen">{{emailEditOpen?t('取消'):t('编辑')}}</button></div><div v-if="emailEditOpen" class="account-inline-form"><input v-model="demoEmail" type="email" placeholder="name@example.com"><button class="settings-row-button" @click="saveEmail">保存邮箱</button></div></section>
+            <section class="account-section"><h2>密码和安全中心</h2><div class="account-info-row"><span>{{ t("密码") }}</span><b>••••••••</b><button @click="passwordEditOpen=!passwordEditOpen">{{passwordEditOpen?t('取消'):t('修改')}}</button></div><div v-if="passwordEditOpen" class="account-inline-form password-form"><input v-model="oldPassword" type="password" :placeholder="t('当前密码')"><input v-model="newPassword" type="password" :placeholder="t('新密码')"><button class="settings-row-button" @click="savePassword">保存密码</button></div></section>
           </div>
           <div v-else-if="selectedSetting==='外观'" class="appearance-content">
-            <h1>主题</h1>
-            <h3>默认主题</h3>
+            <h1>{{ t("主题") }}</h1>
+            <h3>{{ t("默认主题") }}</h3>
             <div class="theme-options"><button v-for="theme in ['light','gray','dark','black','device']" :key="theme" class="theme-swatch" :class="[theme,{chosen:themeChoice===theme}]" :aria-label="theme" @click="themeChoice=theme"><i v-if="themeChoice===theme">✓</i></button></div>
           </div>
           <div v-else-if="selectedSetting==='Baka'" class="baka-settings-content">
             <section class="settings-section">
-              <h1>Baka 音效</h1>
-              <div class="settings-row"><div class="settings-row-copy"><b>音效文件</b><small>内置 Baka.mp3，本地播放，不联网。</small></div><img class="settings-row-logo" src="/logo.png" alt="Baka"></div>
-              <div class="settings-row"><div class="settings-row-copy"><b>发送消息时播放</b><small>每次发出消息后播放一次。</small></div><button class="toggle" :class="{on:bakaOnSend}" @click="bakaOnSend=!bakaOnSend"><i></i></button></div>
-              <div class="settings-row"><div class="settings-row-copy"><b>收到消息时播放</b><small>收到服务器实时推送的消息时播放一次。</small></div><button class="toggle" :class="{on:bakaOnReceive}" @click="bakaOnReceive=!bakaOnReceive"><i></i></button></div>
-              <div class="settings-row"><div class="settings-row-copy"><b>双击 LOGO 播放</b><small>双击左侧竖栏顶部的 LOGO 播放一次。</small></div><button class="toggle" :class="{on:bakaOnLogo}" @click="bakaOnLogo=!bakaOnLogo"><i></i></button></div>
+              <h1>{{ t("Baka 音效") }}</h1>
+              <div class="settings-row"><div class="settings-row-copy"><b>{{ t("音效文件") }}</b><small>内置 Baka.mp3，本地播放，不联网。</small></div><img class="settings-row-logo" src="/logo.png" alt="Baka"></div>
+              <div class="settings-row"><div class="settings-row-copy"><b>{{ t("发送消息时播放") }}</b><small>每次发出消息后播放一次。</small></div><button class="toggle" :class="{on:bakaOnSend}" @click="bakaOnSend=!bakaOnSend"><i></i></button></div>
+              <div class="settings-row"><div class="settings-row-copy"><b>{{ t("收到消息时播放") }}</b><small>收到服务器实时推送的消息时播放一次。</small></div><button class="toggle" :class="{on:bakaOnReceive}" @click="bakaOnReceive=!bakaOnReceive"><i></i></button></div>
+              <div class="settings-row"><div class="settings-row-copy"><b>{{ t("双击 LOGO 播放") }}</b><small>双击左侧竖栏顶部的 LOGO 播放一次。</small></div><button class="toggle" :class="{on:bakaOnLogo}" @click="bakaOnLogo=!bakaOnLogo"><i></i></button></div>
             </section>
           </div>
           <div v-else-if="selectedSetting==='文件'" class="account-settings-content">
-            <section class="account-section"><h1>我的文件</h1><p>文件保存在服务器，上传与下载均使用分片传输。</p></section>
+            <section class="account-section"><h1>{{ t("我的文件") }}</h1><p>文件保存在服务器，上传与下载均使用分片传输。</p></section>
             <input ref="demoFilesInput" class="demo-hidden-input" type="file" multiple @change="addDemoFiles"><input ref="resumeFileInput" class="demo-hidden-input" type="file" @change="bindResumeUpload">
             <div class="demo-panel-heading"><div><h2>传输与文件列表</h2><p>{{demoFiles.length}} 个文件</p></div><button class="demo-primary-button" @click="selectDemoFiles">＋ 上传文件</button></div>
-            <div class="demo-transfer-card"><div class="demo-transfer-icon">⇅</div><div><b>{{activeTransfer?.name||'文件传输状态'}}</b><small>{{activeTransfer?`${activeTransfer.status} · ${activeTransfer.progress||0}%`:'当前没有进行中的传输'}}</small></div><span class="demo-transfer-state"><i :class="{paused:!activeTransfer||activeTransfer.status==='已暂停'}"></i>{{activeTransfer?.status||'空闲'}}</span><button v-if="activeTransfer?.transferId" class="demo-soft-button" @click="toggleActiveTransfer">{{['已暂停','已中断','等待选择原文件'].includes(activeTransfer.status)?'继续':'暂停'}}</button><button v-if="activeTransfer?.transferId" class="demo-icon-action danger" title="取消传输" @click="api.cancelTransfer(activeTransfer)">×</button></div>
-            <div class="demo-file-list"><article v-for="file in demoFiles" :key="file.id" class="demo-file-row"><div class="demo-file-thumb"><img v-if="file.url&&file.type==='image'" :src="file.url" :alt="file.name"><span v-else class="demo-file-ext" :class="file.format.toLowerCase()">{{file.format}}</span></div><div class="demo-row-copy"><b>{{file.name}}</b><p>{{file.format}} · {{formatFileSize(file.size)}} <span>·</span> {{file.status}}</p><div class="demo-file-progress"><i :class="{paused:file.status==='已暂停'}" :style="{width:`${file.progress??(file.status==='已完成'?100:0)}%`}"></i></div></div><div class="demo-file-actions"><button v-if="file.status==='已完成'" class="demo-soft-button" @click="downloadDemoFile(file)">下载</button><button v-if="file.localId&&file.transferId&&!['已完成','已取消','失败','正在取消'].includes(file.status)" class="demo-soft-button" @click="toggleFileTransfer(file)">{{['已暂停','已中断','等待选择原文件'].includes(file.status)?(file.status==='等待选择原文件'?'选择原文件续传':'继续'):'暂停'}}</button><button class="demo-icon-action danger" title="删除文件" @click="deleteDemoFile(file)">×</button></div></article><div v-if="!demoFiles.length" class="demo-empty-state">还没有文件，上传一个文件开始使用。</div></div>
+            <div class="demo-transfer-card"><div class="demo-transfer-icon">⇅</div><div><b>{{activeTransfer?.name||t('文件传输状态')}}</b><small>{{activeTransfer?`${activeTransfer.status} · ${activeTransfer.progress||0}%`:t('当前没有进行中的传输')}}</small></div><span class="demo-transfer-state"><i :class="{paused:!activeTransfer||activeTransfer.status==='已暂停'}"></i>{{activeTransfer?.status||'空闲'}}</span><button v-if="activeTransfer?.transferId" class="demo-soft-button" @click="toggleActiveTransfer">{{['已暂停','已中断','等待选择原文件'].includes(activeTransfer.status)?t('继续'):t('暂停')}}</button><button v-if="activeTransfer?.transferId" class="demo-icon-action danger" :title="t('取消传输')" @click="api.cancelTransfer(activeTransfer)">×</button></div>
+            <div class="demo-file-list"><article v-for="file in demoFiles" :key="file.id" class="demo-file-row"><div class="demo-file-thumb"><img v-if="file.url&&file.type==='image'" :src="file.url" :alt="file.name"><span v-else class="demo-file-ext" :class="file.format.toLowerCase()">{{file.format}}</span></div><div class="demo-row-copy"><b>{{file.name}}</b><p>{{file.format}} · {{formatFileSize(file.size)}} <span>·</span> {{ t(file.status) }}</p><div class="demo-file-progress"><i :class="{paused:file.status==='已暂停'}" :style="{width:`${file.progress??(file.status==='已完成'?100:0)}%`}"></i></div></div><div class="demo-file-actions"><button v-if="file.status==='已完成'" class="demo-soft-button" @click="downloadDemoFile(file)">{{ t("下载") }}</button><button v-if="file.localId&&file.transferId&&!['已完成','已取消','失败','正在取消'].includes(file.status)" class="demo-soft-button" @click="toggleFileTransfer(file)">{{['已暂停','已中断','等待选择原文件'].includes(file.status)?(file.status==='等待选择原文件'?t('选择原文件续传'):t('继续')):t('暂停')}}</button><button class="demo-icon-action danger" title="删除文件" @click="deleteDemoFile(file)">×</button></div></article><div v-if="!demoFiles.length" class="demo-empty-state">{{ t("还没有文件，上传一个文件开始使用。") }}</div></div>
             <div class="demo-doc-note"><b>传输操作</b><span>上传初始化 · 文件分片 · 完成校验 · 断点续传 · 下载 · 暂停 / 继续 / 取消 · 文件列表 / 删除</span><small>文件通过 WebSocket 分片传输，并由服务器持久化。</small></div>
           </div>
 
+          <div v-else-if="selectedSetting==='语言'" class="account-settings-content">
+            <section class="account-section"><h1>{{ t("语言") }}</h1><p>{{ t("选择界面显示语言。") }}</p><div class="language-options"><button :class="{active:lang==='zh'}" @click="setLang('zh')">{{ t("中文") }}</button><button :class="{active:lang==='en'}" @click="setLang('en')">English</button></div></section>
+          </div>
           <div v-else class="settings-placeholder"><h1>{{ selectedSetting }}</h1><p>在这里调整 {{ selectedSetting }} 相关设置。</p></div>
         </div>
       </main>
-      <section v-if="profileEditorOpen" class="profile-editor" role="dialog" aria-modal="true" aria-label="编辑个人资料">
+      <section v-if="profileEditorOpen" class="profile-editor" role="dialog" aria-modal="true" :aria-label="t('编辑个人资料')">
         <aside class="profile-editor-tools">
-          <header><button class="profile-back" @click="closeProfileEditor">‹</button><b>主要个人资料</b><span>⌄</span><button class="profile-editor-close" aria-label="关闭" @click="closeProfileEditor">×</button></header>
+          <header><button class="profile-back" @click="closeProfileEditor">‹</button><b>主要个人资料</b><span>⌄</span><button class="profile-editor-close" :aria-label="t('关闭')" @click="closeProfileEditor">×</button></header>
           <div class="profile-edit-scroll">
             <h3>头像</h3>
             <div class="profile-avatar-control">
               <span class="settings-avatar large-avatar"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></span>
-              <div class="profile-avatar-buttons"><button class="profile-avatar-upload-btn" @click="setDemoAvatar">上传新头像</button><button class="profile-avatar-upload-btn reset" @click="resetAvatar">恢复默认</button></div>
+              <div class="profile-avatar-buttons"><button class="profile-avatar-upload-btn" @click="setDemoAvatar">{{ t("上传新头像") }}</button><button class="profile-avatar-upload-btn reset" @click="resetAvatar">{{ t("恢复默认") }}</button></div>
             </div>
           </div>
         </aside>
         <div class="profile-editor-preview">
           <div class="profile-preview-card">
             <div class="profile-preview-banner" :style="profileBackgroundImage ? {backgroundImage:`url(${profileBackgroundImage})`} : {background:profileBackground}">
-              <div class="profile-background-control"><button aria-label="编辑背景" @click="notDeveloped('个人资料背景')">✎</button><div v-if="profileBackgroundMenu" class="profile-background-menu"><button @click="profileBackgroundImage='';profileBackground='#454347';profileBackgroundMenu=false">纯色</button><button @click="$refs.profileBannerUpload.click();profileBackgroundMenu=false">上传背景图片</button></div></div>
+              <div class="profile-background-control"><button :aria-label="t('编辑背景')" @click="notDeveloped(t('个人资料背景'))">✎</button><div v-if="profileBackgroundMenu" class="profile-background-menu"><button @click="profileBackgroundImage='';profileBackground='#454347';profileBackgroundMenu=false">纯色</button><button @click="$refs.profileBannerUpload.click();profileBackgroundMenu=false">{{ t("上传背景图片") }}</button></div></div>
               <input ref="profileBannerUpload" class="profile-file-input" type="file" accept="image/*" @change="handleProfileBackground">
             </div>
-            <div class="profile-preview-body"><div class="profile-preview-avatar settings-avatar"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></div><div class="profile-status-bubble">UID {{demoUid||'—'}}</div><h1>{{demoNickname}}</h1><p>UID {{demoUid||'—'}} <span>•</span> <i>添加个性签名</i> <button @click="notDeveloped('服务器标签')">服务器标签⌄</button></p><div class="profile-preview-actions"><button @click="notDeveloped('个人资料消息')">▰　消息</button><button @click="notDeveloped('个人资料操作')">▣</button><button @click="notDeveloped('个人资料更多操作')">•••</button></div><section><label>自我介绍</label><p>写一段简短的介绍</p></section><section><label>成员加入时间</label><p>暂未提供</p></section><section><label>连接</label><p>＋ 添加关联</p></section><section><label>备注（仅对您可见）</label><p>点击添加备注</p></section></div>
+            <div class="profile-preview-body"><div class="profile-preview-avatar settings-avatar"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></div><div class="profile-status-bubble">UID {{demoUid||'—'}}</div><h1>{{demoNickname}}</h1><p>UID {{demoUid||'—'}} <span>•</span> <i>{{ t("添加个性签名") }}</i> <button @click="notDeveloped(t('服务器标签'))">{{ t("服务器标签⌄") }}</button></p><div class="profile-preview-actions"><button @click="notDeveloped('个人资料消息')">▰　消息</button><button @click="notDeveloped('个人资料操作')">▣</button><button @click="notDeveloped('个人资料更多操作')">•••</button></div><section><label>{{ t("自我介绍") }}</label><p>{{ t("写一段简短的介绍") }}</p></section><section><label>{{ t("成员加入时间") }}</label><p>{{ t("暂未提供") }}</p></section><section><label>{{ t("连接") }}</label><p>{{ t("＋ 添加关联") }}</p></section><section><label>{{ t("备注（仅对您可见）") }}</label><p>{{ t("点击添加备注") }}</p></section></div>
           </div>
         </div>
-        <footer class="profile-editor-savebar"><span>别忘了保存您的更改</span><button @click="profileBackgroundImage='';profileBackground='#454347'">重置</button><button class="save-profile" @click="closeProfileEditor();notDeveloped('个人资料装饰')">保存</button></footer>
+        <footer class="profile-editor-savebar"><span>别忘了保存您的更改</span><button @click="profileBackgroundImage='';profileBackground='#454347'">{{ t("重置") }}</button><button class="save-profile" @click="closeProfileEditor();notDeveloped('个人资料装饰')">{{ t("保存") }}</button></footer>
       </section>
     </section>
   </div>
