@@ -247,6 +247,9 @@ const Composer = (props) => {
       style: 'flex:1;min-width:30px;border:0;outline:0;background:transparent;color:var(--text-1);font-size:15px;font-family:inherit;resize:none;height:24px;line-height:24px;padding:0;margin:0'
     }), [[vModelText, message.value]]),
     h('div', { class: 'composer-tools' }, [
+      (message.value.trim() || uploads.value.length)
+        ? h('button', { type: 'button', class: 'send-button', 'aria-label': t('发送'), title: t('发送'), onClick: () => submit() }, [h(Icon, { name: 'send' }), h('span', null, t('发送'))])
+        : null,
       h('button', { type: 'button', class: 'tool-button', 'aria-label': t('表情'), title: t('表情'), onClick: (e) => toggleEmojiPanel(e) }, [h(Icon, { name: 'smile' })])
     ])
   ]))
@@ -358,7 +361,7 @@ const MessageRow = (props) => {
   const images = [...(props.images?.length ? props.images : (record.images || [])), ...fileImages]
   if (images.length) {
     content.push(h('div', { class: 'message-images' }, images.map((img) => img.url
-      ? h('a', { href: img.url, target: '_blank', rel: 'noreferrer', title: img.name, key: img.fileId || img.url, 'data-url': img.url, 'data-name': img.name, 'data-file-id': img.fileId || '', 'data-size': img.size || 0 }, h('img', { src: img.url, alt: img.name }))
+      ? h('button', { type: 'button', class: 'message-image-open', title: img.name, key: img.fileId || img.url, 'data-url': img.url, 'data-name': img.name, 'data-file-id': img.fileId || '', 'data-size': img.size || 0, onClick: () => openLightbox(img) }, h('img', { src: img.url, alt: img.name }))
       : h('div', { class: ['message-image-loading', { failed: img.previewFailed }], key: img.fileId || img.name }, [
           h('span', null, img.previewFailed ? '!' : '▧'),
           h('small', null, img.previewFailed ? t('图片加载失败') : t('图片加载中…')),
@@ -533,6 +536,9 @@ onUnmounted(() => {
   window.removeEventListener('contextmenu', closeFloatingMenus, true)
   window.removeEventListener('keydown', onMenuKeydown)
   window.removeEventListener('resize', syncSidebarWidthFromDom)
+  window.removeEventListener('keydown', onLightboxKey)
+  window.removeEventListener('mousemove', lightboxDragMove)
+  window.removeEventListener('mouseup', lightboxDragEnd)
   for (const upload of uploads.value) if (upload.preview) URL.revokeObjectURL(upload.preview)
   for (const timer of transferAutoDismissTimers.values()) clearTimeout(timer)
   transferAutoDismissTimers.clear()
@@ -951,6 +957,83 @@ const appendEmoji = (emoji) => {
       try { input.setSelectionRange(end, end) } catch {}
     }
   })
+}
+// —— 图片查看器（lightbox）：滚轮缩放、拖动平移、左右切换已加载图片、X/Esc 关闭 ——
+const lightbox = ref(null)  // null 或 { images:[{url,name,fileId}], index, scale, dx, dy, dragging }
+const collectLoadedImages = () => {
+  const records = api.activeConversation.value?.messages || []
+  const seen = new Set()
+  const images = []
+  for (const record of records) {
+    for (const file of (record.files || [])) {
+      if (!isImageAttachment(file)) continue
+      const url = backend.fileUrls[String(file.fileId)] || file.url || ''
+      if (!url || seen.has(url)) continue
+      seen.add(url)
+      images.push({ url, name: file.name || '', fileId: file.fileId || '' })
+    }
+    for (const img of (record.images || [])) {
+      if (!img?.url || seen.has(img.url)) continue
+      seen.add(img.url)
+      images.push({ url: img.url, name: img.name || '', fileId: img.fileId || '' })
+    }
+  }
+  return images
+}
+const resetLightbox = () => {
+  const lb = lightbox.value
+  if (!lb) return
+  lb.scale = 1; lb.dx = 0; lb.dy = 0; lb.dragging = false
+}
+const lightboxPrev = () => { const lb = lightbox.value; if (lb && lb.images.length > 1) { lb.index = (lb.index - 1 + lb.images.length) % lb.images.length; resetLightbox() } }
+const lightboxNext = () => { const lb = lightbox.value; if (lb && lb.images.length > 1) { lb.index = (lb.index + 1) % lb.images.length; resetLightbox() } }
+const onLightboxKey = (event) => {
+  if (!lightbox.value) return
+  if (event.key === 'Escape') closeLightbox()
+  else if (event.key === 'ArrowLeft') lightboxPrev()
+  else if (event.key === 'ArrowRight') lightboxNext()
+}
+const openLightbox = (img) => {
+  const images = collectLoadedImages()
+  let index = images.findIndex((item) => item.url === img.url)
+  if (index < 0) { images.unshift({ url: img.url, name: img.name || '', fileId: img.fileId || '' }); index = 0 }
+  lightbox.value = { images, index, scale: 1, dx: 0, dy: 0, dragging: false }
+  window.addEventListener('keydown', onLightboxKey)
+}
+const closeLightbox = () => {
+  lightbox.value = null
+  window.removeEventListener('keydown', onLightboxKey)
+  window.removeEventListener('mousemove', lightboxDragMove)
+  window.removeEventListener('mouseup', lightboxDragEnd)
+}
+const lightboxWheel = (event) => {
+  const lb = lightbox.value
+  if (!lb) return
+  const factor = event.deltaY < 0 ? 1.2 : 1 / 1.2
+  lb.scale = Math.min(8, Math.max(1, lb.scale * factor))
+  if (lb.scale <= 1) { lb.dx = 0; lb.dy = 0 }
+}
+const lightboxDragStart = (event) => {
+  const lb = lightbox.value
+  if (!lb) return
+  event.preventDefault()
+  lb.dragging = true
+  lb.startX = event.clientX; lb.startY = event.clientY
+  lb.startDx = lb.dx; lb.startDy = lb.dy
+  window.addEventListener('mousemove', lightboxDragMove)
+  window.addEventListener('mouseup', lightboxDragEnd)
+}
+const lightboxDragMove = (event) => {
+  const lb = lightbox.value
+  if (!lb || !lb.dragging) return
+  lb.dx = lb.startDx + (event.clientX - lb.startX)
+  lb.dy = lb.startDy + (event.clientY - lb.startY)
+}
+const lightboxDragEnd = () => {
+  const lb = lightbox.value
+  if (lb) lb.dragging = false
+  window.removeEventListener('mousemove', lightboxDragMove)
+  window.removeEventListener('mouseup', lightboxDragEnd)
 }
 const toggleEmojiPanel = (event) => {
   event.stopPropagation()
@@ -1799,6 +1882,21 @@ const confirmAvatarCrop = () => {
       <div class="transfer-progress-bar"><i :style="{width:`${task.status==='已完成'?100:(task.progress||0)}%`}"></i></div>
     </article>
   </div>
+
+  <!-- 图片查看器（lightbox）：点击消息图片打开，滚轮缩放、拖动平移、左右切换、X/Esc 关闭 -->
+  <div v-if="lightbox" class="lightbox-backdrop" @click.self="closeLightbox" @wheel.prevent="lightboxWheel">
+    <button class="lightbox-close" :aria-label="t('关闭')" :title="t('关闭')" @click="closeLightbox">×</button>
+    <button v-if="lightbox.images.length > 1" class="lightbox-nav lightbox-prev" :aria-label="t('上一张')" :title="t('上一张')" @click.stop="lightboxPrev">‹</button>
+    <button v-if="lightbox.images.length > 1" class="lightbox-nav lightbox-next" :aria-label="t('下一张')" :title="t('下一张')" @click.stop="lightboxNext">›</button>
+    <div class="lightbox-stage" :class="{ dragging: lightbox.dragging }" @mousedown="lightboxDragStart">
+      <img v-if="lightbox.images[lightbox.index]" :src="lightbox.images[lightbox.index].url" :alt="lightbox.images[lightbox.index].name" class="lightbox-image" :style="{ transform: `translate(${lightbox.dx}px, ${lightbox.dy}px) scale(${lightbox.scale})` }" draggable="false" />
+    </div>
+    <div class="lightbox-meta">
+      <span v-if="lightbox.images.length > 1" class="lightbox-count">{{ lightbox.index + 1 }} / {{ lightbox.images.length }}</span>
+      <span v-if="lightbox.images[lightbox.index]?.name" class="lightbox-name">{{ lightbox.images[lightbox.index].name }}</span>
+      <span class="lightbox-hint">{{ t('滚轮缩放 · 拖动平移 · ←→ 切换 · Esc 关闭') }}</span>
+    </div>
+  </div>
 </template>
 
 <style>
@@ -1883,4 +1981,26 @@ const confirmAvatarCrop = () => {
 .transfer-progress-card.done .transfer-progress-bar i{background:#43b581}
 .transfer-progress-card.failed .transfer-progress-bar i{background:#ed4245}
 @media(max-width:520px){.transfer-progress-panel{right:12px;bottom:82px}.transfer-progress-card{min-width:0}}
+.message-images{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.message-image-open{display:block;padding:0;border:0;background:transparent;cursor:zoom-in;overflow:hidden;border-radius:8px;max-width:100%}
+.message-image-open img{display:block;max-width:min(420px,100%);max-height:320px;object-fit:cover;border-radius:8px}
+.message-image-open:hover img{filter:brightness(.9)}
+.composer .composer-tools button.send-button{width:auto;min-width:60px;height:32px;flex:none;display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:0 10px;border-radius:4px;background:#5865f2;color:#fff;font-size:13px;font-weight:600;line-height:1;transition:background .15s ease,transform .05s ease}
+.composer .composer-tools button.send-button svg{width:16px;height:16px;fill:currentColor;flex:none}
+.composer .composer-tools button.send-button:hover{background:#4752c4;color:#fff}
+.composer .composer-tools button.send-button:active{background:#3c45a5;transform:translateY(1px)}
+.lightbox-backdrop{position:fixed;inset:0;z-index:6000;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;user-select:none}
+.lightbox-stage{position:relative;max-width:calc(100vw - 120px);max-height:calc(100vh - 120px);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.lightbox-image{display:block;max-width:calc(100vw - 120px);max-height:calc(100vh - 120px);object-fit:contain;cursor:grab}
+.lightbox-stage.dragging .lightbox-image{cursor:grabbing}
+.lightbox-close{position:absolute;right:20px;top:20px;width:44px;height:44px;border-radius:50%;background:#ffffff14;color:#fff;font-size:28px;line-height:1;z-index:2}
+.lightbox-close:hover{background:#ffffff2b}
+.lightbox-nav{position:absolute;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;background:#ffffff14;color:#fff;font-size:30px;line-height:1;z-index:2}
+.lightbox-nav:hover{background:#ffffff2b}
+.lightbox-prev{left:20px}
+.lightbox-next{right:20px}
+.lightbox-meta{position:absolute;left:0;right:0;bottom:20px;display:flex;flex-direction:column;align-items:center;gap:4px;color:#cfd1d6;font-size:12px;pointer-events:none}
+.lightbox-count{color:#8b8d96;font-size:11px}
+.lightbox-name{max-width:70vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e8e9ed;font-size:13px}
+.lightbox-hint{color:#8b8d96;font-size:11px}
 </style>

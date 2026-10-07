@@ -18,7 +18,8 @@ export const ICONS = {
   list: '<path d="M4 5h16M4 12h16M4 19h16"/>',
   community: '<path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M15 9h4a2 2 0 0 1 2 2v10M8 7h2M8 11h2M8 15h2M15 13h2M15 17h2"/>',
   enter: '<path d="M14 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 8-4 4 4 4M4 12h10"/>',
-  reset: '<path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/>'
+  reset: '<path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/>',
+  send: '<path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/>'
 }
 
 export const Icon = (props) => h('svg', {

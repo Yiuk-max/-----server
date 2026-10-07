@@ -13,6 +13,7 @@ const DICT = {
   // 通用
   '取消': 'Cancel', '确定': 'Confirm', '保存': 'Save', '编辑': 'Edit', '删除': 'Delete',
   '下载': 'Download', '上传': 'Upload', '关闭': 'Close', '搜索': 'Search', '发送': 'Send',
+  '上一张': 'Previous', '下一张': 'Next',
   '接受': 'Accept', '拒绝': 'Reject', '忽略': 'Ignore', '继续': 'Resume', '暂停': 'Pause', '重试': 'Retry',
   '复制': 'Copy', '更多': 'More', '回复': 'Reply', '转发': 'Forward', '撤回': 'Recall',
   '添加': 'Add', '移除': 'Remove', '邀请': 'Invite', '重置': 'Reset', '试听': 'Preview',
@@ -97,6 +98,7 @@ const DICT = {
   '用户设置': 'User Settings', '功能暂未开发': 'Not developed yet', '该功能': 'This feature',
   '欢迎来到我们的社区，一起交流分享吧。': 'Welcome to our community!',
   '拖动图片调整位置，滚轮或下方滑块缩放。': 'Drag to move, scroll or slider to zoom.',
+  '滚轮缩放 · 拖动平移 · ←→ 切换 · Esc 关闭': 'Scroll to zoom · drag to pan · ←→ to switch · Esc to close',
   '恢复默认会清除当前头像，回到默认头像。': 'Reset clears the current avatar and restores the default.',
   '介绍文字': 'Description', '输入社区 UID 提交加入申请': 'Enter a community ID to apply',
   '输入群 UID 提交加入申请': 'Enter a group ID to apply', '发送好友申请': 'Send friend request',
