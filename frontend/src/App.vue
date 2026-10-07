@@ -13,7 +13,6 @@ const communities = ref([])
 const selectedCommunity = ref('')
 const currentCommunity = computed(() => communities.value.find(item=>item.name===selectedCommunity.value))
 const communityMenu = ref(false)
-const testMenu = ref(null)
 const communityContextMenu = ref(null)
 const communitySettingsOpen = ref(false)
 const communitySettingsName = ref('')
@@ -164,7 +163,7 @@ const filteredFriends = computed(() => {
     .map((friend) => ({ ...friend, handle: String(friend.uid), color: '', avatar: friend.name?.[0] || '?' }))
 })
 const filteredDemoFriends = computed(() => demoFriends.value.filter(friend => `${friend.name} ${friend.remark} ${friend.uid} ${friend.email}`.toLowerCase().includes(demoSearch.value.toLowerCase())))
-const filteredFriendDirectory = computed(() => demoFriends.value.filter(friend => `${friend.name} ${friend.remark} ${friend.uid}`.toLowerCase().includes(friendSearchQuery.value.toLowerCase()) && (friendFilter.value !== '在线' || friend.online)))
+const filteredFriendDirectory = computed(() => demoFriends.value.filter(friend => `${friend.name} ${friend.remark} ${friend.uid}`.toLowerCase().includes(friendSearchQuery.value.toLowerCase())))
 const demoCommunityMemberList = ref([])
 const demoSelectedGroup = computed(() => demoGroups.value.find(group => group.name === selectedDm.value) || demoGroups.value[0])
 // 社区成员右侧栏
@@ -437,7 +436,6 @@ const handleCommunityAsset = (kind, event) => {
 const selectCommunity = (community) => {
   communityContextMenu.value = null
   communityMenu.value = false
-  testMenu.value = null
   selectedCommunity.value = community.name
   activePage.value = 'community'
   backend.activeCommunityId = community.id
@@ -478,22 +476,8 @@ const openCommunityContext = (event, community) => {
   communityMenu.value = false
   communityContextMenu.value = {name:community.name,x:Math.min(event.clientX,window.innerWidth-width-8),y:Math.min(event.clientY,window.innerHeight-height-8)}
 }
-// 竖栏底部「测试」按钮：菜单贴按钮显示在竖栏右侧（fixed 定位，与其它浮层同一套关闭逻辑）
-// 用 bottom 定位而非按固定高度估算 top；下沿抬到底部账号栏之上，否则菜单最后一项会被账号栏（fixed z-index:60）压住。
-const openTestMenu = (event) => {
-  if (testMenu.value) { testMenu.value = null; return }
-  communityMenu.value = false
-  communityContextMenu.value = null
-  const rect = event.currentTarget.getBoundingClientRect()
-  const accountBar = document.querySelector('.account-bar')?.getBoundingClientRect()
-  const minBottom = accountBar ? Math.min(window.innerHeight - accountBar.top, window.innerHeight - accountBar.bottom) : 0
-  testMenu.value = {
-    x: Math.min(rect.right + 10, window.innerWidth - 276),
-    bottom: Math.max(8, window.innerHeight - rect.bottom, minBottom)
-  }
-}
 // 任意空白处点击 / Esc：关闭竖栏的两个菜单（点击菜单、右键菜单）与私信 ＋ 菜单
-const MENU_KEEP_SELECTOR = '.rail-action-wrap,.community-menu,.community-context-menu,.dm-context-menu,.dm-edit-menu,.dm-message-heading,.dm-quick-menu,.test-menu'
+const MENU_KEEP_SELECTOR = '.rail-action-wrap,.community-menu,.community-context-menu,.dm-context-menu,.dm-edit-menu,.dm-message-heading,.dm-quick-menu'
 const closeFloatingMenus = (event) => {
   if (event?.target?.closest?.(MENU_KEEP_SELECTOR)) return
   communityMenu.value = false
@@ -501,20 +485,11 @@ const closeFloatingMenus = (event) => {
   dmContextMenu.value = null
   dmEditMenu.value = null
   dmQuickMenu.value = false
-  testMenu.value = null
   emojiPanelOpen.value = false
   emojiPanelPos.value = null
   emojiPanelTarget.value = null
   attachmentMenu.value = null
 }
-// 原版测试菜单保留其像素位置；生产接入后不再伪造服务端数据。
-const pushTestIncoming = () => notDeveloped('测试推送')
-const addTestFriendRequest = () => notDeveloped('测试好友申请')
-const addTestGroupRequest = () => notDeveloped('测试入群申请')
-const addTestCommunityRequest = () => notDeveloped('测试社区申请')
-const testSignedOut = () => api.logout()
-const testClearLogs = () => notDeveloped('本地清空服务端聊天记录')
-const testResetDemo = () => notDeveloped(t('重置服务端数据'))
 const onMenuKeydown = (event) => {
   if (event.key !== 'Escape') return
   if (replyTarget.value) { replyTarget.value = null; return }
@@ -1477,34 +1452,7 @@ const confirmAvatarCrop = () => {
       <button v-for="community in communities" :key="community.name" class="server community-server" :class="{'active-server':activePage==='community'&&selectedCommunity===community.name}" :aria-label="community.name" :data-tooltip="community.name" :title="community.name" @click="selectCommunity(community)" @contextmenu.prevent.stop="openCommunityContext($event,community)"><span class="community-mark"><img :src="community.icon || DEFAULT_COMM_AVATAR" :alt="community.name"></span><i></i></button>
       <div class="rail-action-wrap"><button class="round-add" :class="{'rail-selected':communityMenu}" :aria-label="t('创建社区')" :data-tooltip="t('创建社区')" :title="t('创建或加入社区')" @click="communityMenu=!communityMenu;communityContextMenu=null"><svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></svg></button><div v-if="communityMenu" class="community-menu"><button @click="communityMenu=false;createCommunityOpen=true"><Icon name="community"/>{{ t("创建社区") }}</button><button @click="communityMenu=false;createGroupDialogOpen=true"><Icon name="group"/>{{ t("创建群聊") }}</button><button @click="communityMenu=false;joinModal=true"><Icon name="enter"/>{{ t("申请加入社区") }}</button><button @click="communityMenu=false;joinGroupOpen=true"><Icon name="enter"/>{{ t("申请加入群聊") }}</button><button @click="communityMenu=false;friendRequestModal=true"><Icon name="userPlus"/>{{ t("添加好友") }}</button></div></div>
       <button class="round-discover" :class="{'rail-selected':activePage==='discover'}" :aria-label="t('发现')" :data-tooltip="t('发现')" :title="t('发现')" @click="notDeveloped(t('发现社区'))"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 5-4.8 2 2-4.8 5-2.2Z"/></svg></button>
-      <div class="rail-divider rail-test-divider"></div>
-      <button class="round-test" :class="{'rail-selected':testMenu}" :aria-label="t('测试')" :data-tooltip="t('测试菜单')" :title="t('测试菜单')" @click.stop="openTestMenu"><svg viewBox="0 0 24 24"><path d="M9 3h6M10 3v6.2L5.2 17A2.4 2.4 0 0 0 7.3 20.6h9.4A2.4 2.4 0 0 0 18.8 17L14 9.2V3"/><path d="M7.2 14h9.6"/></svg></button>
     </nav>
-    <div v-if="testMenu" class="community-context-dismiss" @click="testMenu=null" @contextmenu.prevent="testMenu=null"></div>
-    <div v-if="testMenu" class="community-context-menu test-menu" :style="{left:`${testMenu.x}px`,bottom:`${testMenu.bottom}px`}" @click.stop>
-      <div class="test-menu-label">{{ t("测试 · 好友与群聊") }}</div>
-      <button @click="addTestFriendRequest()"><span class="test-menu-icon">♧</span>{{ t("收到一条好友申请") }}<b v-if="demoFriendRequests.length" class="test-menu-count">{{demoFriendRequests.length}}</b></button>
-      <button @click="addTestGroupRequest()"><span class="test-menu-icon">◌</span>{{ t("收到一条入群申请") }}</button>
-      <button @click="addTestCommunityRequest()"><span class="test-menu-icon">◆</span>{{ t("收到一条入社区申请") }}</button>
-      <button @click="activePage='dm';friendFilter='待定'"><span class="test-menu-icon">▤</span>{{ t("打开待处理列表") }}</button>
-      <div></div>
-      <div class="test-menu-label">{{ t("测试 · 消息与音效") }}</div>
-      <button @click="pushTestIncoming()"><span class="test-menu-icon">✉</span>{{ t("推送一条私信") }}</button>
-      <button @click="pushTestIncoming()"><span class="test-menu-icon">#</span>{{ t("推送一条频道消息") }}</button>
-      <button @click="playBaka('logo')"><span class="test-menu-icon">♪</span>{{ t("试听 Baka 音效") }}</button>
-      <div></div>
-      <div class="test-menu-label">{{ t("测试 · 窗口与流程") }}</div>
-      <button @click="testMenu=null;friendRequestModal=true"><span class="test-menu-icon">＋</span>{{ t("添加好友窗口") }}</button>
-      <button @click="testMenu=null;createCommunityOpen=true"><span class="test-menu-icon">＋</span>{{ t("创建社区窗口") }}</button>
-      <button @click="testMenu=null;joinModal=true"><span class="test-menu-icon">↗</span>{{ t("申请加入社区窗口") }}</button>
-      <button @click="testMenu=null;createGroupDialogOpen=true"><span class="test-menu-icon">◌</span>{{ t("创建群聊表单") }}</button>
-      <button @click="testMenu=null;openDemoLoginWindow()"><span class="test-menu-icon">⇥</span>{{ t("登录窗口") }}</button>
-      <button @click="testMenu=null;settingsOpen=true"><span class="test-menu-icon">⚙</span>{{ t("用户设置") }}</button>
-      <div></div>
-      <button @click="testSignedOut()"><span class="test-menu-icon">⇤</span>{{ t("切换为未登录态") }}</button>
-      <button @click="testClearLogs()"><span class="test-menu-icon">⌫</span>{{ t("清空本机聊天记录") }}</button>
-      <button class="leave-community" @click="testResetDemo()"><span class="test-menu-icon">↺</span>{{ t("重置服务端数据") }}</button>
-    </div>
     <div v-if="communityContextMenu" class="community-context-dismiss" @click="communityContextMenu=null" @contextmenu.prevent="communityContextMenu=null"></div>
     <div v-if="communityContextMenu" class="community-context-menu" :style="{left:`${communityContextMenu.x}px`,top:`${communityContextMenu.y}px`}" @click.stop>
       <button @click="communityMenuAction('invite')"><Icon name="userPlus"/>{{ t("邀请至社区") }}</button>
@@ -1535,7 +1483,7 @@ const confirmAvatarCrop = () => {
       <button @click="dmContextAction('groupSettings')"><Icon name="gear"/>{{ t("群聊设置") }}</button>
     </div>
     <aside class="channel-sidebar">
-      <div v-if="['dm','dm-chat'].includes(activePage)" class="dm-sidebar"><label class="dm-search"><input :placeholder="t('寻找或开始新的对话')" @focus="notDeveloped(t('全局会话搜索'))"></label><div class="dm-list-heading dm-message-heading"><span>{{ t("私信") }}</span><button class="dm-add-cta" :aria-label="t('私信操作')" :aria-expanded="dmQuickMenu" @click.stop="dmQuickMenu=!dmQuickMenu">＋</button><div v-if="dmQuickMenu" class="dm-quick-menu" @click.stop><button @click="dmQuickMenu=false;createGroupDialogOpen=true"><Icon name="group"/><span>{{ t("创建群聊") }}</span></button></div></div><button v-for="contact in dmContacts" :key="contact.name" class="dm-contact" :class="{selected:activePage==='dm-chat'&&selectedDm===contact.name}" @click="openDm(contact)" @contextmenu.prevent.stop="openDmContext($event,contact)"><span class="dm-avatar"><img :src="dmAvatarSrc(contact.name)" :alt="contact.name"><i v-if="isDmUnread(contact)" class="dm-presence" :aria-label="t('有未读消息')" :title="t('有未读消息')" style="border:0;background:#ed4245;box-shadow:0 0 0 2.5px var(--sidebar-bg)"></i><i v-else class="dm-presence" :class="contact.online?'online':contact.idle?'idle':'offline'" :data-tooltip="contact.online?'在线':contact.idle?t('闲置'):t('离线')"></i></span><b class="dm-name">{{contact.name}}</b><span class="dm-close" role="button" :aria-label="t('关闭私信')" :title="t('关闭私信')" @click.stop="closeDm(contact)">×</span></button></div>
+      <div v-if="['dm','dm-chat'].includes(activePage)" class="dm-sidebar"><label class="dm-search"><input :placeholder="t('寻找或开始新的对话')" @focus="notDeveloped(t('全局会话搜索'))"></label><div class="dm-list-heading dm-message-heading"><span>{{ t("私信") }}</span><button class="dm-add-cta" :aria-label="t('私信操作')" :aria-expanded="dmQuickMenu" @click.stop="dmQuickMenu=!dmQuickMenu">＋</button><div v-if="dmQuickMenu" class="dm-quick-menu" @click.stop><button @click="dmQuickMenu=false;createGroupDialogOpen=true"><Icon name="group"/><span>{{ t("创建群聊") }}</span></button></div></div><button v-for="contact in dmContacts" :key="contact.name" class="dm-contact" :class="{selected:activePage==='dm-chat'&&selectedDm===contact.name}" @click="openDm(contact)" @contextmenu.prevent.stop="openDmContext($event,contact)"><span class="dm-avatar"><img :src="dmAvatarSrc(contact.name)" :alt="contact.name"><i v-if="isDmUnread(contact)" class="dm-presence" :aria-label="t('有未读消息')" :title="t('有未读消息')" style="border:0;background:#ed4245;box-shadow:0 0 0 2.5px var(--sidebar-bg)"></i></span><b class="dm-name">{{contact.name}}</b><span class="dm-close" role="button" :aria-label="t('关闭私信')" :title="t('关闭私信')" @click.stop="closeDm(contact)">×</span></button></div>
       <div v-else-if="activePage==='community'" class="community-sidebar-content">
       <div class="community-sidebar-banner"></div>
       <div class="guild-header"><button class="guild-header-title" :title="t('服务器菜单')" @click.stop="openCommunityContext($event, currentCommunity)"><b>{{selectedCommunity}}</b><Icon name="caret" class="guild-caret"/></button><div class="guild-header-actions"><button class="invite" :title="t('邀请至服务器')" :aria-label="t('邀请至服务器')" @click="openCommunityInvite()"><Icon name="userPlus"/></button></div></div>
@@ -1626,8 +1574,8 @@ const confirmAvatarCrop = () => {
         </template>
         <template v-else>
           <label class="friends-directory-search"><svg class="search-glyph" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.4"/><path d="m15.4 15.4 4.6 4.6"/></svg><input v-model="friendSearchQuery" :placeholder="t('搜索好友')"></label>
-          <div class="friends-list-heading"><div><h2>{{friendFilter==='在线'?t('在线'):t('全部')}} — {{filteredFriendDirectory.length}}</h2></div><button v-if="friendFilter==='全部'" class="friends-create-group-link" @click="createGroupDialogOpen=true">＋ 新建群聊</button></div>
-          <article v-for="friend in filteredFriendDirectory" :key="friend.uid" class="friend-directory-row" @contextmenu.prevent="friendMoreMenu=friend.uid" @click="openDemoFriendChat(friend)"><span class="friends-avatar friend-face"><img :src="avatarByUid(friend.uid)" :alt="friend.name"><i :class="{offline:!friend.online,idle:friend.idle}"></i></span><div class="friends-row-copy"><div class="friends-name-line"><b>{{friend.remark||friend.name}}</b></div><p>{{friend.idle?'闲置':friend.online?t('在线'):t('离线')}}</p></div><button class="friends-round-action" :title="t('发送消息')" :aria-label="t('发送消息')" @click="openDemoFriendChat(friend)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.6c0 3.6-3.6 6.5-8 6.5a9.8 9.8 0 0 1-2.6-.3L5 20l1.2-3.4A6.2 6.2 0 0 1 4 11.6C4 8 7.6 5.1 12 5.1s8 2.9 8 6.5Z"/></svg></button><div class="friend-more-wrap"><button class="friends-round-action" :title="t('更多')" :aria-label="t('更多')" @click.stop="friendMoreMenu=friendMoreMenu===friend.uid?'':friend.uid"><svg class="dots" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button><div v-if="friendMoreMenu===friend.uid" class="friend-more-menu" @click.stop><button @click="openDemoFriendChat(friend);friendMoreMenu=''">{{ t("发送消息") }}</button><button @click="renameDemoFriend(friend);friendMoreMenu=''">{{ t("设置备注") }}</button><button class="danger" @click="removeDemoFriend(friend);friendMoreMenu=''">{{ t("删除好友") }}</button></div></div></article>
+          <div class="friends-list-heading"><div><h2>{{t('全部')}} — {{filteredFriendDirectory.length}}</h2></div><button v-if="friendFilter==='全部'" class="friends-create-group-link" @click="createGroupDialogOpen=true">＋ 新建群聊</button></div>
+          <article v-for="friend in filteredFriendDirectory" :key="friend.uid" class="friend-directory-row" @contextmenu.prevent="friendMoreMenu=friend.uid" @click="openDemoFriendChat(friend)"><span class="friends-avatar friend-face"><img :src="avatarByUid(friend.uid)" :alt="friend.name"></span><div class="friends-row-copy"><div class="friends-name-line"><b>{{friend.remark||friend.name}}</b></div></div><button class="friends-round-action" :title="t('发送消息')" :aria-label="t('发送消息')" @click="openDemoFriendChat(friend)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.6c0 3.6-3.6 6.5-8 6.5a9.8 9.8 0 0 1-2.6-.3L5 20l1.2-3.4A6.2 6.2 0 0 1 4 11.6C4 8 7.6 5.1 12 5.1s8 2.9 8 6.5Z"/></svg></button><div class="friend-more-wrap"><button class="friends-round-action" :title="t('更多')" :aria-label="t('更多')" @click.stop="friendMoreMenu=friendMoreMenu===friend.uid?'':friend.uid"><svg class="dots" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button><div v-if="friendMoreMenu===friend.uid" class="friend-more-menu" @click.stop><button @click="openDemoFriendChat(friend);friendMoreMenu=''">{{ t("发送消息") }}</button><button @click="renameDemoFriend(friend);friendMoreMenu=''">{{ t("设置备注") }}</button><button class="danger" @click="removeDemoFriend(friend);friendMoreMenu=''">{{ t("删除好友") }}</button></div></div></article>
           <div v-if="!filteredFriendDirectory.length" class="friends-empty">{{ t("没有找到好友") }}</div>
           <section v-if="friendFilter==='全部'" class="friends-group-preview"><div class="friends-list-heading"><div><h2>{{ t("群聊") }}</h2><p>{{ t("你的群聊通讯录") }}</p></div></div><button v-for="group in demoGroups" :key="group.uid" class="friends-group-row" @click="openGroupChat(group)"><span class="friends-avatar group"><img :src="DEFAULT_GROUP_AVATAR" alt="群聊"></span><span><b>{{group.name}}</b><small>{{group.members.length}} 位成员</small></span><span>›</span></button></section>
           <section v-if="friendFilter==='全部'" class="friends-group-preview friends-community-preview"><div class="friends-list-heading"><div><h2>{{ t("社区") }}</h2><p>{{ t("你加入的社区") }}</p></div><button class="friends-create-group-link" @click="notDeveloped(t('发现社区'))">发现社区　›</button></div><button v-for="community in communities" :key="community.name" class="friends-group-row" @click="selectCommunity(community);active='服务器指南'"><span class="friends-avatar community"><img :src="community.icon || DEFAULT_COMM_AVATAR" :alt="community.name"></span><span><b>{{community.name}}</b><small>{{community.description||'社区成员'}}</small></span><span>›</span></button><div v-if="!communities.length" class="friends-empty">{{ t("还没有加入社区。") }}</div></section>
