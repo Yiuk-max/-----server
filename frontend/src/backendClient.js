@@ -348,9 +348,30 @@ function recordOf(item, conv) {
   }
 }
 
+function isEmojiOnlyText(text) {
+  const trimmed = String(text || '').trim()
+  if (!trimmed) return false
+  const emojis = trimmed.match(/\p{Extended_Pictographic}/gu) || []
+  if (emojis.length < 1 || emojis.length > 6) return false
+  return trimmed.replace(/\p{Extended_Pictographic}/gu, '').replace(/\s+/g, '').replace(/[\uFE0F\u200D\u20E3]/g, '').length === 0
+}
+function isReactionRecord(item) {
+  return !!item?.reply?.id && isEmojiOnlyText(item.text)
+}
 function regroup(conv) {
   conv.messages.sort((a, b) => (a.messageId || Number.MAX_SAFE_INTEGER) - (b.messageId || Number.MAX_SAFE_INTEGER))
-  conv.messages = conv.messages.map((item, index, list) => ({ ...item, grouped: index > 0 && list[index - 1].authorKey === item.authorKey && !item.reply }))
+  let previousVisible = null
+  conv.messages = conv.messages.map((item) => {
+    // emoji 回复会在 UI 中折叠成反应，不渲染为普通消息；它必须中断消息组，
+    // 否则其后的文字会误以为紧跟同一作者，从而隐藏头像和发送者名称。
+    if (isReactionRecord(item)) {
+      previousVisible = null
+      return { ...item, grouped: false }
+    }
+    const grouped = !!previousVisible && previousVisible.authorKey === item.authorKey && !item.reply
+    previousVisible = item
+    return { ...item, grouped }
+  })
   const ids = conv.messages.map((item) => item.messageId).filter((id) => id > 0)
   conv.oldestId = ids.length ? Math.min(...ids) : 0
 }

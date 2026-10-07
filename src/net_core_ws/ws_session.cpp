@@ -461,7 +461,14 @@ void WsSession::teardown() {// 关闭连接，清理状态，通知 session_。
 }
 
 void WsSession::fail(beast::error_code ec, const char* what) {
-    if (ec == net::error::operation_aborted || ec == websocket::error::closed) {
+    // 浏览器刷新、代理重启、客户端直接关闭 TCP 时，Beast/Asio 可能返回以下任一错误。
+    // 它们都属于正常的对端断开，不应作为服务端异常刷日志。
+    if (ec == net::error::operation_aborted ||
+        ec == websocket::error::closed ||
+        ec == net::error::eof ||
+        ec == net::error::connection_reset ||
+        ec == net::error::broken_pipe ||
+        ec == net::error::not_connected) {
         teardown();
         return;
     }

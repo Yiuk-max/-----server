@@ -1,5 +1,7 @@
 #pragma once
 #include <atomic>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 
 // ============================================================
@@ -16,9 +18,12 @@ public:
 
 private:
     FileTransferWatchdog() = default;
+    ~FileTransferWatchdog();
     void loop();
 
-    std::thread       thread_;
-    std::atomic<bool> running_{false};
-    std::atomic<bool> started_{false};
+    std::thread             thread_;
+    std::atomic<bool>       running_{false};
+    std::atomic<bool>       started_{false};
+    std::mutex              wait_mtx_;
+    std::condition_variable wait_cv_;
 };

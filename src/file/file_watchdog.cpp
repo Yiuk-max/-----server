@@ -15,6 +15,10 @@ FileTransferWatchdog& FileTransferWatchdog::get_instance() {
     return instance;
 }
 
+FileTransferWatchdog::~FileTransferWatchdog() {
+    stop();
+}
+
 void FileTransferWatchdog::start() {
     bool expected = false;
     if (!started_.compare_exchange_strong(expected, true)) {
@@ -26,6 +30,7 @@ void FileTransferWatchdog::start() {
 
 void FileTransferWatchdog::stop() {
     running_.store(false);
+    wait_cv_.notify_all();
     if (thread_.joinable()) {
         thread_.join();
     }
@@ -35,10 +40,13 @@ void FileTransferWatchdog::stop() {
 void FileTransferWatchdog::loop() {
     int round = 0;
     while (running_.load()) {
-        std::this_thread::sleep_for(std::chrono::seconds(60));
-        if (!running_.load()) {
+        // 可中断等待：stop() 会 notify，SIGINT 退出无需等待完整 60 秒。
+        std::unique_lock<std::mutex> lock(wait_mtx_);
+        if (wait_cv_.wait_for(lock, std::chrono::seconds(60),
+                              [this]() { return !running_.load(); })) {
             break;
         }
+        lock.unlock();
         ++round;
 
         try {

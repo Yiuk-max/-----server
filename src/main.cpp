@@ -74,13 +74,18 @@ int main(){
     FileTransferWatchdog::get_instance().start();
 
     const std::string net_layer = ServerConfig::get_instance().net_layer();
+    int result = 0;
     if (net_layer == "websocket") {
-        return run_websocket_server(8080);
-    }
-    if (net_layer != "binary") {
+        result = run_websocket_server(8080);
+    } else if (net_layer == "binary") {
+        result = run_binary_server(8080);
+    } else {
         std::cerr << "[main] invalid net_layer: '" << net_layer
                   << "' (expected 'binary' or 'websocket')" << std::endl;
-        return 1;
+        result = 1;
     }
-    return run_binary_server(8080);
+
+    // 必须在 main 返回前 join watchdog；否则 std::thread 析构会触发 std::terminate。
+    FileTransferWatchdog::get_instance().stop();
+    return result;
 }
