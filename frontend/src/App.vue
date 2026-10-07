@@ -54,8 +54,9 @@ const demoFilesInput = ref(null)
 const resumeFileInput = ref(null)
 const resumeTransferTarget = ref(null)
 const activeTransfer = computed(() => backend.transferOrder.map((id) => backend.transfers[id]).find((task) => task && !task.silent && (!task.ownerUid || Number(task.ownerUid)===Number(backend.uid)) && !['已完成','已取消','失败'].includes(task.status)) || null)
-// 全局下载进度弹窗：显示所有进行中（或刚完成）的下载任务
-const downloadTasks = computed(() => backend.transferOrder.map((id) => backend.transfers[id]).filter((task) => task && task.direction === 'download' && !task.silent && Number(task.ownerUid) === Number(backend.uid)))
+// 全局传输进度弹窗：静默图片/头像预览不显示，其余上传和下载都显示。
+const transferTasks = computed(() => backend.transferOrder.map((id) => backend.transfers[id]).filter((task) => task && !task.silent && Number(task.ownerUid) === Number(backend.uid)))
+const transferAutoDismissTimers = new Map()
 const profileMenuOpen = ref(false)
 const profileAccountMenu = ref(false)
 const memberProfile = ref(null)
@@ -145,6 +146,8 @@ const profileEditorOpen = ref(false)
 const profileBackgroundMenu = ref(false)
 const profileBackground = ref('#454347')
 const profileBackgroundImage = ref('')
+const nicknameSaving = ref(false)
+const closeAfterNicknameSave = ref(false)
 const selectedSetting = ref('账户')
 const themeChoice = ref('dark')
 const friendSearch = ref('')
@@ -205,15 +208,7 @@ const ReactionRow = (props) => h('div', { class: 'reaction-row' }, [
 // 闭包直接读写 message / uploads / replyTarget / attachmentMenu，并复用 fileInput / composerInput 两个模板 ref；
 // 消息输入沿用 vModelText 指令，保留中文输入法（IME）的组合输入行为。
 const Composer = (props) => {
-  const reply = replyTarget.value && replyTarget.value.conversationKey === props.conversationKey ? replyTarget.value : null
   const parts = []
-  if (reply) {
-    parts.push(h('div', { class: 'composer-reply' }, [
-      h('span', { class: 'composer-reply-text' }, [t('正在回复') + ' ', h('b', { class: reply.tone }, `@${reply.author}`)]),
-      h('span', { class: 'composer-reply-preview' }, reply.text),
-      h('button', { type: 'button', class: 'composer-reply-cancel', 'aria-label': '取消回复', title: '取消回复', onClick: () => { replyTarget.value = null } }, '×')
-    ]))
-  }
   if (uploads.value.length) {
     parts.push(h('div', { class: 'attachment-tray' }, uploads.value.map((item) => {
       const task = item.transferLocalId ? backend.transfers[item.transferLocalId] : null
@@ -300,6 +295,10 @@ const isEmojiOnlyMessage = (text) => {
   return rest.length === 0
 }
 const isReactionMessage = (record) => !!record?.reply?.id && isEmojiOnlyMessage(record.text)
+const IMAGE_FILE_PATTERN = /\.(?:avif|bmp|gif|ico|jpe?g|png|svg|webp)$/i
+const VIDEO_FILE_PATTERN = /\.(?:avi|flv|m4v|mkv|mov|mp4|ogv|webm|wmv)$/i
+const isImageAttachment = (file) => file?.type === 'image' || String(file?.mime || '').startsWith('image/') || IMAGE_FILE_PATTERN.test(String(file?.name || ''))
+const isVideoAttachment = (file) => file?.type === 'video' || String(file?.mime || '').startsWith('video/') || VIDEO_FILE_PATTERN.test(String(file?.name || ''))
 const MessageRow = (props) => {
   const record = props.record
   const recall = recalled.value[record.id]
@@ -321,6 +320,7 @@ const MessageRow = (props) => {
       'data-target': record.reply.id || null,
       title: record.reply.id ? t('跳到原消息') : null
     }, [
+      h('span', { class: 'reply-label' }, t('回复')),
       h('span', { class: ['reply-avatar', record.reply.avatar] }, record.reply.avatarImage
         ? h('img', { src: record.reply.avatarImage, alt: record.reply.author })
         : (record.reply.avatarText || record.reply.author[0])),
@@ -350,15 +350,35 @@ const MessageRow = (props) => {
     ]))
   }
   if (props.reactions?.length) content.push(h(ReactionRow, { reactions: props.reactions }))
-  const images = props.images?.length ? props.images : record.images
-  if (images?.length) {
-    content.push(h('div', { class: 'message-images' }, images.map((img) => h('a', {
-      href: img.url, target: '_blank', rel: 'noreferrer', title: img.name, key: img.url
-    }, h('img', { src: img.url, alt: img.name })))))
+  const files = props.files?.length ? props.files : (record.files || [])
+  const fileImages = files.filter(isImageAttachment).map((file) => {
+    const previewTask = Object.values(backend.transfers).find((task) => task.silent && String(task.fileId) === String(file.fileId))
+    return { ...file, url: backend.fileUrls[String(file.fileId)] || file.url || '', previewFailed: ['失败', '已取消', '已中断'].includes(previewTask?.status) }
+  })
+  const images = [...(props.images?.length ? props.images : (record.images || [])), ...fileImages]
+  if (images.length) {
+    content.push(h('div', { class: 'message-images' }, images.map((img) => img.url
+      ? h('a', { href: img.url, target: '_blank', rel: 'noreferrer', title: img.name, key: img.fileId || img.url, 'data-url': img.url, 'data-name': img.name, 'data-file-id': img.fileId || '', 'data-size': img.size || 0 }, h('img', { src: img.url, alt: img.name }))
+      : h('div', { class: ['message-image-loading', { failed: img.previewFailed }], key: img.fileId || img.name }, [
+          h('span', null, img.previewFailed ? '!' : '▧'),
+          h('small', null, img.previewFailed ? t('图片加载失败') : t('图片加载中…')),
+          img.previewFailed ? h('button', { type: 'button', onClick: () => api.ensureFileUrl(img.fileId, img) }, t('重试')) : null
+        ]))))
   }
-  const files = props.files?.length ? props.files : record.files
-  if (files?.length) {
-    content.push(h('div', { class: 'message-files' }, files.map((file) => h('div', {
+  const fileVideos = files.filter(isVideoAttachment)
+  if (fileVideos.length) {
+    content.push(h('div', { class: 'message-videos' }, fileVideos.map((video) => h('div', {
+      class: 'message-video-cover', key: video.fileId || video.name, 'data-name': video.name, 'data-file-id': video.fileId || '', 'data-size': video.size || 0
+    }, [
+      h('div', { class: 'video-cover-art', 'aria-hidden': 'true' }, [h('span', { class: 'video-cover-play' }, '▶'), h('b', null, 'VIDEO')]),
+      h('div', { class: 'video-cover-info' }, [h('b', { title: video.name }, video.name), h('small', null, formatFileSize(video.size || 0))]),
+      h('button', { type: 'button', class: 'video-cover-download', 'data-action': 'download', 'data-name': video.name, 'data-file-id': video.fileId || '', 'data-size': video.size || 0, title: t('下载'), 'aria-label': t('下载 {0}', video.name) },
+        h('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }, h('path', { d: 'M12 4v11m-5-5 5 5 5-5M5 20h14' })))
+    ]))))
+  }
+  const downloadableFiles = files.filter((file) => !isImageAttachment(file) && !isVideoAttachment(file))
+  if (downloadableFiles.length) {
+    content.push(h('div', { class: 'message-files' }, downloadableFiles.map((file) => h('div', {
       class: 'message-file', key: file.fileId || file.url || file.name, 'data-url': file.url || '', 'data-name': file.name, 'data-file-id': file.fileId || ''
     }, [
       h(FileCover, { name: file.name }),
@@ -514,6 +534,8 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onMenuKeydown)
   window.removeEventListener('resize', syncSidebarWidthFromDom)
   for (const upload of uploads.value) if (upload.preview) URL.revokeObjectURL(upload.preview)
+  for (const timer of transferAutoDismissTimers.values()) clearTimeout(timer)
+  transferAutoDismissTimers.clear()
   api.disconnect()
 })
 // 频道栏宽度可拖动（Discord 式拉轴）：宽度用响应式 ref 驱动栅格，拖动结果写入 localStorage
@@ -722,7 +744,8 @@ const messageTextFromRow = (row) => {
   if (paragraphs.length) return paragraphs.join('\n')
   const files = [...row.querySelectorAll('.message-file a')].map((a) => `📎 ${a.textContent.trim()}`)
   if (files.length) return files.join('\n')
-  return row.querySelector('.message-images img') ? '🖼 图片' : ''
+  if (row.querySelector('.message-images img')) return '🖼 图片'
+  return row.querySelector('.message-video-cover') ? '视频' : ''
 }
 // 复制到剪贴板：优先 navigator.clipboard，失败退回 execCommand（兼容非安全上下文 / 权限受限）
 const copyToClipboard = async (text) => {
@@ -772,7 +795,7 @@ const openContextMenu = (event) => {
   if (!row || row.dataset.recalled) { contextMenu.value = null; return }
   const id = row.dataset.messageId
   // 右键落在文件卡片 / 图片上时，菜单里多一项「下载」
-  const attachment = event.target.closest?.('.message-file, .message-images a')
+  const attachment = event.target.closest?.('.message-file, .message-images a, .message-video-cover')
   const record = api.activeConversation.value?.messages.find((item) => String(item.id) === String(id))
   contextMenu.value = {
     id,
@@ -861,8 +884,10 @@ const handleMessageAction = async (event) => {
 const submit = async () => {
   const text = message.value.trim()
   if (!text && !uploads.value.length) return
-  const replyId = replyTarget.value?.id || 0
-  const textSent = text ? api.sendChat(text, replyId, replyTarget.value) : false
+  const conversationKey = activePage.value === 'dm-chat' ? `dm:${selectedDm.value}` : active.value
+  const reply = replyTarget.value?.conversationKey === conversationKey ? replyTarget.value : null
+  const replyId = reply?.id || 0
+  const textSent = text ? api.sendChat(text, replyId, reply) : false
   let startedAny = false
   const failedUploads = []
   for (const upload of uploads.value) {
@@ -974,13 +999,19 @@ const submitJoinGroup = () => {
 const selectSetting = (name) => { selectedSetting.value = name; if (!['账户','Baka','文件','外观','语言'].includes(name)) notDeveloped(name) }
 const handleProfileBackground = (event) => { event.target.value = ''; notDeveloped(t('个人资料背景')) }
 const closeSettings = () => { settingsOpen.value = false; profileEditorOpen.value = false; profileBackgroundMenu.value = false }
-const closeProfileEditor = () => { profileEditorOpen.value = false; settingsOpen.value = false; profileBackgroundMenu.value = false }
+const closeProfileEditor = () => { profileEditorOpen.value = false; profileBackgroundMenu.value = false }
+const cancelProfileEditing = () => {
+  demoNicknameDraft.value = backend.name || ''
+  nicknameSaving.value = false
+  closeAfterNicknameSave.value = false
+  closeProfileEditor()
+}
 const demoNotice = (text) => { toast.value = text; setTimeout(() => { if (toast.value === text) toast.value = '' }, 1800) }
 const notDeveloped = (name = '该功能') => demoNotice(t('{0}暂未开发', t(name)))
 
 let lastSyncedBackendName = ''
 const syncBackendState = () => {
-  demoSignedIn.value = !!backend.uid
+  demoSignedIn.value = !!backend.authenticated
   demoUid.value = backend.uid ? String(backend.uid) : ''
   if (backend.name !== lastSyncedBackendName) { demoNickname.value = backend.name || '未登录'; demoNicknameDraft.value = backend.name || ''; lastSyncedBackendName = backend.name }
   if (backend.email) demoEmail.value = backend.email
@@ -1019,14 +1050,33 @@ watch(() => ({
 }), syncBackendState, { deep: true, immediate: true })
 watch(() => backend.noticeSeq, () => {
   if (!backend.lastNotice) return
-  demoNotice(backend.lastNotice)
-  if (backend.lastNotice.includes('发来新消息')) playBaka('receive')
-  const registered=/注册成功，UID：(\d+)/.exec(backend.lastNotice)
+  const notice = backend.lastNotice
+  demoNotice(notice)
+  if (notice.includes('发来新消息')) playBaka('receive')
+  const renamed = /Name updated successfully\. Your new name is \[(.*?)\]\./.exec(notice)
+  if (renamed) {
+    nicknameSaving.value = false
+    demoNicknameDraft.value = renamed[1]
+    const shouldClose = closeAfterNicknameSave.value
+    closeAfterNicknameSave.value = false
+    if (shouldClose) closeProfileEditor()
+  } else if (nicknameSaving.value && /Name cannot be empty|Failed to update name|logged in to change your name/i.test(notice)) {
+    nicknameSaving.value = false
+    closeAfterNicknameSave.value = false
+  }
+  const registered=/注册成功，UID：(\d+)/.exec(notice)
   if (registered) { demoAuth.identity=registered[1];demoAuthMode.value='登录' }
 })
+watch(profileEditorOpen, (open) => {
+  if (!open) return
+  demoNicknameDraft.value = backend.name || ''
+  nicknameSaving.value = false
+  closeAfterNicknameSave.value = false
+})
 watch(themeChoice, (theme) => { if (backend.uid && theme !== 'device') api.changeTheme(theme) })
-watch(() => backend.uid, (uid) => { demoLoginOpen.value = !uid })
-watch(() => backend.connected, (connected) => { if (!connected) demoLoginOpen.value = true })
+watch(() => [backend.authenticated, backend.connected, backend.authenticating, backend.reconnecting], ([authenticated, connected, authenticating, reconnecting]) => {
+  demoLoginOpen.value = !authenticated && (!connected || !authenticating || reconnecting)
+}, { immediate: true })
 watch(() => backend.transferOrder.map((id) => { const task = backend.transfers[id]; return task ? { id, status: task.status } : null }), () => {
   const remaining = []
   for (const upload of uploads.value) {
@@ -1039,6 +1089,30 @@ watch(() => backend.transferOrder.map((id) => { const task = backend.transfers[i
   }
   if (remaining.length !== uploads.value.length) uploads.value = remaining
 }, { deep: true })
+// 上传和下载进入终态后自动关闭进度条，同时保留几秒让用户看清结果。
+watch(() => backend.transferOrder.map((id) => { const task = backend.transfers[id]; return task ? { id, status: task.status, direction: task.direction, silent: !!task.silent } : null }), () => {
+  for (const task of transferTasks.value) {
+    const key = task.localId
+    if (!['已完成', '已取消', '失败'].includes(task.status) || transferAutoDismissTimers.has(key)) continue
+    const timer = setTimeout(() => {
+      transferAutoDismissTimers.delete(key)
+      const current = backend.transfers[key]
+      if (current && ['已完成', '已取消', '失败'].includes(current.status)) api.dismissTransfer(current)
+    }, 3000)
+    transferAutoDismissTimers.set(key, timer)
+  }
+}, { deep: true, immediate: true })
+watch(() => ({
+  sessionSeq: backend.sessionSeq,
+  authenticated: backend.authenticated,
+  activeKey: backend.activeKey,
+  files: (api.activeConversation.value?.messages || []).flatMap((record) => (record.files || []).map((file) => ({ fileId: file.fileId, name: file.name, size: file.size, type: file.type, mime: file.mime, priority: true })))
+}), ({ authenticated, files }) => {
+  if (!authenticated) return
+  for (const file of files) {
+    if (file.fileId && isImageAttachment(file)) api.ensureFileUrl(file.fileId, file)
+  }
+}, { deep: true, immediate: true })
 watch(() => api.activeConversation.value?.messages.length, async () => { await nextTick(); const log=document.querySelector('.message-scroll, .dm-thread');if(log&&log.scrollHeight-log.scrollTop-log.clientHeight<180)log.scrollTop=log.scrollHeight })
 watch(() => ({ page: activePage.value, key: backend.activeKey, unread: { ...backend.unreadConversations } }), ({ page, key, unread }) => {
   if (page !== 'dm-chat' || !key || !unread[key]) return
@@ -1104,6 +1178,7 @@ const bindResumeUpload = (event) => {const file=event.target.files?.[0];if(file&
 const downloadDemoFile = (file) => {const task=backend.transfers[file.localId];if(task?.url){const link=document.createElement('a');link.href=task.url;link.download=task.name||'download';link.rel='noreferrer';document.body.appendChild(link);link.click();link.remove()}else api.downloadFile(file)}
 const toggleFileTransfer = (file) => {if(!file)return;if(['已暂停','已中断','等待选择原文件'].includes(file.status))setDemoFileStatus(file,'继续');else setDemoFileStatus(file,'已暂停')}
 const toggleActiveTransfer = () => toggleFileTransfer(activeTransfer.value)
+const closeTransferProgress = (task) => { if (['已完成','已取消','失败'].includes(task.status)) api.dismissTransfer(task); else api.cancelTransfer(task) }
 const deleteDemoFile = (file) => {const task=backend.transfers[file.localId];if(task){if(['已完成','已取消','失败'].includes(task.status))api.dismissTransfer(task);else api.cancelTransfer(task)}else api.deleteFile(file.fileId||file.id)}
 const handleDemoCommunityRequest = (request,accept) => {const community=currentCommunity.value;if(!community)return;if(api.handleCommunityRequest(community.id,request.uid,accept))setTimeout(()=>api.showCommunityRequests(community.id),200)}
 const inviteFriendToCommunity = (friend) => {
@@ -1116,7 +1191,23 @@ const createDemoCommunity = () => {newCommunityName.value=demoForm.communityName
 const toggleDemoMemberRole = (member) => {const community=currentCommunity.value;if(!community||member.role==='owner')return;api.communityRole(community.id,member.uid,member.role!=='admin')}
 const removeDemoCommunityMember = (member) => {const community=currentCommunity.value;if(community&&member.role!=='owner')api.communityRemove(community.id,member.uid)}
 const addDemoCommunityMember = () => {const community=currentCommunity.value;const uid=Number(demoForm.memberUid);if(!community||!uid)return demoNotice(t('请输入成员 UID'));api.communityAdd(community.id,uid);demoForm.memberUid=''}
-const saveDemoProfile = () => {if(!demoNicknameDraft.value.trim())return demoNotice(t('昵称不能为空'));api.changeName(demoNicknameDraft.value.trim());if(demoEmail.value.trim())api.setEmail(demoEmail.value.trim())}
+const saveNickname = (closeWhenSaved = false) => {
+  if (nicknameSaving.value) return false
+  if (!backend.uid) { demoNotice(t('请先登录')); return false }
+  const name = demoNicknameDraft.value.trim()
+  if (!name) { demoNotice(t('昵称不能为空')); return false }
+  if (name.length > 30) { demoNotice(t('昵称最多 30 个字符')); return false }
+  demoNicknameDraft.value = name
+  if (name === backend.name) {
+    demoNotice(t('昵称没有变化'))
+    if (closeWhenSaved) closeProfileEditor()
+    return true
+  }
+  if (!api.changeName(name)) { demoNotice(t('昵称保存失败')); return false }
+  nicknameSaving.value = true
+  closeAfterNicknameSave.value = closeWhenSaved
+  return true
+}
 const setDemoAvatar = () => avatarUploadInput.value?.click()
 const handleAvatarUpload = (event) => {const file=event.target.files?.[0];if(file)openAvatarCrop(file);event.target.value=''}
 
@@ -1382,7 +1473,7 @@ const confirmAvatarCrop = () => {
         </template>
       </div>
       </div>
-      <div class="account-bar"><button class="profile-menu-trigger" :aria-label="t('打开个人资料菜单')" :title="t('个人资料')" @click.stop="profileMenuOpen=!profileMenuOpen;profileAccountMenu=false"><span class="profile-pic"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></span></button><div class="profile-label"><b>{{demoNickname}}</b><small>{{backend.connected?(backend.uid?t('在线'):t('未登录')):t('离线')}}</small></div><Icon name="caret" class="account-caret"/><button aria-label="設定" :title="t('设置')" @click="profileMenuOpen=false;profileEditorOpen=false;settingsOpen = true"><Icon name="gear"/></button></div>
+      <div class="account-bar"><button class="profile-menu-trigger" :aria-label="t('打开个人资料菜单')" :title="t('个人资料')" @click.stop="profileMenuOpen=!profileMenuOpen;profileAccountMenu=false"><span class="profile-pic"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></span></button><div class="profile-label"><b>{{demoNickname}}</b><small>{{backend.connected?(backend.authenticated?t('在线'):t('未登录')):t('离线')}}</small></div><Icon name="caret" class="account-caret"/><button aria-label="設定" :title="t('设置')" @click="profileMenuOpen=false;profileEditorOpen=false;settingsOpen = true"><Icon name="gear"/></button></div>
     </aside>
     <div class="sidebar-resizer" role="separator" tabindex="0" aria-orientation="vertical" :aria-label="t('拖动调整频道栏宽度')" :title="t('拖动调整频道栏宽度 · 双击复位')" :style="{ left: resizerX }" @mousedown.prevent="startSidebarResize" @dblclick="resetSidebarWidth" @keydown="onSidebarResizerKeydown"></div>
     <div v-if="profileMenuOpen" class="profile-menu-dismiss" @click="profileMenuOpen=false;profileAccountMenu=false"></div>
@@ -1432,6 +1523,12 @@ const confirmAvatarCrop = () => {
         <span v-if="typingUsers[0].tag" class="tag"><span class="tag-icon">{{typingUsers[0].tag.icon}}</span>{{typingUsers[0].tag.label}}</span>
         <span class="typing-text">{{ t("正在输入…") }}</span>
       </div>
+      <div v-if="replyTarget && replyTarget.conversationKey===active" class="reply-composer-preview" role="status">
+        <span class="reply-composer-accent"></span>
+        <span class="reply-composer-avatar"><img v-if="replyTarget.avatarImage" :src="replyTarget.avatarImage" :alt="replyTarget.author"><template v-else>{{replyTarget.avatarText || replyTarget.author?.slice(0,1)}}</template></span>
+        <span class="reply-composer-copy"><small>{{ t("正在回复") }}</small><b>@{{replyTarget.author}}</b><span :title="replyTarget.text">{{replyTarget.text || t('附件')}}</span></span>
+        <button type="button" :aria-label="t('取消回复')" :title="t('取消回复')" @click="replyTarget=null">×</button>
+      </div>
       <Composer v-if="active!=='服务器指南'" :conversation-key="active" :placeholder="`给 ${active} 发消息`" />
     </main>
     <main v-else-if="activePage==='dm'" class="friends-main" @click="friendMoreMenu='';dmQuickMenu=false">
@@ -1458,6 +1555,12 @@ const confirmAvatarCrop = () => {
     <main v-else-if="activePage==='dm-chat'" class="dm-main" @click="closeComposerPopovers">
       <header class="dm-top"><div><span class="dm-avatar"><img :src="dmAvatarSrc(selectedDm)" :alt="selectedDm"></span><b>{{selectedDm}}</b><small>{{dmContacts.find(c=>c.name===selectedDm)?.kind}}</small></div><div class="chat-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg><input v-model="searchQuery" type="text" :placeholder="t('搜索')" :aria-label="t('搜索')" @focus="searchOpen=true"><button v-if="searchQuery" type="button" class="search-clear" :aria-label="t('关闭搜索')" :title="t('关闭搜索')" @click.stop="closeSearch">×</button><SearchPanel v-if="searchOpen && searchQuery" /></div></header>
       <section class="dm-thread" @wheel.prevent="scrollChat" @click="handleMessageAction" @contextmenu.prevent="openContextMenu"><div class="dm-thread-intro"><span class="dm-avatar large"><img :src="dmAvatarSrc(selectedDm)" :alt="selectedDm"></span><h2>{{selectedDm}}</h2><p>这是你和 {{selectedDm}} 的私信开头。</p></div><div class="dm-thread-messages"><MessageRow v-for="entry in dmThread" :key="entry.id" :record="entry" :reactions="messageReactions[entry.id]" :images="entry.images" /></div></section>
+      <div v-if="replyTarget && replyTarget.conversationKey===`dm:${selectedDm}`" class="reply-composer-preview" role="status">
+        <span class="reply-composer-accent"></span>
+        <span class="reply-composer-avatar"><img v-if="replyTarget.avatarImage" :src="replyTarget.avatarImage" :alt="replyTarget.author"><template v-else>{{replyTarget.avatarText || replyTarget.author?.slice(0,1)}}</template></span>
+        <span class="reply-composer-copy"><small>{{ t("正在回复") }}</small><b>@{{replyTarget.author}}</b><span :title="replyTarget.text">{{replyTarget.text || t('附件')}}</span></span>
+        <button type="button" :aria-label="t('取消回复')" :title="t('取消回复')" @click="replyTarget=null">×</button>
+      </div>
       <Composer :conversation-key="`dm:${selectedDm}`" :placeholder="`给 ${selectedDm} 发消息`" />
       <div v-if="toast" class="toast">{{toast}}</div>
     </main>
@@ -1503,17 +1606,19 @@ const confirmAvatarCrop = () => {
       <footer><button class="friend-request-cancel" @click="friendRequestModal=false">{{ t("取消") }}</button><button class="friend-request-submit" @click="sendFriendRequestFromModal">{{ t("发送好友申请") }}</button></footer>
     </section>
   </div>
-  <div v-if="demoLoginOpen" class="demo-login-backdrop" @click.self="backend.uid&&(demoLoginOpen=false)">
+  <div v-if="backend.authenticating || demoLoginOpen" class="demo-login-backdrop" @click.self="backend.authenticated&&(demoLoginOpen=false)">
     <section class="demo-login-window" role="dialog" aria-modal="true" aria-labelledby="demo-login-title">
-      <button v-if="backend.uid" class="friend-request-close" :aria-label="t('关闭')" @click="demoLoginOpen=false">×</button>
+      <button v-if="backend.authenticated" class="friend-request-close" :aria-label="t('关闭')" @click="demoLoginOpen=false">×</button>
       <div class="demo-login-logo"><img src="/logo.png" alt="LOGO"></div>
-      <h1 id="demo-login-title">欢迎回来</h1><p>{{backend.connecting?'正在连接服务器…':backend.connected?t('登录账号，继续使用 Baka Community。'):t('服务器连接失败，请稍后重试。')}}</p>
-      <div class="demo-login-tabs"><button :class="{active:demoAuthMode==='登录'}" @click="demoAuthMode='登录'">{{ t("登录") }}</button><button :class="{active:demoAuthMode==='注册'}" @click="demoAuthMode='注册'">{{ t("注册") }}</button></div>
-      <label v-if="demoAuthMode==='注册'">昵称<input v-model="demoAuth.username" :placeholder="t('例如：小明')"></label>
-      <label v-if="demoAuthMode==='注册'">{{ t("邮箱") }}<input v-model="demoAuth.email" placeholder="name@example.com"></label>
-      <label v-else>{{ t("UID 或邮箱") }}<input v-model="demoAuth.identity" placeholder="100001 / name@example.com"></label>
-      <label>{{ t("密码") }}<input v-model="demoAuth.password" type="password" :placeholder="t('输入密码')" @keydown.enter.prevent="submitDemoLoginWindow"></label>
-      <button class="demo-login-submit" @click="backend.connected?submitDemoLoginWindow():api.connect()">{{backend.connecting?'连接中…':backend.connected?demoAuthMode:'重新连接'}}</button><small>{{ t("数据通过 WebSocket + protobuf 与服务器同步。") }}</small>
+      <h1 id="demo-login-title">{{backend.reconnecting?t('正在重新连接'):backend.authenticating?t('正在恢复登录'):t('欢迎回来')}}</h1><p>{{backend.reconnecting?t('连接中断，正在自动重连…'):backend.authenticating?t('正在验证登录状态…'):backend.connecting?t('正在连接服务器…'):backend.connected?t('登录账号，继续使用 Baka Community。'):t('服务器连接失败，请稍后重试。')}}</p>
+      <template v-if="!backend.authenticating && !backend.reconnecting">
+        <div class="demo-login-tabs"><button :class="{active:demoAuthMode==='登录'}" @click="demoAuthMode='登录'">{{ t("登录") }}</button><button :class="{active:demoAuthMode==='注册'}" @click="demoAuthMode='注册'">{{ t("注册") }}</button></div>
+        <label v-if="demoAuthMode==='注册'">昵称<input v-model="demoAuth.username" :placeholder="t('例如：小明')"></label>
+        <label v-if="demoAuthMode==='注册'">{{ t("邮箱") }}<input v-model="demoAuth.email" placeholder="name@example.com"></label>
+        <label v-else>{{ t("UID 或邮箱") }}<input v-model="demoAuth.identity" placeholder="100001 / name@example.com"></label>
+        <label>{{ t("密码") }}<input v-model="demoAuth.password" type="password" :placeholder="t('输入密码')" @keydown.enter.prevent="submitDemoLoginWindow"></label>
+        <button class="demo-login-submit" @click="backend.connected?submitDemoLoginWindow():api.connect()">{{backend.connecting?'连接中…':backend.connected?demoAuthMode:'重新连接'}}</button>
+      </template><div v-else class="login-restoring-indicator"><i></i><span>{{t(backend.reconnecting?'正在重新连接…':'自动登录中…')}}</span></div><small>{{ t("数据通过 WebSocket + protobuf 与服务器同步。") }}</small>
     </section>
   </div>
   <div v-if="memberProfile" class="member-profile-backdrop" @click.self="memberProfile=null">
@@ -1649,13 +1754,18 @@ const confirmAvatarCrop = () => {
       </main>
       <section v-if="profileEditorOpen" class="profile-editor" role="dialog" aria-modal="true" :aria-label="t('编辑个人资料')">
         <aside class="profile-editor-tools">
-          <header><button class="profile-back" @click="closeProfileEditor">‹</button><b>主要个人资料</b><span>⌄</span><button class="profile-editor-close" :aria-label="t('关闭')" @click="closeProfileEditor">×</button></header>
+          <header><button class="profile-back" @click="cancelProfileEditing">‹</button><b>{{ t("编辑个人资料") }}</b><button class="profile-editor-close" :aria-label="t('关闭')" @click="cancelProfileEditing">×</button></header>
           <div class="profile-edit-scroll">
             <h3>头像</h3>
             <div class="profile-avatar-control">
               <span class="settings-avatar large-avatar"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></span>
               <div class="profile-avatar-buttons"><button class="profile-avatar-upload-btn" @click="setDemoAvatar">{{ t("上传新头像") }}</button><button class="profile-avatar-upload-btn reset" @click="resetAvatar">{{ t("恢复默认") }}</button></div>
             </div>
+            <section class="profile-name-field">
+              <div class="profile-field-heading"><label for="profile-display-name">{{ t("显示名称") }}</label><span>{{demoNicknameDraft.length}} / 30</span></div>
+              <input id="profile-display-name" v-model="demoNicknameDraft" maxlength="30" autocomplete="nickname" :placeholder="t('输入昵称')" :disabled="nicknameSaving" @keydown.enter.prevent="saveNickname(true)">
+              <p>{{ t("这是其他成员在聊天和个人资料中看到的名称。") }}</p>
+            </section>
           </div>
         </aside>
         <div class="profile-editor-preview">
@@ -1664,29 +1774,29 @@ const confirmAvatarCrop = () => {
               <div class="profile-background-control"><button :aria-label="t('编辑背景')" @click="notDeveloped(t('个人资料背景'))">✎</button><div v-if="profileBackgroundMenu" class="profile-background-menu"><button @click="profileBackgroundImage='';profileBackground='#454347';profileBackgroundMenu=false">纯色</button><button @click="$refs.profileBannerUpload.click();profileBackgroundMenu=false">{{ t("上传背景图片") }}</button></div></div>
               <input ref="profileBannerUpload" class="profile-file-input" type="file" accept="image/*" @change="handleProfileBackground">
             </div>
-            <div class="profile-preview-body"><div class="profile-preview-avatar settings-avatar"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></div><div class="profile-status-bubble">UID {{demoUid||'—'}}</div><h1>{{demoNickname}}</h1><p>UID {{demoUid||'—'}} <span>•</span> <i>{{ t("添加个性签名") }}</i> <button @click="notDeveloped(t('服务器标签'))">{{ t("服务器标签⌄") }}</button></p><div class="profile-preview-actions"><button @click="notDeveloped('个人资料消息')">▰　消息</button><button @click="notDeveloped('个人资料操作')">▣</button><button @click="notDeveloped('个人资料更多操作')">•••</button></div><section><label>{{ t("自我介绍") }}</label><p>{{ t("写一段简短的介绍") }}</p></section><section><label>{{ t("成员加入时间") }}</label><p>{{ t("暂未提供") }}</p></section><section><label>{{ t("连接") }}</label><p>{{ t("＋ 添加关联") }}</p></section><section><label>{{ t("备注（仅对您可见）") }}</label><p>{{ t("点击添加备注") }}</p></section></div>
+            <div class="profile-preview-body"><div class="profile-preview-avatar settings-avatar"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNicknameDraft || demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{(demoNicknameDraft || demoNickname).slice(0,1)}}</template><i></i></div><div class="profile-status-bubble">UID {{demoUid||'—'}}</div><h1>{{demoNicknameDraft || demoNickname}}</h1><p>UID {{demoUid||'—'}} <span>•</span> <i>{{ t("添加个性签名") }}</i> <button @click="notDeveloped(t('服务器标签'))">{{ t("服务器标签⌄") }}</button></p><div class="profile-preview-actions"><button @click="notDeveloped('个人资料消息')">▰　消息</button><button @click="notDeveloped('个人资料操作')">▣</button><button @click="notDeveloped('个人资料更多操作')">•••</button></div><section><label>{{ t("自我介绍") }}</label><p>{{ t("写一段简短的介绍") }}</p></section><section><label>{{ t("成员加入时间") }}</label><p>{{ t("暂未提供") }}</p></section><section><label>{{ t("连接") }}</label><p>{{ t("＋ 添加关联") }}</p></section><section><label>{{ t("备注（仅对您可见）") }}</label><p>{{ t("点击添加备注") }}</p></section></div>
           </div>
         </div>
-        <footer class="profile-editor-savebar"><span>别忘了保存您的更改</span><button @click="profileBackgroundImage='';profileBackground='#454347'">{{ t("重置") }}</button><button class="save-profile" @click="closeProfileEditor();notDeveloped('个人资料装饰')">{{ t("保存") }}</button></footer>
+        <footer class="profile-editor-savebar"><span>{{ nicknameSaving ? t("正在保存昵称…") : (demoNicknameDraft.trim()!==demoNickname ? t("更改尚未保存") : '') }}</span><button :disabled="nicknameSaving" @click="cancelProfileEditing">{{ t("取消") }}</button><button class="save-profile" :disabled="nicknameSaving || !demoNicknameDraft.trim() || demoNicknameDraft.trim()===demoNickname" @click="saveNickname(true)">{{ nicknameSaving ? t("保存中…") : t("保存更改") }}</button></footer>
       </section>
     </section>
   </div>
 
-  <!-- 全局下载进度弹窗（右下角打字栏上方，任何页面都显示） -->
-  <div v-if="downloadTasks.length" class="download-progress-panel">
-    <article v-for="task in downloadTasks" :key="task.localId || task.transferId || task.fileId" class="download-progress-card" :class="{done: task.status === '已完成', failed: task.status === '失败' || task.status === '已取消'}">
-      <div class="download-progress-head">
-        <span class="download-progress-icon">{{ task.status === '已完成' ? '✓' : task.status === '失败' || task.status === '已取消' ? '✕' : '⇩' }}</span>
-        <div class="download-progress-copy">
-          <b :title="task.name">{{ task.name || 'download' }}</b>
-          <small v-if="task.status === '已完成'">{{ t('下载完成') }}</small>
-          <small v-else-if="task.status === '失败'">{{ t('下载失败') }}</small>
-          <small v-else-if="task.status === '已取消'">{{ t('已取消') }}</small>
-          <small v-else>{{ formatFileSize(task.transferred || 0) }} / {{ formatFileSize(task.totalSize || 0) }} · {{ Math.round(task.progress || 0) }}%</small>
+  <!-- 全局传输进度弹窗（静默图片预览不会出现在这里） -->
+  <div v-if="transferTasks.length" class="transfer-progress-panel">
+    <article v-for="task in transferTasks" :key="task.localId || task.transferId || task.fileId" class="transfer-progress-card" :class="{upload:task.direction==='upload',done:task.status==='已完成',failed:task.status==='失败'||task.status==='已取消'}">
+      <div class="transfer-progress-head">
+        <span class="transfer-progress-icon">{{ task.status==='已完成' ? '✓' : task.status==='失败'||task.status==='已取消' ? '✕' : task.direction==='upload' ? '↑' : '↓' }}</span>
+        <div class="transfer-progress-copy">
+          <b :title="task.name">{{task.name || (task.direction==='upload'?'upload':'download')}}</b>
+          <small v-if="task.status==='已完成'">{{t(task.direction==='upload'?'上传完成':'下载完成')}}</small>
+          <small v-else-if="task.status==='失败'">{{t(task.direction==='upload'?'上传失败':'下载失败')}}</small>
+          <small v-else-if="task.status==='已取消'">{{t('已取消')}}</small>
+          <small v-else>{{t(task.status)}} · {{formatFileSize(task.transferred||0)}} / {{formatFileSize(task.totalSize||0)}} · {{Math.round(task.progress||0)}}%</small>
         </div>
-        <button class="download-progress-close" :aria-label="t('关闭')" @click="api.dismissTransfer(task)">×</button>
+        <button class="transfer-progress-close" :aria-label="t('关闭')" @click="closeTransferProgress(task)">×</button>
       </div>
-      <div class="download-progress-bar"><i :style="{ width: `${task.status === '已完成' ? 100 : (task.progress || 0)}%` }"></i></div>
+      <div class="transfer-progress-bar"><i :style="{width:`${task.status==='已完成'?100:(task.progress||0)}%`}"></i></div>
     </article>
   </div>
 </template>
@@ -1697,33 +1807,80 @@ const confirmAvatarCrop = () => {
 .emoji-panel-scroll::-webkit-scrollbar-track{background:#1b1c20}
 .emoji-panel-scroll::-webkit-scrollbar-thumb{background:#606168;border:2px solid #1b1c20;border-radius:8px;min-height:56px}
 .emoji-panel-scroll::-webkit-scrollbar-thumb:hover{background:#73757e}
+.login-restoring-indicator{height:112px;display:flex;align-items:center;justify-content:center;gap:10px;color:#b9bbc3;font-size:13px}
+.login-restoring-indicator i{width:18px;height:18px;border:2px solid #555965;border-top-color:#7d88ff;border-radius:50%;animation:login-restoring-spin .8s linear infinite}
+@keyframes login-restoring-spin{to{transform:rotate(360deg)}}
 .profile-avatar-buttons{margin-left:auto;margin-right:12px;display:flex;gap:6px}
 .profile-avatar-upload-btn{width:auto;height:30px;padding:0 11px;border-radius:5px;background:#5865f2;color:#fff;font-size:12px;font-weight:600;border:0;white-space:nowrap;cursor:pointer}
 .profile-avatar-upload-btn:hover{background:#6975ff}
 .profile-avatar-upload-btn:active{background:#4752c4}
+.profile-avatar-upload-btn:disabled,.profile-editor-savebar button:disabled{cursor:not-allowed;opacity:.55}
 .profile-avatar-upload-btn.reset{background:#4e5058}
 .profile-avatar-upload-btn.reset:hover{background:#5d6069}
+.profile-name-field{margin-top:18px;padding-top:18px;border-top:1px solid #35363d}
+.profile-field-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.profile-field-heading label{color:#f0f1f4;font-size:13px;font-weight:600}
+.profile-field-heading span{color:#858791;font-size:11px}
+.profile-name-field input{width:100%;height:40px;padding:0 11px;border:1px solid #41434b;border-radius:6px;outline:0;background:#17181d;color:#f0f1f4;font-size:14px}
+.profile-name-field input:focus{border-color:#6d78f6;box-shadow:0 0 0 1px #6d78f6}
+.profile-name-field input:disabled{cursor:not-allowed;opacity:.7}
+.profile-name-field p{margin:7px 0 0;color:#8f919a;font-size:11px;line-height:1.45}
+.reply-composer-preview{position:relative;min-width:0;min-height:54px;display:flex;align-items:center;gap:10px;flex:none;margin:0 16px;padding:7px 10px 7px 14px;border:1px solid #3a3c44;border-bottom:0;border-radius:8px 8px 0 0;background:#292a30;color:#dfe1e6}
+.reply-composer-preview+.composer{margin-top:0;border-radius:0 0 8px 8px}
+.reply-composer-accent{position:absolute;left:0;top:0;bottom:0;width:3px;background:#5865f2}
+.reply-composer-avatar{width:30px;height:30px;flex:none;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:#454750;color:#fff;font-size:12px;font-weight:600}
+.reply-composer-avatar img{width:100%;height:100%;object-fit:cover}
+.reply-composer-copy{min-width:0;flex:1;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:5px;line-height:1.25}
+.reply-composer-copy small{color:#92949e;font-size:10px;grid-column:1/-1}
+.reply-composer-copy b{font-size:12px;font-weight:600;white-space:nowrap}
+.reply-composer-copy>span{overflow:hidden;color:#b5b7bf;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+.reply-composer-preview>button{width:26px;height:26px;flex:none;display:grid;place-items:center;padding:0;border-radius:5px;background:transparent;color:#aeb0b8;font-size:20px;line-height:1}
+.reply-composer-preview>button:hover{background:#3b3d45;color:#fff}
+.message-reply .reply-label{flex:none;color:#8b8d96;font-size:12px;font-weight:600}
+@media(max-width:720px){.reply-composer-preview{margin-right:8px;margin-left:8px}.reply-composer-copy>span{display:none}}
 .community-sidebar-content{position:relative}
 .community-sidebar-banner{position:absolute;top:0;left:0;right:0;height:135px;z-index:0;background-image:linear-gradient(180deg, rgba(14,15,19,.2) 0%, #121214 100%), url('/default_background.png');background-size:cover;background-position:center 28%;pointer-events:none}
 .community-sidebar-content .guild-header{position:relative;z-index:1;background:transparent;box-shadow:none;border-bottom:1px solid #00000040}
 .community-sidebar-content .guild-header-title:hover{background:transparent}
 .community-sidebar-content .side-shortcuts{position:relative;z-index:1;background:transparent;margin-top:87px}
-/* —— 全局下载进度弹窗（右下角）—— */
-.download-progress-panel{position:fixed;right:20px;bottom:96px;z-index:4200;display:flex;flex-direction:column;justify-content:flex-end;gap:10px;max-width:340px;pointer-events:none}.download-progress-card{pointer-events:auto}
-.download-progress-card{min-width:280px;padding:12px 14px;border:1px solid #383a43;border-radius:10px;background:#1e1f24;box-shadow:0 10px 32px #000b;color:#dcdee3}
-.download-progress-card.done{border-color:#3a5c4b}
-.download-progress-card.failed{border-color:#5c3535}
-.download-progress-head{display:flex;align-items:center;gap:10px}
-.download-progress-icon{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:8px;background:#31334a;color:#8e98ff;font-size:18px;font-weight:700}
-.download-progress-card.done .download-progress-icon{background:#26382f;color:#43b581}
-.download-progress-card.failed .download-progress-icon{background:#462b2b;color:#f08686}
-.download-progress-copy{min-width:0;flex:1}
-.download-progress-copy b{display:block;overflow:hidden;color:#e8e9ed;font-size:12.5px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
-.download-progress-copy small{display:block;margin-top:3px;color:#92949e;font-size:11px}
-.download-progress-close{width:24px;height:24px;flex:none;border-radius:5px;background:transparent;color:#a5a7ae;font-size:18px;line-height:24px}
-.download-progress-close:hover{background:#35363e;color:#fff}
-.download-progress-bar{height:4px;margin-top:10px;overflow:hidden;border-radius:3px;background:#383a43}
-.download-progress-bar i{height:100%;display:block;border-radius:3px;background:#5865f2;transition:width .2s ease}
-.download-progress-card.done .download-progress-bar i{background:#43b581}
-.download-progress-card.failed .download-progress-bar i{background:#ed4245}
+.message-image-loading{width:min(420px,100%);height:220px;display:grid;place-items:center;align-content:center;gap:8px;border:1px solid #34363e;border-radius:8px;background:#18191e;color:#777a85}
+.message-image-loading span{font-size:30px;line-height:1}
+.message-image-loading small{font-size:11px}
+.message-image-loading.failed{color:#c7787d}
+.message-image-loading button{height:28px;padding:0 10px;border-radius:5px;background:#303137;color:#dfe0e5;font-size:11px}
+.message-image-loading button:hover{background:#3b3d45;color:#fff}
+.message-videos{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:8px}
+.message-video-cover{width:min(440px,100%);height:126px;display:grid;grid-template-columns:176px minmax(0,1fr) 34px;align-items:center;gap:12px;padding:10px;border:1px solid #34363e;border-radius:8px;background:#202126}
+.video-cover-art{position:relative;width:176px;height:104px;display:grid;place-items:center;overflow:hidden;border-radius:6px;background:linear-gradient(145deg,#191b21,#313541);color:#fff}
+.video-cover-art::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent,#090a0d99)}
+.video-cover-play{position:relative;z-index:1;width:40px;height:40px;display:grid;place-items:center;padding-left:3px;border-radius:50%;background:#111216cc;color:#fff;font-size:17px}
+.video-cover-art>b{position:absolute;z-index:1;right:7px;bottom:6px;padding:2px 5px;border-radius:3px;background:#111216cc;color:#cfd1d8;font-size:9px}
+.video-cover-info{min-width:0;display:grid;gap:5px}
+.video-cover-info>b{overflow:hidden;color:#e6e7eb;font-size:13px;text-overflow:ellipsis;white-space:nowrap}
+.video-cover-info>small{color:#92949e;font-size:11px}
+.video-cover-download{width:30px;height:30px;display:grid;place-items:center;padding:0;border-radius:5px;background:transparent;color:#b5b7bf}
+.video-cover-download:hover{background:#303137;color:#fff}
+.video-cover-download svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@media(max-width:560px){.message-video-cover{height:auto;grid-template-columns:112px minmax(0,1fr) 30px}.video-cover-art{width:112px;height:72px}}
+/* —— 全局上传 / 下载进度弹窗（右下角）—— */
+.transfer-progress-panel{position:fixed;right:20px;bottom:96px;z-index:4200;display:flex;flex-direction:column;justify-content:flex-end;gap:10px;width:min(340px,calc(100vw - 24px));max-height:calc(100vh - 120px);overflow:auto;pointer-events:none}
+.transfer-progress-card{width:100%;min-width:280px;padding:12px 14px;border:1px solid #383a43;border-radius:8px;background:#1e1f24;box-shadow:0 10px 32px #000b;color:#dcdee3;pointer-events:auto}
+.transfer-progress-card.done{border-color:#3a5c4b}
+.transfer-progress-card.failed{border-color:#5c3535}
+.transfer-progress-head{display:flex;align-items:center;gap:10px}
+.transfer-progress-icon{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:7px;background:#263b48;color:#66b7dd;font-size:18px;font-weight:700}
+.transfer-progress-card.upload .transfer-progress-icon{background:#33354d;color:#9ba4ff}
+.transfer-progress-card.done .transfer-progress-icon{background:#26382f;color:#43b581}
+.transfer-progress-card.failed .transfer-progress-icon{background:#462b2b;color:#f08686}
+.transfer-progress-copy{min-width:0;flex:1}
+.transfer-progress-copy b{display:block;overflow:hidden;color:#e8e9ed;font-size:12.5px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.transfer-progress-copy small{display:block;margin-top:3px;overflow:hidden;color:#92949e;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+.transfer-progress-close{width:24px;height:24px;flex:none;border-radius:5px;background:transparent;color:#a5a7ae;font-size:18px;line-height:24px}
+.transfer-progress-close:hover{background:#35363e;color:#fff}
+.transfer-progress-bar{height:4px;margin-top:10px;overflow:hidden;border-radius:3px;background:#383a43}
+.transfer-progress-bar i{height:100%;display:block;border-radius:3px;background:#45a8d5;transition:width .2s ease}
+.transfer-progress-card.upload .transfer-progress-bar i{background:#6875f5}
+.transfer-progress-card.done .transfer-progress-bar i{background:#43b581}
+.transfer-progress-card.failed .transfer-progress-bar i{background:#ed4245}
+@media(max-width:520px){.transfer-progress-panel{right:12px;bottom:82px}.transfer-progress-card{min-width:0}}
 </style>

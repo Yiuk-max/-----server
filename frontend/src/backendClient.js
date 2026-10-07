@@ -5,10 +5,17 @@ import { t } from './data/i18n.js'
 const TOKEN_KEY = 'chat.token'
 const RESUME_KEY = 'chat.upload.resume.v1'
 const EMAIL_KEY = 'chat.email.'
+const readStoredToken = () => {
+  try { return localStorage.getItem(TOKEN_KEY) || '' } catch { return '' }
+}
 
 export const backend = reactive({
   connected: false,
   connecting: false,
+  reconnecting: false,
+  authenticating: false,
+  authenticated: false,
+  sessionSeq: 0,
   uid: null,
   name: '',
   email: '',
@@ -37,7 +44,9 @@ let ws = null
 let receiveChain = Promise.resolve()
 let heartbeat = null
 let reconnectTimer = null
+let authTimer = null
 let manualClose = false
+let disconnectReason = ''
 let reconnectAttempts = 0
 let localSeq = 0
 let transferSeq = 0
@@ -53,6 +62,10 @@ const communityAddQueue = []
 const uploadQueue = []
 const downloadQueue = []
 const messageAcks = []
+const previewRequests = new Set()
+const previewQueue = new Map()
+// 服务端分片为 4 MiB，WS 待发送上限为 8 MiB；两个预览并发会因协议开销超过上限并断开连接。
+const MAX_PREVIEW_DOWNLOADS = 1
 
 const notice = (text) => {
   backend.lastNotice = String(text || '').trim()
@@ -62,6 +75,8 @@ const notice = (text) => {
 const keyOf = (kind, id) => `${kind}:${Number(id)}`
 const activeConversation = computed(() => backend.activeKey ? backend.conversations[backend.activeKey] : null)
 const ownsTask = (task) => !!task && Number(task.ownerUid) > 0 && Number(task.ownerUid) === Number(backend.uid)
+const clearAuthTimer = () => { if (authTimer) { clearTimeout(authTimer); authTimer = null } }
+const finishAuthentication = () => { clearAuthTimer(); backend.authenticating = false }
 
 function createObjectUrl(value) {
   const url = URL.createObjectURL(value)
@@ -86,6 +101,8 @@ function releaseRuntimeUrls() {
   }
   for (const url of Object.values(backend.fileUrls)) revokeObjectUrl(url)
   backend.fileUrls = {}
+  previewRequests.clear()
+  previewQueue.clear()
 }
 
 function ensureConversation(kind, id, name = '') {
@@ -103,43 +120,65 @@ function send(message, fileData = null) {
   catch (error) { notice(t('协议编码失败：{0}', error.message)); return false }
 }
 
-export function connect() {
+export function connect(isReconnect = false) {
   if (ws && ws.readyState <= WebSocket.OPEN) return
   manualClose = false
+  disconnectReason = ''
+  backend.reconnecting = !!isReconnect
   const scheme = location.protocol === 'https:' ? 'wss' : 'ws'
   const host = location.host || '127.0.0.1:8080'
   const socket = new WebSocket(`${scheme}://${host}/ws`)
   ws = socket
+  finishAuthentication()
+  backend.authenticated = false
   backend.connecting = true
   socket.binaryType = 'arraybuffer'
   socket.onopen = () => {
     if (ws !== socket) return
     backend.connected = true
     backend.connecting = false
+    backend.reconnecting = false
     reconnectAttempts = 0
     if (heartbeat) clearInterval(heartbeat)
     heartbeat = setInterval(() => { if (ws === socket) send({ type: 'heartbeat' }) }, 30000)
-    const token = localStorage.getItem(TOKEN_KEY)
-    if (token) send({ type: 'verify_token', token })
-    else notice(t('已连接，请登录'))
+    const token = readStoredToken()
+    if (token) {
+      backend.authenticating = true
+      if (send({ type: 'verify_token', token })) {
+        clearAuthTimer()
+        authTimer = setTimeout(() => {
+          authTimer = null
+          if (backend.authenticating) {
+            backend.authenticating = false
+            notice(t('自动登录超时，请重新登录'))
+          }
+        }, 10000)
+      } else finishAuthentication()
+    } else {
+      backend.authenticating = false
+      notice(t('已连接，请登录'))
+    }
   }
   socket.onclose = () => {
     if (ws !== socket) return
     ws = null
     backend.connected = false
     backend.connecting = false
+    finishAuthentication()
+    backend.authenticated = false
     if (heartbeat) clearInterval(heartbeat)
     heartbeat = null
     interruptTransfers()
     clearTransportQueues()
     if (!manualClose) {
+      backend.reconnecting = true
       notice(t('连接已断开，正在自动重连…'))
       scheduleReconnect()
     } else {
-      notice(t('与服务器的连接已断开'))
+      notice(disconnectReason || t('与服务器的连接已断开'))
     }
   }
-  socket.onerror = () => { if (ws === socket) notice(t('连接服务器失败')) }
+  socket.onerror = () => { if (ws === socket) finishAuthentication() }
   socket.onmessage = (event) => {
     // 立即复制消息数据，避免异步 receive 处理时浏览器复用/释放底层 ArrayBuffer（大文件分片下载关键）。
     let payload = event.data
@@ -162,7 +201,7 @@ function scheduleReconnect() {
   reconnectAttempts += 1
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null
-    if (!manualClose) connect()
+    if (!manualClose) connect(true)
   }, delay)
 }
 
@@ -180,6 +219,9 @@ export function disconnect() {
   }
   backend.connected = false
   backend.connecting = false
+  backend.reconnecting = false
+  finishAuthentication()
+  backend.authenticated = false
   interruptTransfers()
   flushPersistUploads()
   clearTransportQueues()
@@ -224,9 +266,19 @@ async function receive(event, socket) {
 }
 
 function loginSuccess(message) {
+  finishAuthentication()
+  backend.authenticated = true
+  previewRequests.clear()
+  previewQueue.clear()
+  for (const task of Object.values(backend.transfers)) {
+    if (!task?.silent || !['失败', '已取消', '已中断'].includes(task.status)) continue
+    delete backend.transfers[task.localId]
+    backend.transferOrder = backend.transferOrder.filter((id) => id !== task.localId)
+  }
   const nextUid = Number(message.user?.id || 0)
   if (backend.uid && Number(backend.uid) !== nextUid) { interruptTransfers(); clearAccount() }
   backend.uid = nextUid
+  backend.sessionSeq += 1
   backend.name = message.user?.username || ''
   backend.avatarId = Number(message.avatar_id || 0)
   try {
@@ -284,7 +336,8 @@ function avatarIdForUid(uid) {
 }
 function recordOf(item, conv) {
   const mine = Number(item.sender_UID) === Number(backend.uid)
-  const reply = item.reply_to ? { id: String(item.reply_to.message_id), author: item.reply_to.sender_name || '成员', text: item.reply_to.content || '' } : null
+  const replyId = Number(item.reply_to?.message_id || item.reply_to_message_id || 0)
+  const reply = replyId > 0 ? { id: String(replyId), author: item.reply_to?.sender_name || '成员', text: item.reply_to?.content || t('原消息') } : null
   const avatarId = avatarIdForUid(item.sender_UID)
   return {
     id: String(item.message_id || `local-${++localSeq}`), messageId: Number(item.message_id || 0),
@@ -424,8 +477,14 @@ function systemMessage(content) {
   else if (registration) { try { localStorage.setItem(EMAIL_KEY + registration[1], registration[2]) } catch {} notice(t('注册成功，UID：{0}，请登录', registration[1])) }
   else if (/Avatar updated successfully/.test(text)) { if (pendingAvatarId > 0) backend.avatarId = pendingAvatarId; pendingAvatarId = 0; notice(text) }
   else if (/Failed to update avatar|Invalid file_id|Avatar file not found|not allowed for avatar/i.test(text)) { pendingAvatarId = 0; notice(text) }
+  else if (/Your account is logged in elsewhere, you have been kicked offline/i.test(text)) {
+    manualClose = true
+    disconnectReason = t('账号已在其他位置登录，当前连接已退出')
+    clearAccount()
+    notice(disconnectReason)
+  }
   else if (/Logout successful/.test(text)) clearAccount()
-  else if (/Token expired|Invalid or expired token/.test(text)) { localStorage.removeItem(TOKEN_KEY); clearAccount() }
+  else if (/Token expired|Invalid or expired token/.test(text)) { finishAuthentication(); localStorage.removeItem(TOKEN_KEY); clearAccount() }
   else if (/Message \[(\d+)\] deleted/.test(text)) deleteMessageLocal(Number(/Message \[(\d+)\]/.exec(text)?.[1]))
   else if (/Message sent\. Message ID: (\d+)/.test(text)) {
     const ack = messageAcks.shift()
@@ -462,6 +521,8 @@ function systemMessage(content) {
 }
 
 function clearAccount() {
+  finishAuthentication()
+  backend.authenticated = false
   interruptTransfers()
   releaseRuntimeUrls()
   if (friendRefreshTimer) clearTimeout(friendRefreshTimer)
@@ -475,6 +536,7 @@ function clearAccount() {
 }
 
 export function login(identity, password) {
+  finishAuthentication()
   const value = String(identity || '').trim()
   return value.includes('@') ? send({ type: 'login', email: value, password }) : send({ type: 'login', UID: Number(value), password })
 }
@@ -575,13 +637,41 @@ function normalizeFile(item = {}) {
 function fileListResponse(message) { backend.files = (message.files || []).map(normalizeFile) }
 export function requestFileList() { return send({ type: 'file_list_request' }) }
 export function deleteFile(fileId) { return send({ type: 'file_delete', file_id: String(fileId) }) }
-export function ensureFileUrl(fileId) {
+function activePreviewDownloads() {
+  return Object.values(backend.transfers).filter((task) => ownsTask(task) && task.silent && !['已完成', '失败', '已取消', '已中断'].includes(task.status)).length
+}
+function pumpPreviewDownloads() {
+  if (!backend.uid || !backend.authenticated || backend.authenticating || !backend.connected) return
+  while (previewQueue.size && activePreviewDownloads() < MAX_PREVIEW_DOWNLOADS) {
+    const [id, metadata] = previewQueue.entries().next().value
+    previewQueue.delete(id)
+    if (backend.fileUrls[id] || previewRequests.has(id)) continue
+    previewRequests.add(id)
+    const name = metadata.name || `file-${id}`
+    const started = downloadFile({ fileId: id, id, name, size: Number(metadata.size || 0), mime: metadata.mime || 'application/octet-stream', format: metadata.format || (name.split('.').pop() || 'FILE').toUpperCase() }, { silent: true })
+    if (!started) { previewRequests.delete(id); break }
+  }
+}
+export function ensureFileUrl(fileId, metadata = {}) {
   const id = String(fileId || '')
-  if (!id || id === '-1' || backend.fileUrls[id]) return backend.fileUrls[id] || ''
+  if (!id || id === '-1' || backend.fileUrls[id] || !backend.uid || !backend.authenticated || backend.authenticating) return backend.fileUrls[id] || ''
   const existing = Object.values(backend.transfers).find((task) => ownsTask(task) && task.silent && task.fileId === id)
   if (existing?.url) { replaceFileUrl(id, existing.url); return existing.url }
-  if (existing && !['已完成','失败','已取消'].includes(existing.status)) return ''
-  downloadFile({ fileId: id, id, name: `file-${id}`, size: 0, mime: 'application/octet-stream', format: 'FILE' }, { silent: true })
+  if (existing && !['失败', '已取消', '已中断'].includes(existing.status)) return ''
+  if (existing) {
+    delete backend.transfers[existing.localId]
+    backend.transferOrder = backend.transferOrder.filter((taskId) => taskId !== existing.localId)
+    previewRequests.delete(id)
+  }
+  if (!previewRequests.has(id) && !previewQueue.has(id)) {
+    if (metadata.priority) {
+      const queued = [...previewQueue.entries()]
+      previewQueue.clear()
+      previewQueue.set(id, metadata)
+      for (const [queuedId, queuedMetadata] of queued) previewQueue.set(queuedId, queuedMetadata)
+    } else previewQueue.set(id, metadata)
+  }
+  pumpPreviewDownloads()
   return ''
 }
 
@@ -763,6 +853,8 @@ function downloadChunk(message, data) {
       }
       delete backend.transfers[task.localId]
       backend.transferOrder = backend.transferOrder.filter((id) => id !== task.localId)
+      previewRequests.delete(String(task.fileId || ''))
+      pumpPreviewDownloads()
     } else {
       const link = document.createElement('a')
       link.href = task.url
@@ -844,14 +936,21 @@ function handleTransferError(text) {
   if (/Invalid upload request|Upload rejected|Failed to create upload/.test(text)) task = backend.transfers[uploadQueue.shift()]
   else if (/Invalid file_id|File not found|Failed to create download/.test(text)) task = backend.transfers[downloadQueue.shift()]
   else task = Object.values(backend.transfers).find((item) => ownsTask(item) && !['已完成','已取消','失败'].includes(item.status))
-  if (task && /failed|rejected|not found|incomplete|Unknown|Invalid/i.test(text)) { task.status = '失败'; task.error = text; task.paused = true; task.pumpToken=Number(task.pumpToken||0)+1;task.pumping=false;persistUploads() }
+  if (task && /failed|rejected|not found|incomplete|Unknown|Invalid/i.test(text)) {
+    task.status = '失败'; task.error = text; task.paused = true; task.pumpToken=Number(task.pumpToken||0)+1;task.pumping=false
+    if (task.silent) {
+      previewRequests.delete(String(task.fileId || ''))
+      setTimeout(pumpPreviewDownloads, 0)
+    }
+    persistUploads()
+  }
 }
 
 // 页面回到前台时检查连接，若已断开则自动重连
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && !manualClose && (!ws || ws.readyState > WebSocket.OPEN)) {
-      connect()
+      connect(true)
     }
   })
 }
