@@ -20,7 +20,7 @@ const DICT = {
   // 状态
   '在线': 'Online', '离线': 'Offline', '闲置': 'Idle', '未登录': 'Not signed in',
   '已完成': 'Completed', '失败': 'Failed', '已取消': 'Canceled', '已暂停': 'Paused',
-  '已中断': 'Interrupted', '上传中': 'Uploading', '下载中': 'Downloading', '校验中': 'Verifying',
+  '已中断': 'Interrupted', '上传中': 'Uploading', '下载中': 'Downloading', '校验中': 'Verifying', '下载完成': 'Download complete', '下载失败': 'Download failed',
   '正在续传': 'Resuming', '正在取消': 'Canceling', '初始化': 'Initializing',
   '等待选择原文件': 'Awaiting file', '等待回应': 'Pending', '等待对方回应': 'Awaiting reply',
   '暂未提供': 'Not available', '空闲': 'Idle',
@@ -86,7 +86,7 @@ const DICT = {
   '更改尚未保存': 'Unsaved changes', '打开他人主页': 'View profile',
   '清除聊天记录': 'Clear chat history', '修改群名称': 'Rename group',
   '发送消息时播放': 'Play on send', '收到消息时播放': 'Play on receive',
-  '双击 LOGO 播放': 'Play on double-click LOGO', '音效文件': 'Sound file',
+  '双击 LOGO 播放': 'Play on double-click LOGO', '音效文件': 'Sound file', '音量': 'Volume',
   '拖动调整频道栏宽度': 'Drag to resize sidebar', '双击复位': 'double-click to reset',
   '打开个人资料菜单': 'Open profile menu', '服务器菜单': 'Server menu',
   '用户设置': 'User Settings', '功能暂未开发': 'Not developed yet', '该功能': 'This feature',

@@ -36,6 +36,9 @@ export const backend = reactive({
 let ws = null
 let receiveChain = Promise.resolve()
 let heartbeat = null
+let reconnectTimer = null
+let manualClose = false
+let reconnectAttempts = 0
 let localSeq = 0
 let transferSeq = 0
 let pendingAvatarId = 0
@@ -102,6 +105,7 @@ function send(message, fileData = null) {
 
 export function connect() {
   if (ws && ws.readyState <= WebSocket.OPEN) return
+  manualClose = false
   const scheme = location.protocol === 'https:' ? 'wss' : 'ws'
   const host = location.host || '127.0.0.1:8080'
   const socket = new WebSocket(`${scheme}://${host}/ws`)
@@ -112,6 +116,7 @@ export function connect() {
     if (ws !== socket) return
     backend.connected = true
     backend.connecting = false
+    reconnectAttempts = 0
     if (heartbeat) clearInterval(heartbeat)
     heartbeat = setInterval(() => { if (ws === socket) send({ type: 'heartbeat' }) }, 30000)
     const token = localStorage.getItem(TOKEN_KEY)
@@ -127,17 +132,44 @@ export function connect() {
     heartbeat = null
     interruptTransfers()
     clearTransportQueues()
-    notice(t('与服务器的连接已断开'))
+    if (!manualClose) {
+      notice(t('连接已断开，正在自动重连…'))
+      scheduleReconnect()
+    } else {
+      notice(t('与服务器的连接已断开'))
+    }
   }
   socket.onerror = () => { if (ws === socket) notice(t('连接服务器失败')) }
   socket.onmessage = (event) => {
-    receiveChain = receiveChain.then(() => receive(event, socket)).catch((error) => {
+    // 立即复制消息数据，避免异步 receive 处理时浏览器复用/释放底层 ArrayBuffer（大文件分片下载关键）。
+    let payload = event.data
+    if (payload instanceof ArrayBuffer) {
+      payload = payload.slice(0)
+    } else if (ArrayBuffer.isView(payload)) {
+      payload = payload.slice()
+    } else if (payload instanceof Blob) {
+      payload = payload.slice(0, payload.size, payload.type)
+    }
+    receiveChain = receiveChain.then(() => receive({ data: payload }, socket)).catch((error) => {
       if (ws === socket) notice(t('协议解析失败：{0}', error.message))
     })
   }
 }
 
+function scheduleReconnect() {
+  if (reconnectTimer) return
+  const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 15000)
+  reconnectAttempts += 1
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    if (!manualClose) connect()
+  }, delay)
+}
+
 export function disconnect() {
+  manualClose = true
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
+  reconnectAttempts = 0
   if (heartbeat) clearInterval(heartbeat)
   heartbeat = null
   const socket = ws
@@ -680,9 +712,11 @@ function sendFileMessage(key, file) {
 export function downloadFile(file, options = {}) {
   if (!backend.uid) { notice(t('请先登录')); return false }
   const localId = `download-${Date.now()}-${++transferSeq}`
+  console.log('[DL] downloadFile 创建任务', localId, 'fileId=', file.fileId, 'silent=', !!options.silent, 'uid=', backend.uid)
   addTransfer({ localId, direction: 'download', fileId: String(file.fileId || file.id || ''), name: file.name, format: file.format || 'FILE', totalSize: Number(file.size || 0), size: Number(file.size || 0), mime: file.mime || 'application/octet-stream', status: '初始化', transferred: 0, progress: 0, nextChunk: 0, chunks: [], paused: false, ownerUid: backend.uid, silent: !!options.silent })
   downloadQueue.push(localId)
   const ok=send({ type: 'file_download_init', file_id: String(file.fileId || file.id) })
+  console.log('[DL] file_download_init 发送结果:', ok, 'transferOrder长度=', backend.transferOrder.length)
   if(!ok){downloadQueue.pop();backend.transfers[localId].status='失败'}
   return ok
 }
@@ -708,11 +742,16 @@ function pullChunk(task) {
 }
 function downloadChunk(message, data) {
   const task = byTransferId(message.meta?.transfer_id)
+  console.log('[DL] downloadChunk 收到分片, transfer_id=', message.meta?.transfer_id, '找到task=', !!task, 'chunk_index=', message.meta?.chunk_index)
   if (!task || task.cancelRequested) return
   task.chunkPending = false
   const index = Number(message.meta?.chunk_index || 0)
-  task.chunks[index] = new Uint8Array(data); task.nextChunk = index + 1
-  task.transferred = Math.min(task.totalSize, Number(message.meta?.offset || 0) + data.byteLength); task.progress = Math.round(task.transferred * 100 / task.totalSize)
+  // 使用 slice 创建独立副本，避免引用 WebSocket 复用 buffer 导致数据损坏或内存异常。
+  const chunkBytes = data instanceof Uint8Array ? data.slice() : new Uint8Array(data)
+  task.chunks[index] = chunkBytes; task.nextChunk = index + 1
+  const offset = Number(message.meta?.offset || 0)
+  task.transferred = Math.min(task.totalSize || (index + 1) * chunkBytes.byteLength, offset + chunkBytes.byteLength)
+  if (task.totalSize) task.progress = Math.min(100, Math.round(task.transferred * 100 / task.totalSize))
   if (task.nextChunk >= task.chunkCount) {
     const blob = new Blob(task.chunks, { type: task.mime }); task.url = createObjectUrl(blob); task.chunks = []; task.status = '已完成'; task.progress = 100
     if (task.silent) {
@@ -724,7 +763,19 @@ function downloadChunk(message, data) {
       }
       delete backend.transfers[task.localId]
       backend.transferOrder = backend.transferOrder.filter((id) => id !== task.localId)
-    } else { const link = document.createElement('a'); link.href = task.url; link.download = task.name; link.click() }
+    } else {
+      const link = document.createElement('a')
+      link.href = task.url
+      link.download = task.name || 'download'
+      link.rel = 'noreferrer'
+      link.style.display = 'none'
+      document.body.appendChild(link)
+      // 大文件下载：给浏览器一点时间完成 DOM 挂载与 blob URL 就绪，再触发下载
+      setTimeout(() => {
+        link.click()
+        setTimeout(() => link.remove(), 1000)
+      }, 50)
+    }
   } else pullChunk(task)
 }
 export function pauseTransfer(task) { if (!ownsTask(task) || !task.transferId) return false; task.paused = true; task.status = '已暂停'; task.pumpToken = Number(task.pumpToken || 0) + 1; task.pumping = false; persistUploads(); const ok=send({ type: 'file_transfer_pause', transfer_id: Number(task.transferId) });if(!ok)task.status='已中断';return ok }
@@ -794,6 +845,15 @@ function handleTransferError(text) {
   else if (/Invalid file_id|File not found|Failed to create download/.test(text)) task = backend.transfers[downloadQueue.shift()]
   else task = Object.values(backend.transfers).find((item) => ownsTask(item) && !['已完成','已取消','失败'].includes(item.status))
   if (task && /failed|rejected|not found|incomplete|Unknown|Invalid/i.test(text)) { task.status = '失败'; task.error = text; task.paused = true; task.pumpToken=Number(task.pumpToken||0)+1;task.pumping=false;persistUploads() }
+}
+
+// 页面回到前台时检查连接，若已断开则自动重连
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && !manualClose && (!ws || ws.readyState > WebSocket.OPEN)) {
+      connect()
+    }
+  })
 }
 
 export const api = {

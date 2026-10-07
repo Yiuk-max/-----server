@@ -54,6 +54,8 @@ const demoFilesInput = ref(null)
 const resumeFileInput = ref(null)
 const resumeTransferTarget = ref(null)
 const activeTransfer = computed(() => backend.transferOrder.map((id) => backend.transfers[id]).find((task) => task && !task.silent && (!task.ownerUid || Number(task.ownerUid)===Number(backend.uid)) && !['已完成','已取消','失败'].includes(task.status)) || null)
+// 全局下载进度弹窗：显示所有进行中（或刚完成）的下载任务
+const downloadTasks = computed(() => backend.transferOrder.map((id) => backend.transfers[id]).filter((task) => task && task.direction === 'download' && !task.silent && Number(task.ownerUid) === Number(backend.uid)))
 const profileMenuOpen = ref(false)
 const profileAccountMenu = ref(false)
 const memberProfile = ref(null)
@@ -101,12 +103,14 @@ const unreadBanner = ref(false)
 const bakaOnSend = ref(true)
 const bakaOnReceive = ref(true)
 const bakaOnLogo = ref(true)
+const bakaVolume = ref(0.65)
 let bakaAudio = null
-const playBaka = (reason = 'logo') => {
-  const allowed = reason === 'send' ? bakaOnSend.value : reason === 'receive' ? bakaOnReceive.value : bakaOnLogo.value
+const playBaka = (reason = 'logo', force = false) => {
+  const allowed = force || (reason === 'send' ? bakaOnSend.value : reason === 'receive' ? bakaOnReceive.value : bakaOnLogo.value)
   if (!allowed || typeof Audio === 'undefined') return
   try {
-    if (!bakaAudio) { bakaAudio = new Audio(bakaAudioUrl); bakaAudio.volume = 0.65 }
+    if (!bakaAudio) bakaAudio = new Audio(bakaAudioUrl)
+    bakaAudio.volume = Number(bakaVolume.value) || 0
     bakaAudio.currentTime = 0
     const played = bakaAudio.play()
     if (played?.catch) played.catch(() => {})
@@ -119,10 +123,11 @@ try {
     bakaOnSend.value = saved.send !== false
     bakaOnReceive.value = saved.receive !== false
     bakaOnLogo.value = saved.logo !== false
+    if (typeof saved.volume === 'number') bakaVolume.value = saved.volume
   }
 } catch {}
-watch([bakaOnSend, bakaOnReceive, bakaOnLogo], () => {
-  try { localStorage.setItem('discord-baka-v1', JSON.stringify({ send: bakaOnSend.value, receive: bakaOnReceive.value, logo: bakaOnLogo.value })) } catch {}
+watch([bakaOnSend, bakaOnReceive, bakaOnLogo, bakaVolume], () => {
+  try { localStorage.setItem('discord-baka-v1', JSON.stringify({ send: bakaOnSend.value, receive: bakaOnReceive.value, logo: bakaOnLogo.value, volume: bakaVolume.value })) } catch {}
 })
 const composerInput = ref(null)
 const fileInput = ref(null)
@@ -1096,7 +1101,7 @@ const selectDemoFiles = () => demoFilesInput.value?.click()
 const addDemoFiles = (event) => {for(const file of Array.from(event.target.files||[]))api.uploadFile(file,false);event.target.value=''}
 const setDemoFileStatus = (file,status) => {const task=backend.transfers[file.localId];if(!task)return;if(status==='已暂停')api.pauseTransfer(task);else if(task.direction==='upload'&&!task.file&&['已中断','等待选择原文件'].includes(task.status)){resumeTransferTarget.value=task;resumeFileInput.value?.click()}else api.resumeTransfer(task)}
 const bindResumeUpload = (event) => {const file=event.target.files?.[0];if(file&&resumeTransferTarget.value)api.bindResumeFile(resumeTransferTarget.value,file);event.target.value='';resumeTransferTarget.value=null}
-const downloadDemoFile = (file) => {const task=backend.transfers[file.localId];if(task?.url){const link=document.createElement('a');link.href=task.url;link.download=task.name;link.click()}else api.downloadFile(file)}
+const downloadDemoFile = (file) => {const task=backend.transfers[file.localId];if(task?.url){const link=document.createElement('a');link.href=task.url;link.download=task.name||'download';link.rel='noreferrer';document.body.appendChild(link);link.click();link.remove()}else api.downloadFile(file)}
 const toggleFileTransfer = (file) => {if(!file)return;if(['已暂停','已中断','等待选择原文件'].includes(file.status))setDemoFileStatus(file,'继续');else setDemoFileStatus(file,'已暂停')}
 const toggleActiveTransfer = () => toggleFileTransfer(activeTransfer.value)
 const deleteDemoFile = (file) => {const task=backend.transfers[file.localId];if(task){if(['已完成','已取消','失败'].includes(task.status))api.dismissTransfer(task);else api.cancelTransfer(task)}else api.deleteFile(file.fileId||file.id)}
@@ -1621,6 +1626,7 @@ const confirmAvatarCrop = () => {
             <section class="settings-section">
               <h1>{{ t("Baka 音效") }}</h1>
               <div class="settings-row"><div class="settings-row-copy"><b>{{ t("音效文件") }}</b><small>内置 Baka.mp3，本地播放，不联网。</small></div><img class="settings-row-logo" src="/logo.png" alt="Baka"></div>
+              <div class="settings-row"><div class="settings-row-copy"><b>{{ t("音量") }}</b><small>{{ Math.round(bakaVolume * 100) }}%</small></div><input class="volume-slider" type="range" min="0" max="1" step="0.01" v-model.number="bakaVolume" @input="playBaka('logo', true)" aria-label="Baka 音量"></div>
               <div class="settings-row"><div class="settings-row-copy"><b>{{ t("发送消息时播放") }}</b><small>每次发出消息后播放一次。</small></div><button class="toggle" :class="{on:bakaOnSend}" @click="bakaOnSend=!bakaOnSend"><i></i></button></div>
               <div class="settings-row"><div class="settings-row-copy"><b>{{ t("收到消息时播放") }}</b><small>收到服务器实时推送的消息时播放一次。</small></div><button class="toggle" :class="{on:bakaOnReceive}" @click="bakaOnReceive=!bakaOnReceive"><i></i></button></div>
               <div class="settings-row"><div class="settings-row-copy"><b>{{ t("双击 LOGO 播放") }}</b><small>双击左侧竖栏顶部的 LOGO 播放一次。</small></div><button class="toggle" :class="{on:bakaOnLogo}" @click="bakaOnLogo=!bakaOnLogo"><i></i></button></div>
@@ -1665,6 +1671,24 @@ const confirmAvatarCrop = () => {
       </section>
     </section>
   </div>
+
+  <!-- 全局下载进度弹窗（右下角打字栏上方，任何页面都显示） -->
+  <div v-if="downloadTasks.length" class="download-progress-panel">
+    <article v-for="task in downloadTasks" :key="task.localId || task.transferId || task.fileId" class="download-progress-card" :class="{done: task.status === '已完成', failed: task.status === '失败' || task.status === '已取消'}">
+      <div class="download-progress-head">
+        <span class="download-progress-icon">{{ task.status === '已完成' ? '✓' : task.status === '失败' || task.status === '已取消' ? '✕' : '⇩' }}</span>
+        <div class="download-progress-copy">
+          <b :title="task.name">{{ task.name || 'download' }}</b>
+          <small v-if="task.status === '已完成'">{{ t('下载完成') }}</small>
+          <small v-else-if="task.status === '失败'">{{ t('下载失败') }}</small>
+          <small v-else-if="task.status === '已取消'">{{ t('已取消') }}</small>
+          <small v-else>{{ formatFileSize(task.transferred || 0) }} / {{ formatFileSize(task.totalSize || 0) }} · {{ Math.round(task.progress || 0) }}%</small>
+        </div>
+        <button class="download-progress-close" :aria-label="t('关闭')" @click="api.dismissTransfer(task)">×</button>
+      </div>
+      <div class="download-progress-bar"><i :style="{ width: `${task.status === '已完成' ? 100 : (task.progress || 0)}%` }"></i></div>
+    </article>
+  </div>
 </template>
 
 <style>
@@ -1684,4 +1708,22 @@ const confirmAvatarCrop = () => {
 .community-sidebar-content .guild-header{position:relative;z-index:1;background:transparent;box-shadow:none;border-bottom:1px solid #00000040}
 .community-sidebar-content .guild-header-title:hover{background:transparent}
 .community-sidebar-content .side-shortcuts{position:relative;z-index:1;background:transparent;margin-top:87px}
+/* —— 全局下载进度弹窗（右下角）—— */
+.download-progress-panel{position:fixed;right:20px;bottom:96px;z-index:4200;display:flex;flex-direction:column;justify-content:flex-end;gap:10px;max-width:340px;pointer-events:none}.download-progress-card{pointer-events:auto}
+.download-progress-card{min-width:280px;padding:12px 14px;border:1px solid #383a43;border-radius:10px;background:#1e1f24;box-shadow:0 10px 32px #000b;color:#dcdee3}
+.download-progress-card.done{border-color:#3a5c4b}
+.download-progress-card.failed{border-color:#5c3535}
+.download-progress-head{display:flex;align-items:center;gap:10px}
+.download-progress-icon{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:8px;background:#31334a;color:#8e98ff;font-size:18px;font-weight:700}
+.download-progress-card.done .download-progress-icon{background:#26382f;color:#43b581}
+.download-progress-card.failed .download-progress-icon{background:#462b2b;color:#f08686}
+.download-progress-copy{min-width:0;flex:1}
+.download-progress-copy b{display:block;overflow:hidden;color:#e8e9ed;font-size:12.5px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.download-progress-copy small{display:block;margin-top:3px;color:#92949e;font-size:11px}
+.download-progress-close{width:24px;height:24px;flex:none;border-radius:5px;background:transparent;color:#a5a7ae;font-size:18px;line-height:24px}
+.download-progress-close:hover{background:#35363e;color:#fff}
+.download-progress-bar{height:4px;margin-top:10px;overflow:hidden;border-radius:3px;background:#383a43}
+.download-progress-bar i{height:100%;display:block;border-radius:3px;background:#5865f2;transition:width .2s ease}
+.download-progress-card.done .download-progress-bar i{background:#43b581}
+.download-progress-card.failed .download-progress-bar i{background:#ed4245}
 </style>

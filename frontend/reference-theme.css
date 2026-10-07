@@ -310,6 +310,7 @@
 .settings-row-copy b{display:block;font-size:14px;font-weight:500;color:var(--text-2)}
 .settings-row-copy small{display:block;max-width:620px;margin-top:5px;color:var(--text-4);font-size:12.5px;line-height:1.5}
 .settings-row-logo{width:40px;height:40px;flex:none;object-fit:contain;border-radius:4px}
+.volume-slider{width:180px;height:6px;flex:none;accent-color:#5865f2;cursor:pointer}
 .settings-row-button{flex:none;height:32px;padding:0 16px;border-radius:4px;background:#4e5058;color:#fff;font-size:14px;font-weight:500}
 .settings-row-button:hover{background:#5d6069}
 .baka-settings-content{padding-bottom:60px}
