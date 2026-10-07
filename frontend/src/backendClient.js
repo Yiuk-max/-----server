@@ -334,6 +334,14 @@ function avatarIdForUid(uid) {
   if (contact?.avatarId) return contact.avatarId
   return Object.values(backend.members).flat().find((item) => Number(item.uid) === Number(uid))?.avatarId || 0
 }
+// 后端统一用 UTC 存时间（"YYYY-MM-DD HH:MM:SS"），这里转成浏览器本地时区的 HH:MM 显示
+const fmtClockFromUtc = (ts) => {
+  const s = String(ts || '')
+  if (!s) return ''
+  const d = new Date(s.includes('T') ? (s.endsWith('Z') ? s : s + 'Z') : s.replace(' ', 'T') + 'Z')
+  if (Number.isNaN(d.getTime())) return s.slice(11, 16)  // 兜底：格式异常时退回原 HH:MM
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
 function recordOf(item, conv) {
   const mine = Number(item.sender_UID) === Number(backend.uid)
   const replyId = Number(item.reply_to?.message_id || item.reply_to_message_id || 0)
@@ -342,7 +350,7 @@ function recordOf(item, conv) {
   return {
     id: String(item.message_id || `local-${++localSeq}`), messageId: Number(item.message_id || 0),
     mine, author: mine ? backend.name : (item.sender_name || conv.name), authorKey: mine ? 'self' : `member:${item.sender_UID}`,
-    avatarImage: backend.fileUrls[avatarId] || '/default_avatar.png', text: item.content || '', time: String(item.timestamp || '').slice(11, 16), reply,
+    avatarImage: backend.fileUrls[avatarId] || '/default_avatar.png', text: item.content || '', time: fmtClockFromUtc(item.timestamp), reply,
     files: item.is_file ? [{ fileId: String(item.file_id || ''), name: item.file_name || '文件', size: Number(item.file_size || 0), url: '' }] : null,
     senderUid: Number(item.sender_UID || 0),
   }

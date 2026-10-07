@@ -21,9 +21,9 @@ CREATE DATABASE IF NOT EXISTS chat_server
 USE chat_server;
 
 -- ------------------------------------------------------------
--- 类型：UID bigint unsigned | password varchar(128) | nickname varchar(64) | settings json | language varchar(16) | token varchar(64) | avatar_file_id varchar(128) | avatar_id bigint unsigned | create_time datetime | birthday date
--- 名字：UID | password | nickname | settings | language | token | avatar_file_id | avatar_id | create_time | birthday
--- 说明：用户唯一ID(系统分配) | 密码(建议存储hash) | 昵称 | 账号设置(JSON) | 语言 | 登录令牌 | 用户头像文件ID(预留) | 用户头像文件ID(file.id) | 注册时间 | 生日
+-- 类型：UID bigint unsigned | password varchar(128) | nickname varchar(64) | settings json | language varchar(16) | token varchar(64) | avatar_id bigint unsigned | create_time datetime
+-- 名字：UID | password | nickname | settings | language | token | avatar_id | create_time
+-- 说明：用户唯一ID(系统分配) | 密码(建议存储hash) | 昵称 | 账号设置(JSON) | 语言 | 登录令牌 | 用户头像文件ID(file.id) | 注册时间
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS Account (
     UID            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '用户唯一ID(系统分配)',
@@ -32,10 +32,8 @@ CREATE TABLE IF NOT EXISTS Account (
     settings       JSON            NULL                    COMMENT '账号设置(主题/语言/通知开关等,JSON序列化)',
     language       VARCHAR(16)     NOT NULL DEFAULT 'Chinese' COMMENT '语言',
     token          VARCHAR(64)     NULL                    COMMENT '登录令牌(自动登录用,可空)',
-    avatar_file_id VARCHAR(128)    NULL                    COMMENT '用户头像文件ID(预留,二期文件传输)',
     avatar_id      BIGINT UNSIGNED NULL                    COMMENT '用户头像文件ID(file.id)',
     create_time    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '注册时间',
-    birthday       DATE            NULL                    COMMENT '生日(可空)',
 
     PRIMARY KEY (UID),
     KEY fk_account_avatar (avatar_id),

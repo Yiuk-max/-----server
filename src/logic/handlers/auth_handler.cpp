@@ -45,11 +45,11 @@ void finish_login(client_session& s, const std::shared_ptr<account>& acc, const 
     logic::show_friend_requests(s); // 登录后自动查看待处理的好友申请
     logic::send_offline_messages(s, last_login_time); // 登录后自动获取一次离线消息
 
-    // 更新"上次登录时间"
+    // 更新"上次登录时间"（统一 UTC 存储，前端展示时转本地时区）
     char time_buf[32];
     std::time_t now = std::time(nullptr);
     std::tm tmv{};
-    localtime_r(&now, &tmv);
+    gmtime_r(&now, &tmv);
     std::strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", &tmv);
     acc->set_last_login_time(time_buf);
     s.repo_hub()->accounts()->update_account(acc);

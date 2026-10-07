@@ -13,10 +13,8 @@
 | settings    | json            | 可空，账号设置(主题/语言/通知开关)|
 | language    | varchar(16)     | 默认 'Chinese'               |
 | token       | varchar(64)     | 登录令牌(自动登录，可空)      |
-| avatar_file_id | varchar(128) | 用户头像文件ID(预留，二期文件传输)|
 | avatar_id      | bigint unsigned | 用户头像文件ID(file.id)，可空  |
 | create_time | datetime        | 默认 CURRENT_TIMESTAMP       |
-| birthday    | date            | 可空                          |
 ------------------------------------------------------------
 主键 UID
 外键：fk_account_avatar(avatar_id->file.id)，ON DELETE SET NULL
@@ -26,7 +24,6 @@
 - 旧库需执行 sql/allow_duplicate_nickname.sql（ALTER TABLE Account DROP INDEX uk_nickname）
 - settings 为 JSON 列（承载 account.h 中的账号设置字段，应用层序列化；
   主题 theme 默认 'default'，可经 change_theme 修改）
-- birthday 允许 NULL
 
 ============================================================
 2. friend_relation 表（好友关系，双向同步）

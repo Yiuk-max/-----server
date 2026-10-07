@@ -7,19 +7,30 @@
 #include <cstdio>
 #include <random>
 
+namespace {
+// 将公历日期换算为自 1970-01-01 00:00:00 UTC 的 epoch 秒（Howard Hinnant 算法，纯算术无时区依赖）。
+// 项目统一 UTC 存储时间，DATETIME 字符串一律按 UTC 解释，避免 mktime 依赖进程本地时区。
+std::time_t utc_to_epoch(int y, int m, int d, int hh, int mi, int ss) {
+    y -= m <= 2;
+    const int era = (y >= 0 ? y : y - 399) / 400;
+    const unsigned yoe = static_cast<unsigned>(y - era * 400);                 // [0, 399]
+    const unsigned doy = (153u * (m + (m > 2 ? -3 : 9)) + 2u) / 5u + d - 1u;   // [0, 365]
+    const unsigned doe = yoe * 365u + yoe / 4u - yoe / 100u + doy;             // [0, 146096]
+    const long long days = static_cast<long long>(era) * 146097LL
+                         + static_cast<long long>(doe) - 719468LL;
+    return static_cast<std::time_t>(days * 86400LL + hh * 3600LL + mi * 60LL + ss);
+}
+} // namespace
+
 namespace logic {
 
 std::time_t parse_datetime(const std::string& s) {
-    std::tm tmv{};
+    int y = 0, mo = 0, d = 0, hh = 0, mi = 0, ss = 0;
     if (s.size() < 19) return 0;
-    if (std::sscanf(s.c_str(), "%d-%d-%d %d:%d:%d",
-                    &tmv.tm_year, &tmv.tm_mon, &tmv.tm_mday,
-                    &tmv.tm_hour, &tmv.tm_min, &tmv.tm_sec) != 6) {
+    if (std::sscanf(s.c_str(), "%d-%d-%d %d:%d:%d", &y, &mo, &d, &hh, &mi, &ss) != 6) {
         return 0;
     }
-    tmv.tm_year -= 1900;
-    tmv.tm_mon  -= 1;
-    return std::mktime(&tmv);
+    return utc_to_epoch(y, mo, d, hh, mi, ss);
 }
 
 std::string generate_token() {

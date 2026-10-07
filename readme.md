@@ -44,6 +44,15 @@ cd build
 
 未读到配置文件时使用默认值（连接信息见《数据库设计.txt》），可能连不上你的数据库。
 
+## 时区
+
+后端全链路统一 **UTC** 存储时间：MySQL 的 `NOW()`/`CURRENT_TIMESTAMP` 固定为 UTC（`default-time-zone = '+00:00'`），
+C++ 的 `last_login_time` 用 `gmtime` 生成、`parse_datetime` 按 UTC 解析（不依赖系统时区）；
+前端拿到 `"YYYY-MM-DD HH:MM:SS"`(UTC) 后转浏览器本地时区显示。
+
+- 全新部署：只需把 MySQL 时区设为 UTC，见《部署文档.md》3.3 节。
+- 旧库升级（时间差 8 小时）：执行 `sql/set_timezone_utc.sql` 做一次性迁移。
+
 ## 网络层切换（binary / websocket）
 
 `net_layer` 在启动时读取，改完需要重启；**两种模式只能同时跑一个，都占用 8080 端口**。
