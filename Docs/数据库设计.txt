@@ -21,12 +21,30 @@
 
 说明：
 - nickname 不再唯一：登录/加好友/发消息均按 UID 定位，昵称、密码都允许重复
-- 旧库需执行 sql/allow_duplicate_nickname.sql（ALTER TABLE Account DROP INDEX uk_nickname）
+- 全新部署由 create_table.sql 直接建非唯一 nickname；旧库升级才需手动 DROP 原 uk_nickname 唯一索引
+  （当前仓库无独立迁移脚本，如需迁移执行：ALTER TABLE Account DROP INDEX uk_nickname）
 - settings 为 JSON 列（承载 account.h 中的账号设置字段，应用层序列化；
   主题 theme 默认 'default'，可经 change_theme 修改）
 
 ============================================================
-2. friend_relation 表（好友关系，双向同步）
+2. account_email 表（账户邮箱绑定，登录/加好友/注册预检查用）
+------------------------------------------------------------
+| 字段        | 类型             | 说明                         |
+| email       | varchar(190)    | 主键，邮箱(登录用，唯一)      |
+| UID         | bigint unsigned | 绑定的账户UID（唯一）         |
+| create_time | datetime        | 默认 CURRENT_TIMESTAMP        |
+| update_time | datetime        | 默认 CURRENT_TIMESTAMP，ON UPDATE CURRENT_TIMESTAMP |
+------------------------------------------------------------
+主键 email
+唯一键：uk_account_email_uid(UID)（一个账号只绑一个邮箱）
+外键：fk_email_uid(UID->Account.UID)，ON DELETE CASCADE
+
+说明：
+- 邮箱与账号一一对应：注册/换绑(set_email)写入，登录(login)与好友申请(add_friend)
+  均按 email 反查 UID；注销账号时外键 CASCADE 自动删除
+
+============================================================
+3. friend_relation 表（好友关系，双向同步）
 ------------------------------------------------------------
 | 字段        | 类型             | 说明                         |
 | UID         | bigint unsigned | 用户A（主键1）                |
@@ -52,7 +70,7 @@ DB 事务双写参考：
     COMMIT;
 
 ============================================================
-3. relation_apply 表（关系申请表，原 friend_request 更名扩展）
+4. relation_apply 表（关系申请表，原 friend_request 更名扩展）
 ------------------------------------------------------------
 | 字段         | 类型            | 说明                         |
 | id           | int unsigned   | 自增主键                     |
@@ -83,7 +101,7 @@ DB 事务双写参考：
   直接 DROP INDEX 会报 ERROR 1553: needed in a foreign key constraint）
 
 ============================================================
-4. Group 表（群组）
+5. Group 表（群组）
 ------------------------------------------------------------
 | 字段        | 类型             | 说明                         |
 | group_UID   | bigint unsigned | 主键，系统自增分配             |
@@ -99,7 +117,7 @@ DB 事务双写参考：
   展示聊天列表时格式为 群名(人数):群UID（对应 group::member_count_，仅展示用）
 
 ============================================================
-5. Groupmember 表（群成员）
+6. Groupmember 表（群成员）
 ------------------------------------------------------------
 | 字段        | 类型             | 说明                         |
 | group_UID   | bigint unsigned | 所属群（主键1）               |
@@ -119,7 +137,7 @@ DB 事务双写参考：
 - role：'owner'=群主(创建者) / 'member'=普通成员（支持后续扩展 'admin'）
 
 ============================================================
-6. message 表（聊天记录）
+7. message 表（聊天记录）
 ------------------------------------------------------------
 | 字段          | 类型             | 说明                          |
 | id            | bigint unsigned | 自增主键(保持发送顺序)          |
@@ -153,7 +171,7 @@ DB 事务双写参考：
   文件本体按 file_id 单独下载
 
 ============================================================
-7. community 表（社区：核心频道 + 普通频道）
+8. community 表（社区：核心频道 + 普通频道）
 ------------------------------------------------------------
 | 字段            | 类型             | 说明                          |
 | id              | bigint unsigned | 主键，自增（社区/频道ID）      |
@@ -179,7 +197,7 @@ DB 事务双写参考：
 - 删社区级联删其普通频道
 
 ============================================================
-8. community_member 表（社区成员，社区内所有频道共享一份）
+9. community_member 表（社区成员，社区内所有频道共享一份）
 ------------------------------------------------------------
 | 字段         | 类型             | 说明                          |
 | community_id | bigint unsigned | 所属社区(核心频道id)（主键1）   |
@@ -197,7 +215,7 @@ DB 事务双写参考：
 - 普通频道不维护成员，发言时校验"是否属于频道所属社区"
 
 ============================================================
-9. file 表（文件元数据，只描述文件，不存二进制）
+10. file 表（文件元数据，只描述文件，不存二进制）
 ------------------------------------------------------------
 | 字段          | 类型             | 说明                          |
 | id            | bigint unsigned | 主键，自增（文件唯一ID）       |
@@ -221,7 +239,7 @@ DB 事务双写参考：
 - 头像/Emoji/聊天图片/附件/普通文件统一走本表
 
 ============================================================
-10. file_transfer 表（文件传输会话：分片/断点/暂停续传）
+11. file_transfer 表（文件传输会话：分片/断点/暂停续传）
 ------------------------------------------------------------
 | 字段             | 类型           | 说明                          |
 | id               | bigint unsigned| 主键，自增（传输会话ID）      |
@@ -258,22 +276,20 @@ DB 事务双写参考：
 - storage_key/file_type/original_name/mime_type 用于断线重连续传
 
 ============================================================
-UID 分配与重启重定位（重要）
+UID / group_UID / community.id 的分配（当前实现）
 ------------------------------------------------------------
-现 C++ 侧用内存单例 UID_allocator 自增分配 UID/group_id。
-引入 MySQL 后：
-【彻底弃用内存分配器】
-  插入前直接让 DB 生成 AUTO_INCREMENT 主键，再经 LAST_INSERT_ID() 取回。
-  每注册/建群一次 DB round trip。
+所有 ID 均由 MySQL AUTO_INCREMENT 分配，INSERT 后经 LAST_INSERT_ID() 取回，
+代码中已不存在内存 ID 分配器（方案 B，见 account_repo / group_repo / community_repo）。
+每注册/建群/建社区各一次 DB round trip。
 ============================================================
-关于"用户 UID 与群 group_UID 共用同一套编号空间"
+关于"用户 UID 与群 group_UID / 社区 community.id 共用同一套编号空间"
 ------------------------------------------------------------
-这是【有意为之、无歧义】的设计：request_uid() 与 request_group_id()
-是两个独立计数器，某个用户 UID 与某个群 group_UID 数值可能相同(撞号)。
-但每条消息都带 type 字段(private_chat/group_chat)，分发器 Chat_handler
-先按 type 路由到 session.private_chat() / session.group_chat()，两者内部
-各自只查 account_manager / Group_manager，两个查找空间天然隔离，
-因此撞号不会造成转发歧义；持久化时同样靠 message.type 区分，安全。
+这是【有意为之、无歧义】的设计：Account.UID、Group.group_UID、community.id
+是三套独立的 AUTO_INCREMENT 列，数值可能相同(撞号)。但每条消息都带
+message.type（'private'/'group'/'channel'），且协议层先按 type 路由
+（private_chat / group_chat / channel_chat），查询时各自只走对应的 repo
+（account_repo / group_repo / community_repo），查找空间天然隔离，
+因此撞号不会造成路由歧义；持久化时同样靠 message.type 区分，安全。
 
 ============================================================
 数据库连接接入（连接池，与代码衔接）

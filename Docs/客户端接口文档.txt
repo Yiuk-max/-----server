@@ -281,7 +281,8 @@ message ContactInfo {
 *   **字段（用 UID）**：`type="login"`、`UID`、`password`
 *   **字段（用邮箱）**：`type="login"`、`email`、`password`
 *   *注意*：`email` 非空时按邮箱登录，否则按 `UID` 登录。
-*   **成功响应**：`type="login_success"`，携带 `token`、`user{id, username}`、`avatar_id`（当前头像 file.id，-1 表示未设置）。
+*   **成功响应**：`type="login_success"`，携带 `token`、`user{id, username}`、`avatar_id`（当前头像 file.id，-1 表示未设置）、
+    `email`（已绑定邮箱时返回，未绑定则为空字符串）。
     邮箱未绑定时返回 system `No account is bound to email [xxx].`
 
 ### 2.1 用 token 自动登录 (verify_token)

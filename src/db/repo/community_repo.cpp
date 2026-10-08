@@ -100,8 +100,9 @@ bool community_repo::delete_community(int community_id, int requester_uid) {
         std::cerr << "[community_repo] delete_community: no DB connection." << std::endl;
         return false;
     }
+    sql::Connection* conn = guard.get();
     try {
-        if (member_role(guard.get(), community_id, requester_uid) != "owner") {
+        if (member_role(conn, community_id, requester_uid) != "owner") {
             std::cerr << "[community_repo] delete_community: requester is not owner." << std::endl;
             return false;
         }
@@ -110,7 +111,7 @@ bool community_repo::delete_community(int community_id, int requester_uid) {
         std::vector<int> member_uids;
         {
             std::unique_ptr<sql::PreparedStatement> pstmt(
-                guard.get()->prepareStatement(
+                conn->prepareStatement(
                     "SELECT id FROM community WHERE core_channel_id = ? AND is_core = 0"));
             pstmt->setInt(1, community_id);
             std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
@@ -118,28 +119,35 @@ bool community_repo::delete_community(int community_id, int requester_uid) {
         }
         {
             std::unique_ptr<sql::PreparedStatement> pstmt(
-                guard.get()->prepareStatement(
+                conn->prepareStatement(
                     "SELECT user_UID FROM community_member WHERE community_id = ?"));
             pstmt->setInt(1, community_id);
             std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
             while (rs->next()) member_uids.push_back(rs->getInt(1));
         }
+
+        // 事务包裹多条 DELETE，任一步失败回滚，避免留下半删状态（与 friend_repo 一致）
+        conn->setAutoCommit(false);
         // 先删该社区所有普通频道的消息（message 无外键级联）
         {
             std::unique_ptr<sql::PreparedStatement> pstmt(
-                guard.get()->prepareStatement(
+                conn->prepareStatement(
                     "DELETE FROM message WHERE type = 'channel' AND receiver_UID IN "
                     "(SELECT id FROM community WHERE core_channel_id = ? AND is_core = 0)"));
             pstmt->setInt(1, community_id);
             pstmt->executeUpdate();
         }
         // 删核心频道：普通频道（fk_community_core）与成员（fk_cm_community）级联删
-        std::unique_ptr<sql::PreparedStatement> pstmt(
-            guard.get()->prepareStatement("DELETE FROM community WHERE id = ?"));
-        pstmt->setInt(1, community_id);
-        pstmt->executeUpdate();
+        {
+            std::unique_ptr<sql::PreparedStatement> pstmt(
+                conn->prepareStatement("DELETE FROM community WHERE id = ?"));
+            pstmt->setInt(1, community_id);
+            pstmt->executeUpdate();
+        }
+        conn->commit();
+        conn->setAutoCommit(true);
 
-        // 失效缓存
+        // 提交成功后再失效缓存
         RedisCache::get_instance().community_members_invalidate(community_id);
         RedisCache::get_instance().community_channels_invalidate(community_id);
         RedisCache::get_instance().community_info_invalidate(community_id);
@@ -152,6 +160,8 @@ bool community_repo::delete_community(int community_id, int requester_uid) {
         }
         return true;
     } catch (const sql::SQLException& e) {
+        try { conn->rollback(); } catch (...) {}
+        try { conn->setAutoCommit(true); } catch (...) {}
         std::cerr << "[community_repo] delete_community failed: " << e.what()
                   << " (ERRNO=" << e.getErrorCode() << ")" << std::endl;
         return false;

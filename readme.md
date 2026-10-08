@@ -120,16 +120,17 @@ python3 tests/ws_chat_smoke.py 127.0.0.1 8080 /ws
 python3 tests/community_smoke.py 127.0.0.1 8080 /ws
 # 群聊广播多接收方一致性（验证广播构造/序列化一次后多端字段一致）
 python3 tests/test_group_broadcast.py 127.0.0.1 8080 /ws
+# 文件系统（分片上传/下载/暂停续传/断线重连续传）
+python3 tests/file_smoke.py 127.0.0.1 8080 /ws
 # 额外验证空闲超时（服务端需 use_heartbeat=true 且 heartbeat_interval<=N）
 python3 tests/ws_chat_smoke.py 127.0.0.1 8080 /ws --idle-seconds=3
 ```
 
-冒烟脚本覆盖：注册/登录、好友申请与接受、私聊、建群/拉人/群聊、离线消息、顶号、空闲超时；社区冒烟覆盖建社区/建频道/频道发言/成员管理/列表拉取。
+冒烟脚本覆盖：注册/登录、好友申请与接受、私聊、建群/拉人/群聊、离线消息、顶号、空闲超时；社区冒烟覆盖建社区/建频道/频道发言/成员管理/列表拉取；文件冒烟覆盖分片上传/下载、暂停/继续、断线重连续传。
 
 ## 文档
 
 - **[部署文档.md](Docs/部署文档.md)** —— 从零部署（依赖安装、建库、构建、systemd、Nginx、常见问题）。
-- **[项目说明文档.md](Docs/项目说明文档.md)** —— 技术栈、目录结构、架构与工作流程、核心模块说明、常见问题。
 - **[客户端接口文档.txt](Docs/客户端接口文档.txt)** —— 前后端 protobuf / 帧协议接口规范（建议客户端开发者先读此文档）。
 - **[frontend/README.md](frontend/README.md)** —— 前端（Vite + Vue 3）开发构建说明与 UI 交互功能清单。
 - **[社区后端改造方案.md](Docs/社区后端改造方案.md)** —— 社区（Discord 式）后端改造设计、DB 迁移、Redis 缓存点与里程碑。
@@ -164,9 +165,7 @@ server/
 ├── sql/alter_existing_tables.sql # 现有表改造（Account.avatar_id、message.is_file/file_id）
 ├── sql/alter_community_avatar_banner.sql # 社区头像/背景图（community.avatar_id/banner_id）
 ├── sql/alter_file_transfer_upload_meta.sql # 上传会话元数据持久化（断线重连续传）
-├── sql/community.sql       # 社区功能迁移脚本（message.type 改英文枚举等）
-├── sql/theme_default.sql   # 主题默认值迁移（white → default）
-├── sql/add_self_friend.sql # 给已有账号补齐"自己是自己的好友"（自聊）
+├── sql/set_timezone_utc.sql # 旧库时间 UTC 一次性迁移（时间差 8 小时用）
 ├── frontend/               # 前端源码（Vite + Vue 3）：npm run build 输出到 web/
 ├── web/                    # 前端构建产物（由 WS 服务端静态提供，勿手改）
 ├── tests/                  # 可选单元测试 + 端到端冒烟脚本 + 低阶浏览器测试页
