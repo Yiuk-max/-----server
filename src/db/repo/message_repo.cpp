@@ -177,35 +177,53 @@ std::vector<message> message_repo::get_offline_messages(int receiver_UID, const 
     }
     std::string since = since_time.empty() ? "1970-01-01 00:00:00" : since_time;
     try {
+        // 原 OR 三分支查询无法利用索引，退化为 PRIMARY 全表扫描。
+        // 改为 UNION ALL 三分支 + 外层回表补 JOIN，配合复合索引
+        // idx_receiver_type_send_time(receiver_UID, type, send_time)：
+        //   - private : receiver_UID=?     AND type='private' AND send_time>?
+        //   - group   : receiver_UID IN(?) AND type='group'   AND send_time>?
+        //   - channel : receiver_UID IN(?) AND type='channel' AND send_time>?
+        // 三个分支用 FORCE INDEX 固定走该复合索引（避免优化器在
+        // receiver_UID 等值时误选 idx_group 而回退为按 receiver 全扫 + Using where），
+        // 每个分支只扫自己那部分索引区间，最后按 id 正序合并（离线消息量小，排序代价可忽略）。
         std::unique_ptr<sql::PreparedStatement> pstmt(
             guard.get()->prepareStatement(
                 "SELECT m.id, m.type, m.sender_UID, m.receiver_UID, m.content, m.send_time, "
                 "       m.is_file, m.file_id, f.original_name AS file_name, f.size AS file_size, "
                 "       a.nickname AS sender_name, "
                 "       m.reply_to_message_id, ra.nickname AS reply_sender_name, r.content AS reply_content "
-                "FROM message m "
+                "FROM ("
+                "  (SELECT id FROM message FORCE INDEX (idx_receiver_type_send_time) "
+                "   WHERE type = 'private' AND receiver_UID = ? AND sender_UID != ? "
+                "     AND send_time > ?)"
+                "  UNION ALL"
+                "  (SELECT id FROM message FORCE INDEX (idx_receiver_type_send_time) "
+                "   WHERE type = 'group' AND receiver_UID IN "
+                "         (SELECT group_UID FROM Groupmember WHERE member_UID = ?) "
+                "       AND sender_UID != ? AND send_time > ?)"
+                "  UNION ALL"
+                "  (SELECT id FROM message FORCE INDEX (idx_receiver_type_send_time) "
+                "   WHERE type = 'channel' AND receiver_UID IN "
+                "         (SELECT ch.id FROM community_member cm "
+                "          JOIN community ch ON ch.core_channel_id = cm.community_id "
+                "          WHERE cm.user_UID = ? AND ch.is_core = 0) "
+                "       AND sender_UID != ? AND send_time > ?)"
+                ") ids "
+                "JOIN message m ON m.id = ids.id "
                 "LEFT JOIN Account a  ON a.UID = m.sender_UID "
                 "LEFT JOIN message r  ON r.id = m.reply_to_message_id "
                 "LEFT JOIN Account ra ON ra.UID = r.sender_UID "
                 "LEFT JOIN file f     ON f.id = m.file_id "
-                "WHERE ((m.type = 'private' AND m.receiver_UID = ? AND m.sender_UID != ?) "
-                "   OR (m.type = 'group' AND m.receiver_UID IN "
-                "         (SELECT group_UID FROM Groupmember WHERE member_UID = ?) "
-                "       AND m.sender_UID != ?) "
-                "   OR (m.type = 'channel' AND m.receiver_UID IN "
-                "         (SELECT ch.id FROM community_member cm "
-                "          JOIN community ch ON ch.core_channel_id = cm.community_id "
-                "          WHERE cm.user_UID = ? AND ch.is_core = 0) "
-                "       AND m.sender_UID != ?)) "
-                "  AND m.send_time > ? "
                 "ORDER BY m.id ASC"));
-        pstmt->setInt(1, receiver_UID);
-        pstmt->setInt(2, receiver_UID);
-        pstmt->setInt(3, receiver_UID);
-        pstmt->setInt(4, receiver_UID);
-        pstmt->setInt(5, receiver_UID);
-        pstmt->setInt(6, receiver_UID);
-        pstmt->setString(7, since);
+        pstmt->setInt(1, receiver_UID);       // private: receiver_UID = ?
+        pstmt->setInt(2, receiver_UID);       // private: sender_UID != ?
+        pstmt->setString(3, since);           // private: send_time > ?
+        pstmt->setInt(4, receiver_UID);       // group: member_UID = ?
+        pstmt->setInt(5, receiver_UID);       // group: sender_UID != ?
+        pstmt->setString(6, since);           // group: send_time > ?
+        pstmt->setInt(7, receiver_UID);       // channel: user_UID = ?
+        pstmt->setInt(8, receiver_UID);       // channel: sender_UID != ?
+        pstmt->setString(9, since);           // channel: send_time > ?
         std::unique_ptr<sql::ResultSet> rs(pstmt->executeQuery());
         while (rs->next()) {
             result.push_back(make_history_message(rs.get()));

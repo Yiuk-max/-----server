@@ -159,6 +159,8 @@ CREATE TABLE IF NOT EXISTS message (
     KEY idx_private (sender_UID, receiver_UID, id),
     KEY idx_group   (receiver_UID, id),
     KEY idx_sender  (sender_UID),
+    KEY idx_send_time (send_time),
+    KEY idx_receiver_type_send_time (receiver_UID, type, send_time),
     KEY fk_message_file (file_id),
     CONSTRAINT fk_message_file
         FOREIGN KEY (file_id) REFERENCES file(id) ON DELETE SET NULL
