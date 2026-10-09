@@ -10,6 +10,7 @@
 //   - net_layer           : string "binary" | "websocket"，启动时二选一（默认 binary）
 //   - use_heartbeat       : bool   是否启用心跳包检测
 //   - heartbeat_interval  : int    活动超时阈值（秒）；连接超过该秒数无数据即断开
+//   - business_threads    : int    业务线程池线程数（默认 8，binary/websocket 共用）
 //   - websocket           : object WebSocket 网络层配置
 //       path / io_threads / max_message_bytes / max_pending_bytes
 //   - database            : object MySQL 连接池配置
@@ -34,6 +35,7 @@ public:
     bool use_heartbeat() const;
     int  heartbeat_interval() const;   // 活动超时秒数
     int  max_connections() const;      // 最大并发连接数（binary 与 websocket 共用）
+    int  business_threads() const;     // 业务线程池线程数（默认 8）
 
     // ---- WebSocket 配置 ----
     std::string ws_path() const;                 // 握手路径，默认 "/ws"
@@ -76,6 +78,7 @@ private:
     bool use_heartbeat_          = false;
     int  heartbeat_interval_     = 60;
     int  max_connections_        = 10000;   // 最大并发连接数，达到后拒绝新连接
+    int  business_threads_       = 8;       // 业务线程池线程数
 
     // WebSocket 配置
     std::string ws_path_             = "/ws";

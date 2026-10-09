@@ -103,7 +103,7 @@ int run_websocket_server(unsigned short port) {
 
     try {
         net::io_context ioc{io_threads};   //参数用来提示io_context内部维护的线程池大小，方便asio自动调优，实际线程数由用户创建的线程数决定
-        auto pool = std::make_shared<ThreadPool>(8);
+        auto pool = std::make_shared<ThreadPool>(cfg.business_threads());
 
         tcp::endpoint endpoint{tcp::v6(), port};
         auto server = std::make_shared<WsServer>(ioc, endpoint, pool,

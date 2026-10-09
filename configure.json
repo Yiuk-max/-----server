@@ -3,6 +3,7 @@
     "use_heartbeat": false,
     "heartbeat_interval": 60,
     "max_connections": 10000,
+    "business_threads": 8,
     "websocket": {
         "path": "/ws",
         "io_threads": 4,

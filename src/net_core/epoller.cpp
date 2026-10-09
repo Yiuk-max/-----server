@@ -12,7 +12,7 @@ epoller::~epoller()
 main_reactor::main_reactor(int fd, int sub_count) : server_fd_(fd){
     max_connections_ = ServerConfig::get_instance().max_connections();
     for(int i = 0; i < sub_count; ++i){
-        auto pool = std::make_shared<ThreadPool>(8);
+        auto pool = std::make_shared<ThreadPool>(ServerConfig::get_instance().business_threads());
         pools_.push_back(pool);                       // 强引用持有，保证线程池存活
         auto sub = std::make_shared<sub_reactor>(pool);
         std::thread t([sub](){ sub->loop(); });

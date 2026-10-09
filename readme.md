@@ -32,9 +32,10 @@ cd build
    `web_root`（静态前端资源目录，默认 `./web`）。
 2. 心跳：`use_heartbeat`（开关）、`heartbeat_interval`（超时秒数）。
 3. 连接上限：`max_connections`（最大并发连接数，默认 10000，达到后拒绝新连接）。
-4. 数据库连接池：`database` 下的 `host / port / user / password / dbname / db_conn_count`
+4. 业务线程池：`business_threads`（业务线程池线程数，默认 8，binary 与 websocket 共用）。
+5. 数据库连接池：`database` 下的 `host / port / user / password / dbname / db_conn_count`
    （`db_conn_count` 为连接池上限，默认 4）。
-5. Redis 缓存：`redis` 下的 `enabled / host / port / password / db / pool_size / timeout_ms`
+6. Redis 缓存：`redis` 下的 `enabled / host / port / password / db / pool_size / timeout_ms`
    （`enabled=false` 时关闭缓存，回退纯 MySQL；已实现 C1 群成员 / C2 账号 / C4 邮箱 / C7-C11 社区缓存，详见《Redis缓存方案-done.md》）。
 
 > 后端构建依赖 Boost 与 protobuf（`libboost-dev`、`libboost-system-dev`、`libprotobuf-dev`、`protobuf-compiler`）。

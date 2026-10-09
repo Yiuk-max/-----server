@@ -19,6 +19,7 @@ void ServerConfig::load(const std::string& path) {
         if (cfg.contains("use_heartbeat"))       use_heartbeat_  = cfg["use_heartbeat"].get<bool>();
         if (cfg.contains("heartbeat_interval"))  heartbeat_interval_ = cfg["heartbeat_interval"].get<int>();
         if (cfg.contains("max_connections"))     max_connections_  = cfg["max_connections"].get<int>();
+        if (cfg.contains("business_threads"))    business_threads_ = cfg["business_threads"].get<int>();
         // WebSocket 配置（嵌套于 "websocket" 对象）
         if (cfg.contains("websocket") && cfg["websocket"].is_object()) {
             auto& w = cfg["websocket"];
@@ -72,6 +73,7 @@ void ServerConfig::load(const std::string& path) {
     if (db_conn_count_ < 1)         db_conn_count_ = 1;
     if (heartbeat_interval_ < 1)    heartbeat_interval_ = 1;
     if (max_connections_ < 1)       max_connections_ = 1;
+    if (business_threads_ < 1)      business_threads_ = 1;
     if (redis_pool_size_ < 1)       redis_pool_size_ = 1;
     if (redis_timeout_ms_ < 1)      redis_timeout_ms_ = 200;
     if (redis_port_ < 1)            redis_port_ = 6379;
@@ -91,6 +93,7 @@ void ServerConfig::load(const std::string& path) {
               << ", ws_io_threads=" << ws_io_threads_
               << ", ws_web_root=" << ws_web_root_
               << ", max_connections=" << max_connections_
+              << ", business_threads=" << business_threads_
               << ", db_conn_count=" << db_conn_count_ << std::endl;
 }
 
@@ -112,6 +115,11 @@ int ServerConfig::heartbeat_interval() const {
 int ServerConfig::max_connections() const {
     std::lock_guard<std::mutex> lock(mtx_);
     return max_connections_;
+}
+
+int ServerConfig::business_threads() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return business_threads_;
 }
 
 std::string ServerConfig::ws_path() const {
