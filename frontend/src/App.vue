@@ -9,12 +9,15 @@ import { backend, api } from './backendClient.js'
 import bakaAudioUrl from './assets/baka.mp3?inline'
 const active = ref('💬 チャット環状線')
 const activePage = ref('dm')
+const mobileSidebarOpen = ref(false)
+const isMobileViewport = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 720px)').matches
 const communities = ref([])
 const selectedCommunity = ref('')
 const currentCommunity = computed(() => communities.value.find(item=>item.name===selectedCommunity.value))
 const communityMenu = ref(false)
 const communityContextMenu = ref(null)
 const communitySettingsOpen = ref(false)
+const communitySettingsMobilePage = ref('menu')
 const communitySettingsName = ref('')
 const communitySettingsDescription = ref('')
 const communityChannels = ref({})
@@ -64,7 +67,26 @@ const message = ref('')
 const closeDm = (contact) => { if (selectedDm.value===contact.name) { selectedDm.value=''; activePage.value='dm' } }
 const conversationKindOf = (contact) => contact.kind === '群聊' ? 'group' : 'private'
 const isDmUnread = (contact) => !!backend.unreadConversations[`${conversationKindOf(contact)}:${Number(contact.uid)}`]
+const handleHomeRailClick = () => {
+  if (!isMobileViewport()) {
+    activePage.value = 'dm'
+    mobileSidebarOpen.value = false
+    return
+  }
+  if (activePage.value === 'dm-chat') {
+    activePage.value = 'dm'
+    mobileSidebarOpen.value = true
+    return
+  }
+  if (activePage.value === 'dm') {
+    mobileSidebarOpen.value = !mobileSidebarOpen.value
+    return
+  }
+  activePage.value = 'dm'
+  mobileSidebarOpen.value = true
+}
 const openDm = (contact) => {
+  mobileSidebarOpen.value = false
   selectedDm.value = contact.name
   activePage.value = 'dm-chat'
   const kind = conversationKindOf(contact)
@@ -141,6 +163,7 @@ const activeEmojiCategory = computed(() => EMOJI_CATEGORIES.find((item) => item.
 const inviteModal = ref(false)
 const joinModal = ref(false)
 const settingsOpen = ref(false)
+const settingsMobileDetail = ref(false)
 const profileEditorOpen = ref(false)
 const profileBackgroundMenu = ref(false)
 const profileBackground = ref('#454347')
@@ -434,6 +457,7 @@ const handleCommunityAsset = (kind, event) => {
   notDeveloped(kind === 'banner' ? '社区背景图（服务端列表暂未返回现有图片 ID）' : '社区头像（服务端列表暂未返回现有图片 ID）')
 }
 const selectCommunity = (community) => {
+  mobileSidebarOpen.value = false
   communityContextMenu.value = null
   communityMenu.value = false
   selectedCommunity.value = community.name
@@ -447,6 +471,14 @@ const selectCommunity = (community) => {
   const first = (backend.channels[community.id] || [])[0]
   if (first) switchChannel(first.name)
 }
+const selectCommunityFromRail = (community) => {
+  if (isMobileViewport() && activePage.value === 'community' && selectedCommunity.value === community.name) {
+    mobileSidebarOpen.value = !mobileSidebarOpen.value
+    return
+  }
+  selectCommunity(community)
+  mobileSidebarOpen.value = isMobileViewport()
+}
 const channelHistory = computed(() => backendChannelThread.value.filter((record) => !isReactionMessage(record)))
 const typingUsers = computed(() => [])
 // 未读横幅：进入页面时按当前时间倒推 52 分钟，不再是写死的 15:26 / 12 条
@@ -455,6 +487,7 @@ const unreadBannerInfo = computed(() => {
   return { time: `${String(since.getHours()).padStart(2, '0')}:${String(since.getMinutes()).padStart(2, '0')}`, count: 12 }
 })
 const switchChannel = async (channel) => {
+  mobileSidebarOpen.value = false
   active.value = channel
   const community = currentCommunity.value
   const target = (backend.channels[community?.id] || []).find((item) => item.name === channel)
@@ -586,17 +619,23 @@ const onSidebarResizerKeydown = (event) => {
 // 私信 / 群聊 右键菜单
 const dmContextMenu = ref(null)
 const openDmContext = (event, contact) => {
+  const menuWidth = isMobileViewport() ? 232 : 216
   dmContextMenu.value = {
     name: contact.name,
     kind: contact.kind,
-    x: Math.min(event.clientX, window.innerWidth - 216),
+    x: isMobileViewport()
+      ? Math.max(68, Math.min(event.clientX, window.innerWidth - menuWidth - 8))
+      : Math.min(event.clientX, window.innerWidth - menuWidth),
     y: Math.min(event.clientY, window.innerHeight - 180)
   }
 }
 const dmEditMenu = ref(null)
 const openDmEditMenu = () => {
   if (!dmContextMenu.value) return
-  dmEditMenu.value = { x: Math.min(dmContextMenu.value.x + 216, window.innerWidth - 224), y: dmContextMenu.value.y }
+  const x = isMobileViewport()
+    ? Math.max(68, Math.min(dmContextMenu.value.x + 216, window.innerWidth - 240))
+    : Math.min(dmContextMenu.value.x + 216, window.innerWidth - 224)
+  dmEditMenu.value = { x, y: dmContextMenu.value.y }
 }
 const dmContextAction = (action) => {
   const target = dmContextMenu.value
@@ -644,6 +683,7 @@ const communityMenuAction = (action) => {
 }
 const openCommunitySettings = (name) => {
   selectedCommunity.value=name
+  communitySettingsMobilePage.value='menu'
   communitySettingsName.value=name
   communitySettingsDescription.value=currentCommunity.value?.description||'欢迎来到我们的社区，一起交流分享吧。'
   newCommunityChannel.value=''
@@ -660,9 +700,14 @@ const saveCommunitySettings = () => {
   communitySettingsOpen.value = false
 }
 const scrollToCommunitySection = (id) => document.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'})
-const closeCommunitySettings = () => { communitySettingsOpen.value = false; dissolveConfirm.value = false; channelDeleteTarget.value = null }
+const openCommunitySettingsSection = (page) => {
+  communitySettingsMobilePage.value=page
+  nextTick(() => scrollToCommunitySection(page==='channels'?'community-channels':'community-overview'))
+}
+const closeCommunitySettings = () => { communitySettingsOpen.value = false; communitySettingsMobilePage.value='menu'; dissolveConfirm.value = false; channelDeleteTarget.value = null }
 const openGuideEditor = async () => {
   openCommunitySettings(currentCommunity.value?.name || selectedCommunity.value)
+  communitySettingsMobilePage.value='overview'
   await nextTick()
   scrollToCommunitySection('community-overview')
 }
@@ -1054,9 +1099,11 @@ const submitJoinGroup = () => {
   joinGroupOpen.value = false
   joinGroupUid.value = ''
 }
-const selectSetting = (name) => { selectedSetting.value = name; if (!['账户','Baka','文件','外观','语言'].includes(name)) notDeveloped(name) }
+const openSettings = () => { settingsMobileDetail.value=false; settingsOpen.value=true }
+const openProfileSettings = () => { selectedSetting.value='账户'; settingsMobileDetail.value=true; settingsOpen.value=true; profileEditorOpen.value=true }
+const selectSetting = (name) => { selectedSetting.value = name; settingsMobileDetail.value=true; if (!['账户','Baka','文件','外观','语言'].includes(name)) notDeveloped(name) }
 const handleProfileBackground = (event) => { event.target.value = ''; notDeveloped(t('个人资料背景')) }
-const closeSettings = () => { settingsOpen.value = false; profileEditorOpen.value = false; profileBackgroundMenu.value = false }
+const closeSettings = () => { settingsOpen.value = false; settingsMobileDetail.value=false; profileEditorOpen.value = false; profileBackgroundMenu.value = false }
 const closeProfileEditor = () => { profileEditorOpen.value = false; profileBackgroundMenu.value = false }
 const cancelProfileEditing = () => {
   demoNicknameDraft.value = backend.name || ''
@@ -1445,11 +1492,11 @@ const confirmAvatarCrop = () => {
       <footer><button @click="cancelAvatarCrop">{{ t("取消") }}</button><button class="crop-confirm" @click="confirmAvatarCrop">{{ t("上传头像") }}</button></footer>
     </section>
   </div>
-  <div class="discord-app" :style="appGridStyle">
+  <div class="discord-app" :class="{'mobile-sidebar-open':mobileSidebarOpen}" :style="appGridStyle">
     <nav class="server-rail">
-      <button class="rail-home" :class="{'rail-selected':['dm','dm-chat'].includes(activePage)}" :aria-label="t('私聊和群聊')" :data-tooltip="t('私聊和群聊')" :title="t('私聊和群聊')" @click="activePage='dm'" @dblclick="playBaka('logo')"><img src="/logo.png" alt="Discord"></button>
+      <button class="rail-home" :class="{'rail-selected':['dm','dm-chat'].includes(activePage)}" :aria-label="t('私聊和群聊')" :data-tooltip="t('私聊和群聊')" :title="t('私聊和群聊')" @click="handleHomeRailClick" @dblclick="playBaka('logo')"><img src="/logo.png" alt="Discord"></button>
       <div class="rail-divider"></div>
-      <button v-for="community in communities" :key="community.name" class="server community-server" :class="{'active-server':activePage==='community'&&selectedCommunity===community.name}" :aria-label="community.name" :data-tooltip="community.name" :title="community.name" @click="selectCommunity(community)" @contextmenu.prevent.stop="openCommunityContext($event,community)"><span class="community-mark"><img :src="community.icon || DEFAULT_COMM_AVATAR" :alt="community.name"></span><i></i></button>
+      <button v-for="community in communities" :key="community.name" class="server community-server" :class="{'active-server':activePage==='community'&&selectedCommunity===community.name}" :aria-label="community.name" :data-tooltip="community.name" :title="community.name" @click="selectCommunityFromRail(community)" @contextmenu.prevent.stop="openCommunityContext($event,community)"><span class="community-mark"><img :src="community.icon || DEFAULT_COMM_AVATAR" :alt="community.name"></span><i></i></button>
       <div class="rail-action-wrap"><button class="round-add" :class="{'rail-selected':communityMenu}" :aria-label="t('创建社区')" :data-tooltip="t('创建社区')" :title="t('创建或加入社区')" @click="communityMenu=!communityMenu;communityContextMenu=null"><svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></svg></button><div v-if="communityMenu" class="community-menu"><button @click="communityMenu=false;createCommunityOpen=true"><Icon name="community"/>{{ t("创建社区") }}</button><button @click="communityMenu=false;createGroupDialogOpen=true"><Icon name="group"/>{{ t("创建群聊") }}</button><button @click="communityMenu=false;joinModal=true"><Icon name="enter"/>{{ t("申请加入社区") }}</button><button @click="communityMenu=false;joinGroupOpen=true"><Icon name="enter"/>{{ t("申请加入群聊") }}</button><button @click="communityMenu=false;friendRequestModal=true"><Icon name="userPlus"/>{{ t("添加好友") }}</button></div></div>
       <button class="round-discover" :class="{'rail-selected':activePage==='discover'}" :aria-label="t('发现')" :data-tooltip="t('发现')" :title="t('发现')" @click="notDeveloped(t('发现社区'))"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 5-4.8 2 2-4.8 5-2.2Z"/></svg></button>
     </nav>
@@ -1504,14 +1551,14 @@ const confirmAvatarCrop = () => {
         </template>
       </div>
       </div>
-      <div class="account-bar"><button class="profile-menu-trigger" :aria-label="t('打开个人资料菜单')" :title="t('个人资料')" @click.stop="profileMenuOpen=!profileMenuOpen;profileAccountMenu=false"><span class="profile-pic"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></span></button><div class="profile-label"><b>{{demoNickname}}</b><small>{{backend.connected?(backend.authenticated?t('在线'):t('未登录')):t('离线')}}</small></div><Icon name="caret" class="account-caret"/><button aria-label="設定" :title="t('设置')" @click="profileMenuOpen=false;profileEditorOpen=false;settingsOpen = true"><Icon name="gear"/></button></div>
+      <div class="account-bar"><button class="profile-menu-trigger" :aria-label="t('打开个人资料菜单')" :title="t('个人资料')" @click.stop="profileMenuOpen=!profileMenuOpen;profileAccountMenu=false"><span class="profile-pic"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></span></button><div class="profile-label"><b>{{demoNickname}}</b><small>{{backend.connected?(backend.authenticated?t('在线'):t('未登录')):t('离线')}}</small></div><Icon name="caret" class="account-caret"/><button aria-label="設定" :title="t('设置')" @click="profileMenuOpen=false;profileEditorOpen=false;openSettings()"><Icon name="gear"/></button></div>
     </aside>
     <div class="sidebar-resizer" role="separator" tabindex="0" aria-orientation="vertical" :aria-label="t('拖动调整频道栏宽度')" :title="t('拖动调整频道栏宽度 · 双击复位')" :style="{ left: resizerX }" @mousedown.prevent="startSidebarResize" @dblclick="resetSidebarWidth" @keydown="onSidebarResizerKeydown"></div>
     <div v-if="profileMenuOpen" class="profile-menu-dismiss" @click="profileMenuOpen=false;profileAccountMenu=false"></div>
     <section v-if="profileMenuOpen" class="user-profile-popover" @click.stop>
       <div class="user-profile-banner"><div class="user-profile-avatar settings-avatar"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></div><div class="user-profile-status-bubble">UID {{demoUid||'—'}}</div></div>
       <div class="user-profile-details"><h2>{{demoNickname}}</h2><p>UID {{demoUid||'—'}}</p>
-        <button class="profile-popover-action edit-profile-action" @click="profileMenuOpen=false;selectedSetting='账户';settingsOpen=true;profileEditorOpen=true"><Icon name="edit"/><span>{{ t("编辑个人资料") }}</span></button>
+        <button class="profile-popover-action edit-profile-action" @click="profileMenuOpen=false;openProfileSettings()"><Icon name="edit"/><span>{{ t("编辑个人资料") }}</span></button>
       </div>
       <button class="profile-popover-action switch-account-action" @click="profileAccountMenu=!profileAccountMenu"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.3"/><path d="M5 20v-1a7 7 0 0 1 14 0v1"/></svg><span>{{ t("切换账户") }}</span><b>›</b></button>
       <div v-if="profileAccountMenu" class="profile-popover-submenu account-switch-menu"><button @click="profileAccountMenu=false">{{demoNickname}}　当前账户</button><button @click="profileAccountMenu=false;openDemoLoginWindow()">＋　切换账户</button></div>
@@ -1582,6 +1629,7 @@ const confirmAvatarCrop = () => {
         </template>
       </section><div v-if="toast" class="toast friends-toast">{{toast}}</div>
       </section>
+      <div class="account-bar mobile-home-account-card"><button class="profile-menu-trigger" :aria-label="t('打开个人资料菜单')" :title="t('个人资料')" @click.stop="profileMenuOpen=!profileMenuOpen;profileAccountMenu=false"><span class="profile-pic"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></span></button><div class="profile-label"><b>{{demoNickname}}</b><small>{{backend.connected?(backend.authenticated?t('在线'):t('未登录')):t('离线')}}</small></div><Icon name="caret" class="account-caret"/><button aria-label="設定" :title="t('设置')" @click.stop="profileMenuOpen=false;profileEditorOpen=false;openSettings()"><Icon name="gear"/></button></div>
     </main>
     <main v-else-if="activePage==='dm-chat'" class="dm-main" @click="closeComposerPopovers">
       <header class="dm-top"><div><span class="dm-avatar"><img :src="dmAvatarSrc(selectedDm)" :alt="selectedDm"></span><b>{{selectedDm}}</b><small>{{dmContacts.find(c=>c.name===selectedDm)?.kind}}</small></div><div class="chat-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg><input v-model="searchQuery" type="text" :placeholder="t('搜索')" :aria-label="t('搜索')" @focus="searchOpen=true"><button v-if="searchQuery" type="button" class="search-clear" :aria-label="t('关闭搜索')" :title="t('关闭搜索')" @click.stop="closeSearch">×</button><SearchPanel v-if="searchOpen && searchQuery" /></div></header>
@@ -1660,11 +1708,11 @@ const confirmAvatarCrop = () => {
     </section>
   </div>
   <div v-if="communitySettingsOpen" class="community-settings-backdrop" @click.self="closeCommunitySettings()">
-    <section class="community-settings-window" role="dialog" aria-modal="true" :aria-label="t('社区设置')">
+    <section class="community-settings-window" :class="{'mobile-community-settings-detail':communitySettingsMobilePage!=='menu'}" role="dialog" aria-modal="true" :aria-label="t('社区设置')">
       <aside class="community-settings-sidebar"><header><span class="community-settings-icon"><img :src="currentCommunity?.icon || DEFAULT_COMM_AVATAR" :alt="communitySettingsName"></span><div><b>{{communitySettingsName}}</b><small>{{ t("社区设置") }}</small></div><button :aria-label="t('关闭社区设置')" @click="closeCommunitySettings()">×</button></header>
-        <nav><button class="selected" @click="scrollToCommunitySection('community-overview')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></svg>{{ t("社区概览") }}</button><button @click="scrollToCommunitySection('community-channels')"><Icon name="list"/>{{ t("频道管理") }}</button><button class="dissolve-nav" @click="dissolveConfirm=true"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg>{{ t("解散社区") }}</button></nav>
+        <nav><button class="selected" @click="openCommunitySettingsSection('overview')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></svg>{{ t("社区概览") }}</button><button @click="openCommunitySettingsSection('channels')"><Icon name="list"/>{{ t("频道管理") }}</button><button class="dissolve-nav" @click="communitySettingsMobilePage='overview';dissolveConfirm=true"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg>{{ t("解散社区") }}</button></nav>
       </aside>
-      <main class="community-settings-main"><header class="community-settings-header"><b>{{communitySettingsName}} 设置</b><button :aria-label="t('关闭社区设置')" @click="closeCommunitySettings()">×</button></header>
+      <main class="community-settings-main"><header class="community-settings-header"><button class="community-settings-back" :aria-label="t('返回社区设置')" @click="communitySettingsMobilePage='menu'">‹</button><b class="community-settings-desktop-title">{{communitySettingsName}} 设置</b><b class="community-settings-mobile-title">{{communitySettingsMobilePage==='channels'?t('频道管理'):t('社区概览')}}</b><button :aria-label="t('关闭社区设置')" @click="closeCommunitySettings()">×</button></header>
         <div class="community-settings-scroll">
           <section id="community-overview" class="community-setting-section"><h1>{{ t("社区概览") }}</h1><p class="community-settings-hint">{{ t("管理社区的名称、介绍和外观。") }}</p>
             <div class="community-setting-row"><div class="community-setting-label"><b>社区头像</b><small>{{ t("选择一张图片作为社区标识。") }}</small></div><div class="community-avatar-editor"><span class="community-settings-icon large"><img :src="currentCommunity?.icon || DEFAULT_COMM_AVATAR" :alt="communitySettingsName"></span><label class="settings-upload-button">{{ t("更换头像") }}<input type="file" accept="image/*" @change="handleCommunityAsset('avatar',$event)"></label></div></div>
@@ -1729,8 +1777,9 @@ const confirmAvatarCrop = () => {
     </section>
   </div>
   <div v-if="settingsOpen" class="settings-backdrop" @click.self="closeSettings">
-    <section class="settings-window" :class="{'settings-suspended':profileEditorOpen}" role="dialog" aria-modal="true" :aria-label="t('用户设置')">
+    <section class="settings-window" :class="{'settings-suspended':profileEditorOpen,'mobile-settings-detail':settingsMobileDetail}" role="dialog" aria-modal="true" :aria-label="t('用户设置')">
       <aside class="settings-sidebar">
+        <header class="settings-mobile-header"><b>{{ t("用户设置") }}</b><button :aria-label="t('关闭设置')" @click="closeSettings">×</button></header>
         <div class="settings-profile"><span class="settings-avatar"><img v-if="myAvatarSrc" :src="myAvatarSrc" :alt="demoNickname" style="width:100%;height:100%;border-radius:inherit;object-fit:cover"><template v-else>{{demoNickname.slice(0,1)}}</template><i></i></span><span><b>{{demoNickname}}</b><button @click="profileEditorOpen=true">编辑个人资料　✎</button></span></div>
         <label class="settings-search"><Icon name="search"/><input :placeholder="t('搜索')" @focus="notDeveloped(t('设置搜索'))"></label>
         <nav class="settings-nav">
@@ -1747,7 +1796,7 @@ const confirmAvatarCrop = () => {
         </nav>
       </aside>
       <main class="settings-main">
-        <header class="settings-header"><b>{{ selectedSetting === '外观' ? '外观' : selectedSetting }}</b><button aria-label="关闭设置" @click="closeSettings">×</button></header>
+        <header class="settings-header"><button class="settings-mobile-back" :aria-label="t('返回设置菜单')" @click="settingsMobileDetail=false">‹</button><b>{{ selectedSetting === '外观' ? '外观' : selectedSetting }}</b><button aria-label="关闭设置" @click="closeSettings">×</button></header>
         <div class="settings-scroll">
           <div v-if="selectedSetting==='账户'" class="account-settings-content">
             <section class="account-section"><h1>{{ t("账号信息") }}</h1><div class="account-info-row"><span>{{ t("用户名") }}</span><b>{{demoNickname}}</b><button @click="profileEditorOpen=true">{{ t("编辑") }}</button></div><div class="account-info-row"><span>{{ t("账号 UID") }}</span><b>{{demoUid||'—'}}</b></div><div class="account-info-row"><span>{{ t("邮箱") }}</span><b>{{demoEmail||'未绑定'}}</b><button @click="emailEditOpen=!emailEditOpen">{{emailEditOpen?t('取消'):t('编辑')}}</button></div><div v-if="emailEditOpen" class="account-inline-form"><input v-model="demoEmail" type="email" placeholder="name@example.com"><button class="settings-row-button" @click="saveEmail">保存邮箱</button></div></section>
